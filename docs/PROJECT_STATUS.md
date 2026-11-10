@@ -60,10 +60,15 @@ Changed files: `src/ServerScriptService/WORLD_EXE/Services/ArchitectService.luau
 | Edit DataModel after play | Clean |
 
 ### Multi-client Studio test (Test → Clients and Servers, 1 server + 2 clients)
-Results are recorded only from an actual run; until then each scenario is NOT TESTED.
+ChatGPT accepted `9c6de7a` (no remaining code blockers) and asked for this acceptance run with `StudioMinPlayers = 2`, Server / Client 1 / Client 2 Output captured separately, and server-side results captured before stopping for disconnect tests. Results are recorded only from an actual run; until then each scenario is NOT TESTED.
 
 | Scenario | Result | Evidence |
 |---|---|---|
+| Countdown cancellation when the player count drops below 2 | NOT TESTED | — |
+| Duplicate rapid submission — exactly one accepted | NOT TESTED | — |
+| Two complete matches — no stale turn UI, feedback, or role/spawn state | NOT TESTED | — |
+| Spectator attempts an unauthorized submission | NOT TESTED | — |
+| Stale snapshot and delayed submission-response handling | NOT TESTED | — |
 | Both clients join, roles and lobby spawn | NOT TESTED | — |
 | Match starts with 2 participants on distinct arena pads (concurrent spawns) | NOT TESTED | — |
 | Snapshot replication identical on both clients | NOT TESTED | — |
