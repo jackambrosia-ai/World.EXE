@@ -1,9 +1,11 @@
 --!strict
--- ArchitectService (Phase 2, server only).
+-- ArchitectService (server only).
 -- Fair Architect rotation, submission windows, and validation of patch submissions. Only the
 -- current Architect, during the open window of the current match, may submit one approved patch
--- id from the cards offered to them. Phase 2 records and announces accepted submissions; patch
--- activation is Phase 3. A timed-out, abandoned, or cancelled turn is skipped (nothing activates).
+-- id from the cards offered to them. A valid submission is handed to PatchService (Phase 3), which
+-- reserves a slot and runs the patch lifecycle. A timed-out, abandoned, cancelled or
+-- capacity-rejected turn is skipped (nothing activates). No new turn starts while every patch
+-- slot is taken (turns are deferred, not wasted).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -13,6 +15,7 @@ local Config = require(shared:WaitForChild("Config"))
 local PatchCatalog = require(shared:WaitForChild("PatchCatalog"))
 local NetService = require(script.Parent:WaitForChild("NetService"))
 local PlayerStateService = require(script.Parent:WaitForChild("PlayerStateService"))
+local PatchService = require(script.Parent:WaitForChild("PatchService"))
 
 local Settings = Config.Architect
 
@@ -21,8 +24,11 @@ export type TurnResult = {
 	Turn: number,
 	ArchitectUserId: number,
 	ArchitectName: string,
-	Outcome: string, -- "accepted" | "timeout" | "architect_left" | "architect_ineligible" | "cancelled"
+	-- "accepted" | "timeout" | "architect_left" | "architect_ineligible" | "cancelled" |
+	-- PatchService rejection ("capacity_full", "match_not_live", "duplicate", "unknown_patch")
+	Outcome: string,
 	PatchId: string?,
+	RuntimeId: string?,
 }
 
 type Turn = {
@@ -143,7 +149,7 @@ local function chooseCards(): { string }
 	return cards
 end
 
-local function resolveTurn(outcome: string, patchId: string?, scale: number)
+local function resolveTurn(outcome: string, patchId: string?, scale: number, runtimeId: string?)
 	local turn = current
 	if turn == nil then
 		return
@@ -156,6 +162,7 @@ local function resolveTurn(outcome: string, patchId: string?, scale: number)
 		ArchitectName = turn.architect.DisplayName,
 		Outcome = outcome,
 		PatchId = patchId,
+		RuntimeId = runtimeId,
 	}
 	table.insert(history, result)
 	nextTurnAt = now() + Settings.TurnIntervalSeconds * scale
@@ -172,12 +179,21 @@ local function resolveTurn(outcome: string, patchId: string?, scale: number)
 		announcement.PatchId = def.Id
 		announcement.DisplayName = def.DisplayName
 		announcement.Warning = def.Warning
+		announcement.RuntimeId = runtimeId
+		announcement.WarningSeconds = def.WarningSeconds * scale
+		announcement.DurationSeconds = def.DurationSeconds * scale
 	end
 	NetService.Get(Config.Remotes.PatchAnnouncement):FireAllClients(announcement)
 	print(`[WORLD_EXE] Match {turn.matchId} turn {turn.number}: {turn.architect.Name} -> {outcome}{if patchId then " " .. patchId else ""}`)
 end
 
 local function startTurn(t: number, scale: number)
+	if not PatchService.HasCapacity() then
+		-- Every patch slot is taken: defer the turn instead of offering cards that cannot run.
+		nextTurnAt = t + Settings.NoEligibleRetrySeconds * scale
+		publishTurn()
+		return
+	end
 	local architect = ArchitectService.PickNext(order, isEligible, lastArchitect)
 	if architect == nil then
 		nextTurnAt = t + Settings.NoEligibleRetrySeconds * scale
@@ -272,7 +288,15 @@ local function onSubmission(player: Player, payload: any)
 	if not turn.offeredSet[patchId] then
 		return reply(player, matchRef, turnRef, false, "not_offered")
 	end
-	resolveTurn("accepted", patchId, lastScale)
+	-- Hand the validated submission to the patch engine; one turn can create at most one patch.
+	local ok, result = PatchService.Request(patchId, player.UserId, turn.matchId, lastScale, {
+		SourceKey = `turn:{turn.matchId}:{turn.number}`,
+	})
+	if not ok then
+		resolveTurn(result, nil, lastScale)
+		return reply(player, matchRef, turnRef, false, result)
+	end
+	resolveTurn("accepted", patchId, lastScale, result)
 	reply(player, matchRef, turnRef, true, "accepted", patchId)
 end
 
