@@ -3,24 +3,25 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 3 IMPLEMENTED — review round 1 corrected, awaiting ChatGPT re-review; not merged. Phase 4 not started and requires separate owner approval
-- Current phase: Phase 3 — Patch engine foundation (in review)
+- Overall status: PHASE 3 APPROVED BY CHATGPT (final review at `d22939f`) — saved and backed up; awaiting the owner's merge approval. Phase 4 not started; it starts only after the merge and separate owner confirmation
+- Current phase: Phase 3 — Patch engine foundation (approved, not merged)
 - Current branch: `phase-03-patch-engine` (from `main` `40a1d39`)
-- Current PR: Phase 3 PR targeting `main` (open, not merged). Phase 2 merged via [jackambrosia-ai/World.EXE#2](https://github.com/jackambrosia-ai/World.EXE/pull/2)
+- Current PR: [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3) targeting `main` (open, approved, not merged). The separate, unmerged AI-automation PR #4 is not part of this work. Phase 2 merged via [jackambrosia-ai/World.EXE#2](https://github.com/jackambrosia-ai/World.EXE/pull/2)
 - Phase 1 merge: squash-merged 2026-11-10 by owner approval as `9b9cbd0` (from PR head `ddc784c`; merged tree identical to that head). The `phase-01-arena` branch still exists on GitHub and can be deleted.
 - Phase 2 merge: squash-merged 2026-11-10 by owner approval as `09d9c2a` (from PR head `2e99b13`; merged tree identical to that head; final gameplay code `9c6de7a`). The `phase-02-match` branch still exists on GitHub and can be deleted.
-- Last verified Studio place: `Place1.rbxl` (on disk: `OneDrive\Documents\Place1.rbxl`), unpublished (PlaceId 0). The open Studio session contains the Phase 3 scripts (all 18 hash-identical to `phase-03-patch-engine`) and no test attributes; **it must be saved (Ctrl+S) and a post-Phase-3 backup taken before merge.** Last saved file: 2026-11-10 03:21:24 (Phase 2).
+- Last verified Studio place: `Place1.rbxl` (on disk: `OneDrive\Documents\Place1.rbxl`), unpublished (PlaceId 0). Saved by the owner 2026-11-10 16:35:24 (129,164 bytes, SHA-256 `2663A50DABDDFAA936A7B84866ECA716047C8D77C2B734A96D95A2A6F11FBB98`). The save is verified from the file itself: all 18 `Source` strings decoded from the saved `.rbxl` are byte-identical (length + hash) to `src/` at `d22939f`, and the file has no other scripts. Before the save, the Edit place was checked clean: no test attributes, injected scripts, clones or runtime folders, and gravity 196.2.
 - Source synchronization method: **owner decision — no Rojo / no mirroring toolchain.** Claude edits Studio directly via Studio MCP and keeps an identical copy of every WORLD_EXE script in `src/`, verified by byte-length + hash comparison after each change (see `src/README.md`).
 - Place backups (outside the repo, `OneDrive\Documents\RobloxBackups\`):
   - `WorldEXE_baseline_2026-11-09.rbxl` — pre-Phase-1 place (byte-identical copy)
   - `WorldEXE_post-phase1_2026-11-10.rbxl` — post-Phase-1 place incl. both review rounds (byte-identical copy of the saved `Place1.rbxl`)
   - `WorldEXE_pre-phase2_2026-11-10.rbxl` — verified pre-Phase-2 copy (identical content to post-Phase-1)
   - `WorldEXE_post-phase2_2026-11-10.rbxl` — post-Phase-2 place (SHA-256 `0F402A70…42B7B204`, identical to the saved `Place1.rbxl`)
-  - `WorldEXE_pre-phase3_2026-11-10.rbxl` — verified pre-Phase-3 copy (SHA-256 `0F402A70…42B7B204`, identical to the saved place); current rollback point
-- Studio save: Studio MCP cannot save the place — the owner must press Ctrl+S after each change set. Latest save 2026-11-10 03:21:24 (post-Phase-2, backed up).
+  - `WorldEXE_pre-phase3_2026-11-10.rbxl` — verified pre-Phase-3 copy (SHA-256 `0F402A70…42B7B204`, identical to the saved place)
+  - `WorldEXE_post-phase3_2026-11-10.rbxl` — post-Phase-3 place (SHA-256 `2663A50D…F11FBB98`, identical to the saved `Place1.rbxl`); current rollback point
+- Studio save: Studio MCP cannot save the place — the owner must press Ctrl+S after each change set. Latest save 2026-11-10 16:35:24 (post-Phase-3 incl. review round 1, backed up).
 - StreamingEnabled: unchanged (enabled), per Phase 0 review
 - Multi-client testing: Phase 2 run with Studio Clients and Servers (1 server + 2 clients) on 2026-11-10 — see the matrix in "Phase 2 review round 2 correction". Phase 1 tests remain solo.
-- Latest technical review: Phase 2 final review (ChatGPT, `9c6de7a`) — no remaining code blockers; two-client acceptance run recorded; merged with owner approval. Phase 3 review round 1 (ChatGPT, `04b734a`): hook yield-safety and non-finite modifiers — corrected; re-review pending.
+- Latest technical review: Phase 2 final review (ChatGPT, `9c6de7a`) — no remaining code blockers; two-client acceptance run recorded; merged with owner approval. Phase 3 review round 1 (ChatGPT, `04b734a`): hook yield-safety and non-finite modifiers — corrected. **Phase 3 final review (ChatGPT, `d22939f`): APPROVED, no blocking code issues**; merge awaits the owner.
 - Known Phase 2 gaps carried forward (not counted as passed): real mid-match join → Spectator; multiplayer spawn-protection window; > 12 players; streaming at distance; pending-respawn invalidation on departure. Hardening note for Phase 10: server→client remotes have no `OnServerEvent` handler (client spam is queued with warnings).
 - Last updated: 2026-11-10
 
@@ -30,7 +31,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 0 | Audit and setup | Complete (owner decisions recorded) | — | Read-only audit; ForgeGUI read-only audit |
 | 1 | Foundation and arena | **Complete — merged** (solo-tested; multi-client tests outstanding) | [PR #1](https://github.com/jackambrosia-ai/World.EXE/pull/1) → `9b9cbd0` | Solo playtests: see reports below |
 | 2 | Match and Architect | **Complete — merged** (solo + two-client Studio tests; gaps listed above) | [PR #2](https://github.com/jackambrosia-ai/World.EXE/pull/2) → `09d9c2a` | Two-client matrix: 19 PASS, 1 split, 1 NOT TESTED |
-| 3 | Patch engine | **Implemented — review round 1 corrected, not merged** (solo Studio tests) | [PR #3](https://github.com/jackambrosia-ai/World.EXE/pull/3), branch `phase-03-patch-engine` | Original: 25 PASS, 0 FAIL, 3 NOT TESTED. Round 1: 18 PASS, 0 FAIL, 1 NOT TESTED |
+| 3 | Patch engine | **Approved (final review `d22939f`) — awaiting owner merge** (solo Studio tests) | [PR #3](https://github.com/jackambrosia-ai/World.EXE/pull/3), branch `phase-03-patch-engine` | Original: 25 PASS, 0 FAIL, 3 NOT TESTED. Round 1: 18 PASS, 0 FAIL, 1 NOT TESTED |
 | 4 | Four prototype patches | Not started | — | — |
 | 5 | Stability/objectives/scoring | Not started | — | — |
 | 6 | Initial abilities | Not started | — | — |
@@ -38,6 +39,23 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 8 | UI and visual polish | Not started | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 3 final review (2026-11-10)
+ChatGPT approved Phase 3 at `d22939f` with no blocking code issues. It confirmed:
+- Yielding hooks are cancelled without blocking the match loop.
+- Long-running work uses tracked tasks.
+- A failed activation rolls back fully.
+- Modifier math is safe against non-finite values.
+- The patch capacity limit, Architect authorization, lifecycle and match cleanup are intact.
+
+Pre-merge steps, completed:
+1. Studio ↔ GitHub parity: 18/18 scripts hash-identical to `d22939f`.
+2. Edit place checked clean.
+3. The owner saved `Place1.rbxl`. The save was verified from the file contents, as described under "Current state".
+4. Backup `WorldEXE_post-phase3_2026-11-10.rbxl` was created. Its SHA-256 matches the saved place: `2663A50DABDDFAA936A7B84866ECA716047C8D77C2B734A96D95A2A6F11FBB98`.
+5. This document and the PR description were updated.
+
+Still outstanding: a multi-client (Clients and Servers) run of Phase 3 was not tested.
 
 ## Phase 3 review round 1 correction (2026-11-10)
 
