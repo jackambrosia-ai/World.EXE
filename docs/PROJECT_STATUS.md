@@ -3,8 +3,8 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 4 IMPLEMENTED — awaiting ChatGPT technical review; not merged. Phase 5 not started and requires separate owner approval
-- Current phase: Phase 4 — Four prototype patches (in review)
+- Overall status: PHASE 4 IMPLEMENTED — review round 1 corrected (solo); multiplayer validation deferred by owner decision; awaiting ChatGPT final review; not merged. Phase 5 not started and requires separate owner approval
+- Current phase: Phase 4 — Four prototype patches (round 1 corrected, final review pending)
 - Current branch: `phase-04-prototype-patches` (from `main` `abac96f`)
 - Current PR: [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5) targeting `main` (open, not merged). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
 - Studio place: the open Studio session contains the Phase 4 scripts (21, all hash-identical to `phase-04-prototype-patches`) and no test leftovers. **It must be saved (Ctrl+S) and a post-Phase-4 backup taken before merge.** The last saved file is the post-Phase-3 place below.
@@ -26,7 +26,8 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 - Multi-client testing: Phase 2 run with Studio Clients and Servers (1 server + 2 clients) on 2026-11-10 — see the matrix in "Phase 2 review round 2 correction". Phase 1 tests remain solo.
 - Latest technical review: Phase 2 final review (ChatGPT, `9c6de7a`) — no remaining code blockers; two-client acceptance run recorded; merged with owner approval. Phase 3 review round 1 (ChatGPT, `04b734a`): hook yield-safety and non-finite modifiers — corrected. **Phase 3 final review (ChatGPT, `d22939f`): APPROVED, no blocking code issues**; merged with owner approval.
 - Known Phase 3 gaps carried forward (not counted as passed): multi-client (Clients and Servers) run; 3 concurrent patches reached through live Architect play. (The live gravity change was verified in Phase 4, Z1.)
-- Known Phase 4 gaps (not counted as passed): multi-client run; second-player crate claims; player leaving mid-patch.
+- Known Phase 4 gaps (not counted as passed): all multiplayer scenarios, **deferred by owner decision (2026-11-10) to a batched multiplayer integration milestone; comprehensive multiplayer testing is required before public release.** See "Testing policy and deferred multiplayer validation".
+- Testing policy (owner, 2026-11-10): automated and targeted solo tests routinely, chosen by the risk a change introduces; multiplayer batched across phases; owner interaction only when genuinely necessary; full regression suite at milestones and release candidates.
 - Known Phase 2 gaps carried forward (not counted as passed): real mid-match join → Spectator; multiplayer spawn-protection window; > 12 players; streaming at distance; pending-respawn invalidation on departure. Hardening note for Phase 10: server→client remotes have no `OnServerEvent` handler (client spam is queued with warnings).
 - Last updated: 2026-11-10
 
@@ -37,13 +38,67 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 1 | Foundation and arena | **Complete — merged** (solo-tested; multi-client tests outstanding) | [PR #1](https://github.com/jackambrosia-ai/World.EXE/pull/1) → `9b9cbd0` | Solo playtests: see reports below |
 | 2 | Match and Architect | **Complete — merged** (solo + two-client Studio tests; gaps listed above) | [PR #2](https://github.com/jackambrosia-ai/World.EXE/pull/2) → `09d9c2a` | Two-client matrix: 19 PASS, 1 split, 1 NOT TESTED |
 | 3 | Patch engine | **Complete — merged** (solo Studio tests; multi-client outstanding) | [PR #3](https://github.com/jackambrosia-ai/World.EXE/pull/3) → `c2ab456` | Original: 25 PASS, 0 FAIL, 3 NOT TESTED. Round 1: 18 PASS, 0 FAIL, 1 NOT TESTED |
-| 4 | Four prototype patches | **Implemented — in review, not merged** (solo Studio tests) | [PR #5](https://github.com/jackambrosia-ai/World.EXE/pull/5), branch `phase-04-prototype-patches` | Solo matrix: 36 PASS, 0 FAIL, 3 NOT TESTED (see Phase 4 report) |
+| 4 | Four prototype patches | **Round 1 corrected — final review pending, not merged** (solo Studio tests) | [PR #5](https://github.com/jackambrosia-ai/World.EXE/pull/5), branch `phase-04-prototype-patches` | Solo: 36 PASS, 0 FAIL, 3 NOT TESTED; round 1: 6 PASS (targeted); multiplayer deferred |
 | 5 | Stability/objectives/scoring | Not started | — | — |
 | 6 | Initial abilities | Not started | — | — |
 | 7 | Interactions and expansion | Not started | — | — |
 | 8 | UI and visual polish | Not started | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 4 review round 1 correction (2026-11-10)
+
+ChatGPT reviewed PR #5 at `a1e4b46`. Overall architecture: ACCEPTABLE. Three drone changes were requested, plus multiplayer acceptance. Under the revised testing policy (below), multiplayer acceptance is deferred.
+
+### Findings and resolutions (commit `52365e1`, `Patches/DroneSwarm.luau` only)
+1. **Drone targeting: clear disengagement.**
+   - A new constant `DISENGAGE_RANGE = 90` studs (new locks still need ≤ `AGGRO_RANGE = 70`, giving hysteresis).
+   - It is checked every step (10 Hz) for an existing lock. Line of sight is still checked at every 1 s retarget and before every hit.
+   - Drones (14 studs/s) are slower than players (16), so running away always escapes.
+   - A `Disengaged` counter was added to `GetStats()`.
+2. **Capacity policy: all or nothing.** A swarm spawns exactly `DRONES_PER_PATCH` (3) drones, or none.
+   - If fewer than 3 drone slots are free (`MAX_DRONES = 6` across all swarms) or fewer than 3 waypoints exist, activation fails. That means full rollback and the patch slot is released.
+   - Partial swarms are never spawned. With a cap of 6 that allows exactly two concurrent swarms.
+3. **Spawn protection takes precedence over the shield.** Protection order in `hit()`:
+   1. ForceField: hit blocked, nothing used (`Protected` counter).
+   2. Supply shield: blocked and used up.
+   3. Otherwise: 15 damage.
+
+### Targeted solo regressions (real game modules, real player; previously passed Phase 4 tests were not repeated)
+| # | Test | Result | Evidence |
+|---|---|---|---|
+| R1 | Drone stops pursuing a player beyond the disengage range | PASS | A locked drone's target was moved to 132 studs (> 90). The lock dropped after 0.12 s, before the 1 s retarget, so it was the range rule. `Disengaged` +2 (two drones were locked). No re-lock afterwards. Drone–player distance went 132 → 108 over 3 s while the drone returned to its patrol waypoint; full-speed pursuit would close 42 |
+| R2 | Capacity policy | PASS | Three concurrent swarms: 3 + 3 drones; the third → `activation_failed` "drone cap reached (6/6, a swarm needs 3)", 0 drones spawned, slot released. Active count 6 |
+| R3 | ForceField precedence | PASS | Shield granted plus ForceField: 2 hits counted as `Protected`, shield kept, 0 shield blocks, 0 damage (health 100 → 100). With the ForceField removed: the next hit used the shield (blocked +1) |
+| R4 | Cleanup after the regressions | PASS | `CancelAll`: 0 drones, active count 0 |
+| R5 | Source parity | PASS | 21/21 scripts hash-identical (DroneSwarm 11195 bytes, hash 946438829) |
+| R6 | Edit place clean after play | PASS | No test scripts, attributes or runtime objects; gravity 196.2 |
+
+Two test-script bugs were fixed and rerun; neither was an engine defect:
+- A capacity read was taken before the 3.6 s warning ended.
+- A `string.find` pattern treated `-` in `P1-4` as a pattern character.
+
+The Output showed only the test script's own error from those runs and the intended cap rejections.
+
+### Testing policy and deferred multiplayer validation (owner decision 2026-11-10)
+Owner direction:
+- Run automated and targeted solo tests routinely, chosen by the risk a change introduces.
+- Batch multiplayer testing across phases into an integration milestone.
+- Don't ask the owner to launch Clients and Servers per phase or per fix.
+- Run comprehensive multiplayer testing **before public release**.
+- Keep a complete regression suite for milestones and release candidates.
+
+**Deferred multiplayer scenarios (NOT TESTED, carried to the multiplayer integration milestone):**
+
+| Scenario | Risk while untested |
+|---|---|
+| Two players each claim one item from the same crate (second item, empty crate) | Logic is per-UserId and server-only (one claim per player is verified solo); risk is low, but the "crate empties after two claims" path has never run |
+| Drone targeting, damage and shields across two clients | Damage is server-side `TakeDamage` and replicates through the Humanoid; risk is mainly visual (drones move as 10 Hz anchored CFrames and may look choppy) |
+| Player disconnecting during an active patch (drone target, claimer) | Targets are re-checked every step (`player.Parent`) and per-player tables are weak-keyed, but a real departure has not been observed |
+| ZERO_G gravity and DECAY tile replication on both clients | `Workspace.Gravity` and part properties replicate natively; risk is low, but readability at a distance is unverified |
+| Concurrent patch cleanup at match end with two players | Verified solo (M1); the risk with two players is only replication of the cleanup |
+| Server and both client Outputs during the above | Unknown until run |
+| Carried from earlier phases: real mid-match join → Spectator; multiplayer spawn-protection window; > 12 players; streaming at distance; pending-respawn invalidation on departure; Phase 3 multi-client run | See the Phase 2 and Phase 3 sections |
 
 ## Phase 4 report — Four prototype patches (2026-11-10)
 
@@ -69,7 +124,7 @@ Approved scope: the four prototype patch behaviors, plugged into the Phase 3 `Pa
   - Only Color, Material, Transparency and CanCollide change. A restore-all runs at patch end for any reason.
   - Destroyed or missing tiles are skipped without error.
 - **DRONE_SWARM** (`Patches/DroneSwarm`):
-  - 3 drones per patch, spawned at distinct waypoints, at most 6 alive across all swarms. With no room, activation fails: full rollback, slot freed.
+  - 3 drones per patch, spawned at distinct waypoints, at most 6 alive across all swarms. With no room, activation fails: full rollback, slot freed. (Round 1 made this explicitly all or nothing.)
   - One tracked loop per patch at 10 Hz, retargeting every 1 s. No pathfinding: drones patrol the waypoint graph and chase only a target with clear line of sight within 70 studs.
   - Targets are living Participants only.
   - Speed 14 studs/s, below the default walk speed of 16.
