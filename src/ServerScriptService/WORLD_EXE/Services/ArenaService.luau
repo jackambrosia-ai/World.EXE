@@ -1,7 +1,8 @@
 --!strict
 -- ArenaService (Phase 1, server only).
--- Validates the Studio-owned arena (tags, counts, attributes, spawn clearance, waypoint graph),
--- owns the WORLD_EXE runtime folders, and checks that map geometry still matches its boot baseline.
+-- * Validate(): type/value checks for every tagged instance and attribute, spawn safety, waypoint graph.
+-- * Runtime folders: created and marked by the server; only marked Folders are ever emptied.
+-- * Baseline: a per-instance snapshot of the map captured at Init, compared field by field.
 
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -14,32 +15,99 @@ export type ValidationReport = {
 	errors: { string },
 }
 
+export type BaselineReport = {
+	matches: boolean,
+	total: number, -- number of differences found
+	differences: { string }, -- first MAX_REPORTED_DIFFERENCES, human-readable
+}
+
+local MAX_REPORTED_DIFFERENCES = 25
+
 local ArenaService = {}
 
 local root: Instance? = nil
 local map: Instance? = nil
-local baselineFingerprint: string? = nil
+local baseline: { [Instance]: string }? = nil
 
--- Deterministic summary of map geometry: instance count, rounded positions/sizes, collidable parts.
-local function fingerprint(container: Instance): string
-	local count, sx, sy, sz, collidable = 0, 0, 0, 0, 0
-	for _, d in container:GetDescendants() do
-		count += 1
-		if d:IsA("BasePart") then
-			local p, s = d.Position, d.Size
-			sx += math.round(p.X * 10) + math.round(s.X * 10)
-			sy += math.round(p.Y * 10) + math.round(s.Y * 10)
-			sz += math.round(p.Z * 10) + math.round(s.Z * 10)
-			if d.CanCollide then
-				collidable += 1
-			end
-		end
-	end
-	return string.format("%d|%d|%d|%d|%d", count, sx, sy, sz, collidable)
+local validZones: { [string]: boolean } = {}
+for _, zone in Config.Zones do
+	validZones[zone] = true
 end
 
+---------------------------------------------------------------------------------------------------
+-- Snapshot
+
+-- Quantize to thousandths so float noise never registers, without printing "-0".
+local function q(n: number): string
+	local r = math.round(n * 1000)
+	if r == 0 then
+		return "0"
+	end
+	return tostring(r)
+end
+
+local function cframeKey(cf: CFrame): string
+	local c = { cf:GetComponents() }
+	local out = table.create(#c)
+	for i, v in c do
+		out[i] = q(v)
+	end
+	return table.concat(out, ",")
+end
+
+local function attributeKey(inst: Instance): string
+	local parts = {}
+	for name, value in inst:GetAttributes() do
+		table.insert(parts, `{name}={typeof(value)}:{tostring(value)}`)
+	end
+	table.sort(parts)
+	return table.concat(parts, ";")
+end
+
+local function tagKey(inst: Instance): string
+	local tags = inst:GetTags()
+	table.sort(tags)
+	return table.concat(tags, ",")
+end
+
+-- Everything about an instance that the arena contract depends on.
+local function describe(inst: Instance): string
+	local fields = {
+		inst.ClassName,
+		inst:GetFullName(),
+		`attrs[{attributeKey(inst)}]`,
+		`tags[{tagKey(inst)}]`,
+	}
+	if inst:IsA("BasePart") then
+		local s = inst.Size
+		table.insert(fields, `cf[{cframeKey(inst.CFrame)}]`)
+		table.insert(fields, `size[{q(s.X)},{q(s.Y)},{q(s.Z)}]`)
+		table.insert(fields, `anchored={inst.Anchored} collide={inst.CanCollide} query={inst.CanQuery} touch={inst.CanTouch}`)
+		if inst:IsA("SpawnLocation") then
+			table.insert(fields, `spawn[enabled={inst.Enabled} neutral={inst.Neutral} duration={inst.Duration}]`)
+		end
+	elseif inst:IsA("Attachment") then
+		table.insert(fields, `cf[{cframeKey(inst.CFrame)}]`)
+	elseif inst:IsA("Model") then
+		local primary = inst.PrimaryPart
+		table.insert(fields, `primary={if primary then primary:GetFullName() else "nil"}`)
+	end
+	return table.concat(fields, " | ")
+end
+
+local function snapshot(container: Instance): { [Instance]: string }
+	local snap: { [Instance]: string } = { [container] = describe(container) }
+	for _, d in container:GetDescendants() do
+		snap[d] = describe(d)
+	end
+	return snap
+end
+
+---------------------------------------------------------------------------------------------------
+-- Helpers
+
 local function inMap(inst: Instance): boolean
-	return map ~= nil and inst:IsDescendantOf(map)
+	return map ~= nil and (inst == map or inst:IsDescendantOf(map))
 end
 
 local function taggedInMap(tag: string): { Instance }
@@ -57,77 +125,177 @@ local function belongsToCharacter(part: BasePart): boolean
 	return model ~= nil and model:FindFirstChildOfClass("Humanoid") ~= nil
 end
 
+local function isFinitePositive(value: any): boolean
+	return typeof(value) == "number" and value == value and value > 0 and value < math.huge
+end
+
+-- Returns the parsed list, or nil plus a reason.
+local function parseLinks(raw: string): ({ string }?, string?)
+	if raw == "" then
+		return nil, "is empty"
+	end
+	local list = string.split(raw, ",")
+	local seen: { [string]: boolean } = {}
+	for _, id in list do
+		if id == "" then
+			return nil, "has an empty entry"
+		end
+		if string.find(id, "%s") then
+			return nil, `entry "{id}" contains whitespace`
+		end
+		if seen[id] then
+			return nil, `lists "{id}" more than once`
+		end
+		seen[id] = true
+	end
+	return list, nil
+end
+
+---------------------------------------------------------------------------------------------------
+-- Validation
+
+local function validateSpawn(pad: SpawnLocation, errors: { string })
+	local name = pad:GetFullName()
+	if not pad.Enabled or not pad.Neutral then
+		table.insert(errors, `{name}: SpawnLocation must be Enabled and Neutral`)
+	end
+	if not pad.Anchored then
+		table.insert(errors, `{name}: SpawnLocation must be Anchored`)
+	end
+	if not pad.CanCollide then
+		table.insert(errors, `{name}: SpawnLocation must have CanCollide enabled`)
+	end
+
+	-- Floor support: the centre and four inset corners must rest on anchored, collidable,
+	-- non-DecayTile floor directly beneath the pad.
+	local rayParams = RaycastParams.new()
+	rayParams.FilterType = Enum.RaycastFilterType.Exclude
+	rayParams.FilterDescendantsInstances = { pad }
+	rayParams.RespectCanCollide = true
+	local half = pad.Size / 2
+	local insetX, insetZ = math.max(half.X - 0.5, 0), math.max(half.Z - 0.5, 0)
+	for _, offset in { Vector2.zero, Vector2.new(insetX, insetZ), Vector2.new(-insetX, insetZ), Vector2.new(insetX, -insetZ), Vector2.new(-insetX, -insetZ) } do
+		local bottom = pad.CFrame:PointToWorldSpace(Vector3.new(offset.X, -half.Y, offset.Y))
+		local hit = workspace:Raycast(bottom + Vector3.new(0, 0.01, 0), Vector3.new(0, -5, 0), rayParams)
+		if not hit then
+			table.insert(errors, `{name}: no floor beneath pad at offset {offset}`)
+			return
+		end
+		local floor = hit.Instance
+		local gap = bottom.Y - hit.Position.Y
+		if gap > Config.SpawnFloorTolerance then
+			table.insert(errors, `{name}: pad floats {string.format("%.2f", gap)} studs above {floor:GetFullName()}`)
+			return
+		end
+		if not floor.Anchored then
+			table.insert(errors, `{name}: supporting floor {floor:GetFullName()} is not anchored`)
+			return
+		end
+		if CollectionService:HasTag(floor, Config.Tags.DecayTile) then
+			table.insert(errors, `{name}: rests on DecayTile {floor:GetFullName()}`)
+			return
+		end
+	end
+
+	-- Overhead clearance where the character appears.
+	local overlap = OverlapParams.new()
+	overlap.FilterType = Enum.RaycastFilterType.Exclude
+	overlap.FilterDescendantsInstances = { pad }
+	overlap.RespectCanCollide = true
+	local box = pad.CFrame + Vector3.new(0, half.Y + 3.5, 0)
+	for _, hit in workspace:GetPartBoundsInBox(box, Vector3.new(4, 6, 4), overlap) do
+		if not belongsToCharacter(hit) then
+			table.insert(errors, `{name}: obstructed by {hit:GetFullName()}`)
+			return
+		end
+	end
+end
+
 function ArenaService.Validate(): ValidationReport
 	assert(map, "ArenaService.Validate called before Init")
 	local errors: { string } = {}
 	local counts: { [string]: number } = {}
+	local waypointLinks: { [string]: { string } } = {}
+	local waypointIds: { [string]: boolean } = {}
 
 	for key, tag in Config.Tags do
-		local required = Config.RequiredAttributes[key]
-		local seen: { [any]: boolean } = {}
+		local schema = Config.AttributeSchema[key]
+		local requiredClass = Config.TagClasses[key]
 		local items = taggedInMap(tag)
 		counts[key] = #items
+		local seenIds: { [string]: string } = {}
+
 		for _, inst in items do
-			for _, attr in required do
-				if inst:GetAttribute(attr) == nil then
-					table.insert(errors, `{inst:GetFullName()} missing attribute {attr}`)
+			local where = inst:GetFullName()
+			if not inst:IsA(requiredClass) then
+				table.insert(errors, `{where}: tagged {tag} but is a {inst.ClassName}, expected {requiredClass}`)
+			end
+			local instId: string? = nil
+			for _, field in schema do
+				local value = inst:GetAttribute(field.name)
+				if field.kind == "id" then
+					if typeof(value) ~= "string" or value == "" then
+						table.insert(errors, `{where}: {field.name} must be a non-empty string (got {typeof(value)})`)
+					elseif seenIds[value] then
+						table.insert(errors, `{where}: duplicate {field.name} "{value}" (also on {seenIds[value]})`)
+					else
+						seenIds[value] = where
+						instId = value
+					end
+				elseif field.kind == "zone" then
+					if typeof(value) ~= "string" or not validZones[value] then
+						table.insert(errors, `{where}: {field.name} must be one of Config.Zones (got {tostring(value)})`)
+					end
+				elseif field.kind == "positive" then
+					if not isFinitePositive(value) then
+						table.insert(errors, `{where}: {field.name} must be a finite number > 0 (got {tostring(value)})`)
+					end
+				elseif field.kind == "links" then
+					if typeof(value) ~= "string" then
+						table.insert(errors, `{where}: {field.name} must be a string (got {typeof(value)})`)
+					else
+						local list, problem = parseLinks(value)
+						if problem then
+							table.insert(errors, `{where}: {field.name} {problem}`)
+						elseif list and instId then
+							waypointLinks[instId] = list
+						end
+					end
 				end
 			end
-			local id = inst:GetAttribute(required[1])
-			if id ~= nil then
-				if seen[id] then
-					table.insert(errors, `duplicate {tag} id {tostring(id)}`)
-				end
-				seen[id] = true
+			if key == "DroneWaypoint" and instId then
+				waypointIds[instId] = true
 			end
 		end
+
 		local expected = Config.ExpectedTagCounts[key]
 		if #items ~= expected then
 			table.insert(errors, `{tag}: expected {expected}, found {#items}`)
 		end
 	end
 
-	-- Spawns must be real, enabled, neutral SpawnLocations with clear space above the pad.
-	local overlap = OverlapParams.new()
-	overlap.FilterType = Enum.RaycastFilterType.Exclude
-	overlap.RespectCanCollide = true
 	for _, inst in taggedInMap(Config.Tags.ArenaSpawn) do
-		if not inst:IsA("SpawnLocation") then
-			table.insert(errors, `{inst:GetFullName()} is tagged ArenaSpawn but is not a SpawnLocation`)
-			continue
-		end
-		local spawnPad = inst :: SpawnLocation
-		if not spawnPad.Enabled or not spawnPad.Neutral then
-			table.insert(errors, `{spawnPad.Name} must be Enabled and Neutral`)
-		end
-		overlap.FilterDescendantsInstances = { spawnPad }
-		local box = spawnPad.CFrame + Vector3.new(0, spawnPad.Size.Y / 2 + 3.5, 0)
-		for _, hit in workspace:GetPartBoundsInBox(box, Vector3.new(4, 6, 4), overlap) do
-			if not belongsToCharacter(hit) then
-				table.insert(errors, `{spawnPad.Name} obstructed by {hit:GetFullName()}`)
-				break
-			end
+		if inst:IsA("SpawnLocation") then
+			validateSpawn(inst, errors)
 		end
 	end
 
-	-- Drone waypoint links must reference existing waypoints and be symmetric.
-	local links: { [string]: { [string]: boolean } } = {}
-	for _, wp in taggedInMap(Config.Tags.DroneWaypoint) do
-		local id = wp:GetAttribute("WaypointId")
-		local raw = wp:GetAttribute("Links")
-		if typeof(id) == "string" and typeof(raw) == "string" then
-			local set = {}
-			for _, other in string.split(raw, ",") do
-				set[other] = true
-			end
-			links[id] = set
+	-- Waypoint graph: links reference known ids, never self, and are symmetric.
+	local linkSets: { [string]: { [string]: boolean } } = {}
+	for id, list in waypointLinks do
+		local set = {}
+		for _, other in list do
+			set[other] = true
 		end
+		linkSets[id] = set
 	end
-	for id, set in links do
-		for other in set do
-			if links[other] == nil then
-				table.insert(errors, `waypoint {id} links to unknown {other}`)
-			elseif not links[other][id] then
+	for id, list in waypointLinks do
+		for _, other in list do
+			if other == id then
+				table.insert(errors, `waypoint {id} links to itself`)
+			elseif not waypointIds[other] then
+				table.insert(errors, `waypoint {id} links to unknown id "{other}"`)
+			elseif linkSets[other] and not linkSets[other][id] then
 				table.insert(errors, `waypoint link {id}->{other} is not symmetric`)
 			end
 		end
@@ -136,38 +304,95 @@ function ArenaService.Validate(): ValidationReport
 	return { ok = #errors == 0, counts = counts, errors = errors }
 end
 
-function ArenaService.EnsureRuntimeFolders()
+---------------------------------------------------------------------------------------------------
+-- Runtime folders
+
+-- Children of root with this name (more than one is a conflict).
+local function namedChildren(name: string): { Instance }
 	assert(root, "ArenaService not initialized")
-	for _, name in Config.RuntimeFolders do
-		if not root:FindFirstChild(name) then
-			local folder = Instance.new("Folder")
-			folder.Name = name
-			folder.Parent = root
+	local found = {}
+	for _, child in root:GetChildren() do
+		if child.Name == name then
+			table.insert(found, child)
 		end
 	end
+	return found
 end
 
--- Empties every runtime folder (idempotent). Returns how many instances were removed.
-function ArenaService.ResetRuntime(): number
+local function isRuntimeFolder(inst: Instance): boolean
+	return inst:IsA("Folder") and inst:GetAttribute(Config.RuntimeFolderMarker) == true
+end
+
+-- Creates missing runtime folders. Never touches a same-named object it did not create.
+function ArenaService.EnsureRuntimeFolders(): { string }
+	assert(root, "ArenaService not initialized")
+	local problems = {}
+	for _, name in Config.RuntimeFolders do
+		local found = namedChildren(name)
+		if #found == 0 then
+			local folder = Instance.new("Folder")
+			folder.Name = name
+			folder:SetAttribute(Config.RuntimeFolderMarker, true)
+			folder.Parent = root
+		elseif #found > 1 or not isRuntimeFolder(found[1]) then
+			table.insert(problems, `runtime folder name "{name}" is taken by {#found} unexpected object(s) ({found[1].ClassName}); left untouched`)
+		end
+	end
+	return problems
+end
+
+-- Empties marked runtime folders (idempotent). Returns how many instances were removed and any
+-- conflicts that were skipped instead of deleted.
+function ArenaService.ResetRuntime(): (number, { string })
 	assert(root, "ArenaService not initialized")
 	local removed = 0
 	for _, name in Config.RuntimeFolders do
-		local folder = root:FindFirstChild(name)
-		if folder then
-			for _, child in folder:GetChildren() do
+		local found = namedChildren(name)
+		if #found == 1 and isRuntimeFolder(found[1]) then
+			for _, child in found[1]:GetChildren() do
 				child:Destroy()
 				removed += 1
 			end
 		end
 	end
-	ArenaService.EnsureRuntimeFolders()
-	return removed
+	return removed, ArenaService.EnsureRuntimeFolders()
 end
 
--- True when map geometry matches the fingerprint captured at Init.
+---------------------------------------------------------------------------------------------------
+-- Baseline
+
+-- Compares the map with the snapshot captured at Init: added, removed, re-created
+-- (identity), and changed instances (class, path, CFrame, size, anchoring, collision,
+-- attributes, tags, spawn settings, model primary part).
+function ArenaService.CompareToBaseline(): BaselineReport
+	assert(map and baseline, "ArenaService not initialized")
+	local current = snapshot(map)
+	local differences: { string } = {}
+	local total = 0
+	local function note(message: string)
+		total += 1
+		if #differences < MAX_REPORTED_DIFFERENCES then
+			table.insert(differences, message)
+		end
+	end
+	for inst, before in baseline do
+		local now = current[inst]
+		if now == nil then
+			note(`removed: {before}`)
+		elseif now ~= before then
+			note(`changed: {before}  =>  {now}`)
+		end
+	end
+	for inst, now in current do
+		if baseline[inst] == nil then
+			note(`added: {now}`)
+		end
+	end
+	return { matches = total == 0, total = total, differences = differences }
+end
+
 function ArenaService.MatchesBaseline(): boolean
-	assert(map, "ArenaService not initialized")
-	return baselineFingerprint ~= nil and fingerprint(map) == baselineFingerprint
+	return ArenaService.CompareToBaseline().matches
 end
 
 function ArenaService.GetSpawns(): { SpawnLocation }
@@ -188,9 +413,14 @@ function ArenaService.Init(): ValidationReport
 	end
 	root = foundRoot
 	map = foundMap
-	baselineFingerprint = fingerprint(foundMap)
-	ArenaService.ResetRuntime()
-	return ArenaService.Validate()
+	baseline = snapshot(foundMap)
+	local _, problems = ArenaService.ResetRuntime()
+	local report = ArenaService.Validate()
+	for _, problem in problems do
+		table.insert(report.errors, problem)
+	end
+	report.ok = #report.errors == 0
+	return report
 end
 
 return ArenaService

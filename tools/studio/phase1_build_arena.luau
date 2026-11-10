@@ -166,9 +166,12 @@ trim(sky, spanA, Palette.Violet)
 trim(sky, spanB, Palette.Violet)
 -- Jump route: descending stepping platforms from the deck to the Core's south-east corner.
 -- 4-stud gaps and 4-stud drops (a default jump clears ~9 studs on a 4-stud drop; 8-stud gaps failed playtest).
+-- Deliberately NOT DecayTiles: this is the only jump route and it sits over a lethal void, so DECAY stays
+-- on the Research Yard field (see docs/PROJECT_STATUS.md, "SkySteps decision"). Colored as solid floor.
 local steps = newFolder(sky, "SkySteps")
 for i, p in { Vector3.new(104, 20, 33), Vector3.new(90, 16, 37), Vector3.new(76, 12, 41), Vector3.new(62, 8, 45), Vector3.new(48, 4, 46) } do
-	decayTile(steps, "Step_" .. i, "SKY_STEP_" .. i, "Skybridge", p.X, p.Y, p.Z, 10, Palette.Decay, 2)
+	local step = slab(steps, "Step_" .. i, p.X, p.Y, p.Z, 10, 10, Palette.FloorAlt, 2)
+	step:SetAttribute("Zone", "Skybridge")
 end
 
 -- Connecting routes -------------------------------------------------------------
