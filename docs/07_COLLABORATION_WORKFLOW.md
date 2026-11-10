@@ -122,3 +122,12 @@ At the end of every phase, Claude must report:
 - Recommended next task.
 
 Update `docs/PROJECT_STATUS.md` with the same information. Never mark a phase complete if a critical acceptance test failed.
+## ForgeGUI responsibilities
+
+Claude has both Roblox Studio MCP and ForgeGUI available (per owner report; Claude must verify the actual tools/capabilities in its current session).
+
+- Use **ForgeGUI** for suitable original visual asset generation/design and any supported preparation/export workflow.
+- Use **Roblox Studio MCP** for inspecting and editing the live place, inserting/importing supported assets, creating functional UI instances, connecting scripts, and playtesting.
+- Use **GitHub** for the specs, source files, asset briefs, generated-asset manifests, and progress reports.
+
+Before credit-consuming generation, asset upload, or publication, Claude must present the exact scope, estimated credits/cost, destination, and approval request. No silent paid generation or publication. After generation, record filenames/asset IDs, source, intended use, approvals, and Studio instance paths in a small asset manifest. Verify that the asset was actually inserted into the intended place; generation alone does not complete the task.
