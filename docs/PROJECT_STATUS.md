@@ -7,7 +7,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 - Current phase: Phase 1 — Foundation and Sandbox arena blockout
 - Current branch: `phase-01-arena`
 - Current PR: [jackambrosia-ai/World.EXE#1](https://github.com/jackambrosia-ai/World.EXE/pull/1) (do not merge without owner approval)
-- PR head: see "Review round 1 corrections → Commits" below
+- PR head: docs-only commit after `1efe67b` (exact hash in the PR conversation)
 - Last verified Studio place: `Place1.rbxl` (on disk: `OneDrive\Documents\Place1.rbxl`), unpublished (PlaceId 0)
 - Source synchronization method: **owner decision — no Rojo / no mirroring toolchain.** Claude edits Studio directly via Studio MCP and keeps an identical copy of every WORLD_EXE script in `src/`, verified by byte-length + hash comparison after each change (see `src/README.md`).
 - Baseline place backup: `OneDrive\Documents\RobloxBackups\WorldEXE_baseline_2026-11-09.rbxl` (byte-identical copy of the pre-Phase-1 place; rollback point)
@@ -79,7 +79,8 @@ Totals: 35/35 validation cases, 28/28 snapshot + runtime-folder cases, 12/12 spa
 Issue found while testing: the floor-support ray was initially 1 stud long, so a pad floating 2 studs was reported as "no floor" rather than "floats 2.00 studs". The ray is now 5 studs; both messages were then verified.
 
 ### Commits
-- Corrections commit: recorded in the follow-up commit on this branch and in the PR conversation (a commit cannot contain its own hash). The PR head after this round is the docs-only commit that fills in that hash.
+- Corrections commit: `1efe67b` (code + Studio-mirrored sources + this report).
+- PR head after this round: the docs-only commit directly after `1efe67b` that records this line (its hash is posted in the PR conversation; a commit cannot contain its own hash).
 
 ### Outstanding (not claimed)
 - **Concurrent-spawn test** (several players spawning/respawning at once, pad contention) — requires Studio Test → Clients and Servers with 2+ clients; not run.
