@@ -87,3 +87,20 @@ Do not prioritize shop, monetization, elaborate cosmetics, or large quantities o
 A feature is done only when intended objects/scripts exist in correct locations, server/client boundaries are correct, success and failure paths are handled, the feature has been tested in Studio, Output has been checked, acceptance criteria pass, and limitations are documented.
 
 Never claim a system is fully multiplayer-tested if only a single-player Studio test was possible.
+## ForgeGUI integration
+
+The owner reports that ForgeGUI is connected to Claude. Verify the actual available ForgeGUI tools and read `docs/09_FORGEGUI_WORKFLOW.md` before using it.
+
+Use ForgeGUI where it materially improves original UI artwork, icons, thumbnails, textures, or other game assets. Keep responsibilities distinct:
+- ForgeGUI may generate/design assets and, depending on the connected version and permissions, prepare/export/publish them.
+- Roblox Studio MCP inspects and modifies the live Studio DataModel, inserts/imports assets where supported, wires functional UI and behavior, and runs playtests.
+- A generated image is not a functional ScreenGui, button, HUD, or gameplay system. Build editable Roblox UI instances, bind controls, and test interactions separately.
+
+Before any operation that spends ForgeGUI credits, uploads an asset, or publishes to Roblox:
+1. State the asset(s), purpose, count/variants, estimated credit spend, and target destination/account.
+2. Obtain explicit owner approval.
+3. Generate a small preview batch first.
+4. Inspect the outputs for visual consistency, originality, technical dimensions/format, and fit.
+5. Import/insert only approved assets.
+6. Verify the actual asset/instance in the intended Studio place and test it.
+Never paste API keys or publishing credentials into chat, source files, or MCP arguments unless the official tool explicitly requires a masked secure authorization flow. Do not assume ForgeGUI publishing access is the same as Roblox Studio access.
