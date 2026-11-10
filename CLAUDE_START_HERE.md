@@ -84,3 +84,12 @@ The experience combines creative player-driven patch submissions, survival and c
 Never claim a feature works without testing it. Distinguish a solo test from a multi-client test. If a tool or capability is unavailable, state exactly what is missing and provide the next safe step. Follow all engineering and safety rules in `docs/00_MASTER_INSTRUCTIONS.md`.
 
 After audit approval, execute phase prompts in numerical order from `prompts/`, stopping at each acceptance gate.
+## ForgeGUI is also connected
+
+The user reports that ForgeGUI is connected to your Claude environment. During the read-only audit:
+1. Verify that the ForgeGUI MCP/tools are actually available in this client session.
+2. List the relevant available capabilities (e.g. asset/UI image generation, reference search, project editing/export, publishing) without invoking paid or mutating operations.
+3. Distinguish ForgeGUI generation from Roblox Studio MCP. Studio MCP is still required to inspect/edit the live DataModel, wire working UI, and playtest.
+4. Read `docs/09_FORGEGUI_WORKFLOW.md`.
+
+Do not generate paid assets, consume credits, upload assets to Roblox, or publish through ForgeGUI until the owner explicitly approves the specific asset batch, estimated credit spend, and destination. A successful generation or export does not prove an asset was imported into the intended place; verify the actual Studio result.
