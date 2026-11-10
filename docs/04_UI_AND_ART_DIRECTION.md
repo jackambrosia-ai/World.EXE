@@ -57,3 +57,22 @@ Use Roblox primitives and original meshes for prototypes. Do not insert unreview
 
 ## Reference image
 The user supplied a visual development reference board for WORLD.EXE in the project conversation. Treat it as art-direction guidance, not a literal screenshot to reproduce. Match its navy/cyan/violet palette, restrained amber warnings, simulation arena zones, stability HUD, Architect cards, controlled corruption, and low-gravity presentation.
+## ForgeGUI production handoff
+
+ForgeGUI is available to Claude as an additional visual asset tool (the exact exposed capabilities must be checked in the active Claude session). Use it to accelerate original visual assets such as:
+- Patch card artwork and category icons.
+- HUD/panel decorative plates and subtle background textures.
+- Ability icons, collectible icons, and patch archive illustrations.
+- Original promotional thumbnails or lobby artwork, when separately approved.
+
+Production sequence:
+1. ChatGPT/owner locks a small asset brief: purpose, style, dimensions/aspect ratio, palette, variants, and use location.
+2. Claude checks ForgeGUI connection/tools and any credit cost without generating.
+3. Owner approves the particular generation batch and credit budget.
+4. Claude generates a small set of candidates and reviews them against the visual reference board.
+5. Owner approves chosen candidates.
+6. Claude imports/inserts the chosen assets through an available supported path and verifies them in the intended Studio place.
+7. Claude builds the editable Roblox UI hierarchy and Luau behavior around the assets.
+8. Claude checks desktop/mobile layout, readability, transparency, cropping, compression, and runtime loading.
+
+Do not use a single flattened screenshot as the whole game HUD. The HUD, Architect cards, buttons, labels, timers, and status indicators must be editable Roblox UI elements with working input and state updates. Use generated images as art within a functional interface, not as a substitute for it.
