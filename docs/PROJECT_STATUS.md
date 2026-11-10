@@ -6,7 +6,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 - Overall status: PHASE 2 IMPLEMENTED (solo-tested) — PR open for review, not merged; Phase 3 not started and requires separate owner approval
 - Current phase: Phase 2 — Match lifecycle and Architect selection
 - Current branch: `phase-02-match`
-- Current PR: Phase 2 PR (see PR conversation; do not merge without owner approval)
+- Current PR: [jackambrosia-ai/World.EXE#2](https://github.com/jackambrosia-ai/World.EXE/pull/2) (do not merge without owner approval)
 - Phase 1 merge: squash-merged 2026-11-10 by owner approval as `9b9cbd0` (from PR head `ddc784c`; merged tree identical to that head). The `phase-01-arena` branch still exists on GitHub and can be deleted.
 - Last verified Studio place: `Place1.rbxl` (on disk: `OneDrive\Documents\Place1.rbxl`), unpublished (PlaceId 0). Phase 2 changes are in the open Studio session and **not yet saved** — owner must press Ctrl+S.
 - Source synchronization method: **owner decision — no Rojo / no mirroring toolchain.** Claude edits Studio directly via Studio MCP and keeps an identical copy of every WORLD_EXE script in `src/`, verified by byte-length + hash comparison after each change (see `src/README.md`).
@@ -25,7 +25,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 |---|---|---|---|---|
 | 0 | Audit and setup | Complete (owner decisions recorded) | — | Read-only audit; ForgeGUI read-only audit |
 | 1 | Foundation and arena | **Complete — merged** (solo-tested; multi-client tests outstanding) | [PR #1](https://github.com/jackambrosia-ai/World.EXE/pull/1) → `9b9cbd0` | Solo playtests: see reports below |
-| 2 | Match and Architect | Implemented — solo-tested, PR open for review | Phase 2 PR (`phase-02-match`) | Solo playtests + unit tests: see Phase 2 report |
+| 2 | Match and Architect | Implemented — solo-tested, PR open for review | [PR #2](https://github.com/jackambrosia-ai/World.EXE/pull/2) (`phase-02-match`) | Solo playtests + unit tests: see Phase 2 report |
 | 3 | Patch engine | Not started | — | — |
 | 4 | Four prototype patches | Not started | — | — |
 | 5 | Stability/objectives/scoring | Not started | — | — |
