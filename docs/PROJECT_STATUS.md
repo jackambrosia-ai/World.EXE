@@ -43,6 +43,7 @@ Claude's Phase 0 audit report was supplied by the owner on 2026-11-09. Key repor
 Claude: after each subsequent phase, update this file with branch, PR, commit, Studio objects/scripts changed, test type/results, Output errors, known risks, and next recommended phase. Do not mark a phase complete when a critical acceptance criterion fails.
 ## ForgeGUI
 - Owner reports Claude has ForgeGUI connected.
+- Technical workflow documented in [docs/09_FORGEGUI_WORKFLOW.md](./09_FORGEGUI_WORKFLOW.md).
 - Exact tools/capabilities: pending Claude read-only verification.
 - Credit-consuming generation: not authorized by default.
 - Asset upload/publication: not authorized by default.
