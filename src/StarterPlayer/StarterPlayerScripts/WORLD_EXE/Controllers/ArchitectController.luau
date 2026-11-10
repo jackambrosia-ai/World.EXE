@@ -30,6 +30,7 @@ local FEEDBACK: { [string]: string } = {
 	window_closed = "Time is up.",
 	unknown_patch = "Unknown patch.",
 	not_offered = "That patch is not on your cards.",
+	architect_ineligible = "You can no longer act as Architect this turn.",
 }
 
 local ArchitectController = {}

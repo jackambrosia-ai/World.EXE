@@ -21,7 +21,7 @@ export type TurnResult = {
 	Turn: number,
 	ArchitectUserId: number,
 	ArchitectName: string,
-	Outcome: string, -- "accepted" | "timeout" | "architect_left" | "cancelled"
+	Outcome: string, -- "accepted" | "timeout" | "architect_left" | "architect_ineligible" | "cancelled"
 	PatchId: string?,
 }
 
@@ -254,6 +254,11 @@ local function onSubmission(player: Player, payload: any)
 	if turn.architect ~= player then
 		return reply(player, matchRef, turnRef, false, "not_architect")
 	end
+	if not isEligible(player) then
+		-- The Architect died or stopped being a participant: the turn is skipped, nothing activates.
+		resolveTurn("architect_ineligible", nil, lastScale)
+		return reply(player, matchRef, turnRef, false, "architect_ineligible")
+	end
 	if turn.matchId ~= matchId then
 		return reply(player, matchRef, turnRef, false, "stale_turn")
 	end
@@ -312,6 +317,8 @@ function ArchitectService.Update(scale: number)
 	if turn then
 		if turn.architect.Parent ~= Players then
 			resolveTurn("architect_left", nil, scale)
+		elseif not isEligible(turn.architect) then
+			resolveTurn("architect_ineligible", nil, scale)
 		elseif t >= turn.endsAt then
 			resolveTurn("timeout", nil, scale)
 		end
@@ -330,6 +337,9 @@ function ArchitectService.OnPlayerLeft(player: Player)
 		resolveTurn("architect_left", nil, lastScale)
 	end
 end
+
+-- The RemoteEvent handler, exported so tests can drive the exact accept path on a module clone.
+ArchitectService.HandleSubmission = onSubmission
 
 function ArchitectService.GetHistory(): { TurnResult }
 	return table.clone(history)

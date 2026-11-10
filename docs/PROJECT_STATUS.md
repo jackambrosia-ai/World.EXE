@@ -3,7 +3,7 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 2 — review round 1 corrections applied (solo-tested); PR #2 open for re-review, not merged; Phase 3 not started and requires separate owner approval
+- Overall status: PHASE 2 — review round 2 correction applied (solo-tested); multi-client run pending; PR #2 open, not merged; Phase 3 not started and requires separate owner approval
 - Current phase: Phase 2 — Match lifecycle and Architect selection
 - Current branch: `phase-02-match`
 - Current PR: [jackambrosia-ai/World.EXE#2](https://github.com/jackambrosia-ai/World.EXE/pull/2) (do not merge without owner approval)
@@ -34,6 +34,48 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 8 | UI and visual polish | Not started | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 2 review round 2 correction (2026-11-10)
+
+Re-review at `852f234` confirmed the round 1 findings fixed; one remaining issue.
+
+### Change
+`ArchitectService` now requires the current Architect to be a **living Participant**:
+- On submission (after the ownership check): if the Architect is dead or no longer a Participant, the turn is skipped (`architect_ineligible`, nothing activates) and the request is rejected with reason `architect_ineligible`.
+- Every tick while a turn is open: if the Architect has left → `architect_left` (unchanged); if dead or no longer a Participant → `architect_ineligible`.
+- `ArchitectService.HandleSubmission` exports the RemoteEvent handler so tests can drive the exact accept path on a module clone. Client feedback text added for `architect_ineligible`.
+- Turn identity, serialized spawns, recovery and snapshot protections are unchanged.
+
+Changed files: `src/ServerScriptService/WORLD_EXE/Services/ArchitectService.luau`, `src/StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/ArchitectController.luau`, this file. Studio copies hash-verified identical.
+
+### Regression tests (solo)
+| Test | Result |
+|---|---|
+| Live: Architect killed with 11.7 s left in turn `1:1` → turn cleared after 0.23 s, next turn scheduled; log `turn 1: amfam1 -> architect_ineligible` | PASS |
+| Clone, exact accept path: eligible Architect submits (control) | PASS — `accepted`, patch recorded |
+| Clone: Architect stops being a Participant, then submits | PASS — `architect_ineligible`, no patch, turn closed |
+| Clone: Architect dies, then submits before the next tick | PASS — `architect_ineligible`, no patch, turn closed |
+| Live regression via real remote: bad id → `bad_patch_id`; `zero-g` → accepted; second → `no_open_turn`; all tagged `1:3`; panel key `1:3` | PASS |
+| Output | Only `[WORLD_EXE]` info lines (match ids 998/999 are the test clones); no warnings or errors |
+| Edit DataModel after play | Clean |
+
+### Multi-client Studio test (Test → Clients and Servers, 1 server + 2 clients)
+Results are recorded only from an actual run; until then each scenario is NOT TESTED.
+
+| Scenario | Result | Evidence |
+|---|---|---|
+| Both clients join, roles and lobby spawn | NOT TESTED | — |
+| Match starts with 2 participants on distinct arena pads (concurrent spawns) | NOT TESTED | — |
+| Snapshot replication identical on both clients | NOT TESTED | — |
+| Architect authorization: non-Architect submission → `not_architect` | NOT TESTED | — |
+| Architect panel shown only to the Architect; real clicks select a card and submit | NOT TESTED | — |
+| Rotation alternates between the two players (no consecutive repeat) | NOT TESTED | — |
+| Architect death during an open turn → `architect_ineligible` | NOT TESTED | — |
+| Non-Architect death → respawn in arena | NOT TESTED | — |
+| Disconnect during the Architect's open turn → `architect_left`, roster updated | NOT TESTED | — |
+| All participants leave → abort to RESULTS (`no participants`) | NOT TESTED | — |
+| Player joins mid-match → Spectator, kept in lobby, joins next match | NOT TESTED | — |
+| Server / Client 1 / Client 2 Output warnings and errors | NOT TESTED | — |
 
 ## Phase 2 review round 1 corrections (2026-11-10)
 
