@@ -60,27 +60,38 @@ Changed files: `src/ServerScriptService/WORLD_EXE/Services/ArchitectService.luau
 | Edit DataModel after play | Clean |
 
 ### Multi-client Studio test (Test → Clients and Servers, 1 server + 2 clients)
-ChatGPT accepted `9c6de7a` (no remaining code blockers) and asked for this acceptance run with `StudioMinPlayers = 2`, Server / Client 1 / Client 2 Output captured separately, and server-side results captured before stopping for disconnect tests. Results are recorded only from an actual run; until then each scenario is NOT TESTED.
+ChatGPT accepted `9c6de7a` (no remaining code blockers) and confirmed this plan. Procedure:
+- `StudioMinPlayers = 2` (set temporarily on `ServerScriptService.WORLD_EXE` in the Edit place; Studio-only).
+- Server / Client 1 / Client 2 Output captured separately.
+- Disconnect tests: record `MatchId`, state, participant count, Architect and relevant Output **before and after** each disconnect.
+- Client UI-click and client-visual tests stay NOT TESTED unless Studio MCP can reach the client windows or the owner performs them and provides evidence.
+- After testing: remove `StudioMinPlayers`, re-verify every script hash against GitHub, then the owner saves and a fresh post-Phase-2 `.rbxl` backup is made before merging.
 
-| Scenario | Result | Evidence |
-|---|---|---|
-| Countdown cancellation when the player count drops below 2 | NOT TESTED | — |
-| Duplicate rapid submission — exactly one accepted | NOT TESTED | — |
-| Two complete matches — no stale turn UI, feedback, or role/spawn state | NOT TESTED | — |
-| Spectator attempts an unauthorized submission | NOT TESTED | — |
-| Stale snapshot and delayed submission-response handling | NOT TESTED | — |
-| Both clients join, roles and lobby spawn | NOT TESTED | — |
-| Match starts with 2 participants on distinct arena pads (concurrent spawns) | NOT TESTED | — |
-| Snapshot replication identical on both clients | NOT TESTED | — |
-| Architect authorization: non-Architect submission → `not_architect` | NOT TESTED | — |
-| Architect panel shown only to the Architect; real clicks select a card and submit | NOT TESTED | — |
-| Rotation alternates between the two players (no consecutive repeat) | NOT TESTED | — |
-| Architect death during an open turn → `architect_ineligible` | NOT TESTED | — |
-| Non-Architect death → respawn in arena | NOT TESTED | — |
-| Disconnect during the Architect's open turn → `architect_left`, roster updated | NOT TESTED | — |
-| All participants leave → abort to RESULTS (`no participants`) | NOT TESTED | — |
-| Player joins mid-match → Spectator, kept in lobby, joins next match | NOT TESTED | — |
-| Server / Client 1 / Client 2 Output warnings and errors | NOT TESTED | — |
+Results are recorded only from an actual run; until then each scenario is NOT TESTED.
+
+| # | Scenario | Expected | Result | Actual / evidence |
+|---|---|---|---|---|
+| 1 | One connected player cannot start a match | Stays in LOBBY; no COUNTDOWN | NOT TESTED | — |
+| 2 | Second player connects | COUNTDOWN starts automatically, match begins | NOT TESTED | — |
+| 3 | Both clients join: roles and lobby spawn | Both `Lobby`, both on lobby pads | NOT TESTED | — |
+| 4 | Concurrent spawns at INITIALIZING | 2 participants on distinct arena pads, spawn protection on | NOT TESTED | — |
+| 5 | Snapshot replication | Both clients see the same snapshot version/state as the server | NOT TESTED | — |
+| 6 | Countdown cancellation when count drops below 2 | COUNTDOWN → LOBBY ("not enough players") | NOT TESTED | — |
+| 7 | Non-Architect submission | `not_architect`, turn unaffected | NOT TESTED | — |
+| 8 | Spectator unauthorized submission | Rejected (`not_architect` / `no_open_turn`), no effect | NOT TESTED | — |
+| 9 | Duplicate rapid submission by the Architect | Exactly one `accepted`; others rejected | NOT TESTED | — |
+| 10 | Architect panel visibility | Shown only on the Architect's client | NOT TESTED | — |
+| 11 | Architect panel real clicks (select card, submit) | Accepted via UI | NOT TESTED | — |
+| 12 | Rotation between two players | Alternates; no consecutive repeat | NOT TESTED | — |
+| 13 | Architect death during an open turn | Turn skipped `architect_ineligible` | NOT TESTED | — |
+| 14 | Non-Architect death | Respawns on an arena pad, still Participant | NOT TESTED | — |
+| 15 | Stale snapshot / delayed submission response | Older versions ignored; replies for other turns ignored | NOT TESTED | — |
+| 16 | Two complete matches | No stale turn UI, feedback, role or spawn state in match 2 | NOT TESTED | — |
+| 17 | Disconnect during the Architect's open turn | `architect_left`, roster and participant count updated (before/after recorded) | NOT TESTED | — |
+| 18 | All participants leave | Abort to RESULTS (`no participants`) | NOT TESTED | — |
+| 19 | Player joins mid-match | Spectator, kept in lobby, joins next match | NOT TESTED | — |
+| 20 | Output — Server / Client 1 / Client 2 | No unexpected warnings or errors | NOT TESTED | — |
+| 21 | Cleanup | `StudioMinPlayers` removed; scripts match GitHub; post-Phase-2 backup saved | NOT TESTED | — |
 
 ## Phase 2 review round 1 corrections (2026-11-10)
 
