@@ -3,7 +3,7 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 2 — code review passed; two-client acceptance run done (17 PASS, 1 split, 1 NOT TESTED, cleanup pending save + backup); PR #2 open, not merged; Phase 3 not started and requires separate owner approval
+- Overall status: PHASE 2 — code review passed; two-client acceptance run done (18 PASS, 1 split, 1 NOT TESTED, cleanup pending save + backup); PR #2 open, not merged; Phase 3 not started and requires separate owner approval
 - Current phase: Phase 2 — Match lifecycle and Architect selection
 - Current branch: `phase-02-match`
 - Current PR: [jackambrosia-ai/World.EXE#2](https://github.com/jackambrosia-ai/World.EXE/pull/2) (do not merge without owner approval)
@@ -97,7 +97,7 @@ ChatGPT accepted `9c6de7a` (no remaining code blockers) and confirmed this plan.
 
 Investigated during the run (not defects): a client read once showed the Spectator inside the arena; a 250 ms server trace showed the watchdog moving them within 0.5 s (the read had landed before the tick). Early cross-instance tests missed their turn windows because Studio MCP calls between instances take several seconds; they were repeated with the waits inside the client scripts.
 
-**Summary:** 17 PASS (#2 as a threshold-change test, #3 indirect, #8 role set by server), 1 PASS/NOT TESTED split (#4: ForceField unobserved), 1 NOT TESTED (#19), 1 PARTIAL (#21, save + backup pending). No defects found; no gameplay code changed.
+**Summary:** 18 PASS (#2 as a threshold-change test, #3 indirect, #8 role set by server), 1 PASS/NOT TESTED split (#4: ForceField unobserved), 1 NOT TESTED (#19), 1 PARTIAL (#21, save + backup pending). No defects found; no gameplay code changed.
 
 ## Phase 2 review round 1 corrections (2026-11-10)
 
