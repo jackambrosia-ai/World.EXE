@@ -1,14 +1,14 @@
 --!strict
 -- HUDController (Phase 2): placeholder match HUD — phase + timer, role, Architect turn status,
--- patch announcements, and match results. Reads replicated server state only.
+-- patch announcements, and match results. Reads the versioned server snapshot only.
 
-local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local shared = ReplicatedStorage:WaitForChild("WORLD_EXE")
 local Config = require(shared:WaitForChild("Shared"):WaitForChild("Config"))
 local UIUtil = require(script.Parent:WaitForChild("UIUtil"))
+local MatchStateClient = require(script.Parent:WaitForChild("MatchStateClient"))
 
 local Palette = Config.Palette
 local S = Config.MatchStates
@@ -37,9 +37,8 @@ local function roleText(role: string): string
 	return "In lobby"
 end
 
-local function resultsText(json: string): string
-	local ok, data = pcall(HttpService.JSONDecode, HttpService, json)
-	if not ok or typeof(data) ~= "table" then
+local function resultsText(data: any): string
+	if typeof(data) ~= "table" then
 		return ""
 	end
 	return string.format(
@@ -53,7 +52,7 @@ local function resultsText(json: string): string
 	)
 end
 
-function HUDController.Start(stateFolder: Instance, remotes: Instance)
+function HUDController.Start(remotes: Instance)
 	local player = Players.LocalPlayer
 	local gui = UIUtil.create("ScreenGui", {
 		Name = "WORLD_EXE_HUD",
@@ -90,9 +89,11 @@ function HUDController.Start(stateFolder: Instance, remotes: Instance)
 	local bannerSerial = 0
 
 	local function refresh()
-		local state = tostring(stateFolder:GetAttribute("State") or S.Lobby)
+		local snap = MatchStateClient.Get()
+		local turn = snap.Turn
+		local state = tostring(snap.State or S.Lobby)
 		local t = workspace:GetServerTimeNow()
-		local endsAt = stateFolder:GetAttribute("StateEndsAt")
+		local endsAt = snap.StateEndsAt
 		local remaining = if typeof(endsAt) == "number" and endsAt > 0 then UIUtil.formatTime(endsAt - t) else nil
 		title.Text = (STATE_TITLES[state] or state) .. (if remaining then "  ·  " .. remaining else "")
 
@@ -104,16 +105,16 @@ function HUDController.Start(stateFolder: Instance, remotes: Instance)
 					waiting += 1
 				end
 			end
-			detail.Text = string.format("%s · players ready %d / %s needed", roleText(role), waiting, tostring(stateFolder:GetAttribute("MinPlayers") or "?"))
+			detail.Text = string.format("%s · players ready %d / %s needed", roleText(role), waiting, tostring(snap.MinPlayers or "?"))
 		else
-			detail.Text = string.format("%s · participants %s", roleText(role), tostring(stateFolder:GetAttribute("ParticipantCount") or 0))
+			detail.Text = string.format("%s · participants %s", roleText(role), tostring(snap.ParticipantCount or 0))
 		end
 
-		local architectId = stateFolder:GetAttribute("ArchitectUserId")
-		local turnEndsAt = stateFolder:GetAttribute("TurnEndsAt")
-		local nextTurnAt = stateFolder:GetAttribute("NextTurnAt")
+		local architectId = turn.ArchitectUserId
+		local turnEndsAt = turn.TurnEndsAt
+		local nextTurnAt = turn.NextTurnAt
 		if typeof(architectId) == "number" and architectId ~= 0 and typeof(turnEndsAt) == "number" then
-			architectLine.Text = string.format("Architect: %s · %s", tostring(stateFolder:GetAttribute("ArchitectName")), UIUtil.formatTime(turnEndsAt - t))
+			architectLine.Text = string.format("Architect: %s · %s", tostring(turn.ArchitectName), UIUtil.formatTime(turnEndsAt - t))
 		elseif state == S.Active and typeof(nextTurnAt) == "number" and nextTurnAt > 0 then
 			architectLine.Text = "Next Architect turn in " .. UIUtil.formatTime(nextTurnAt - t)
 		else
@@ -121,7 +122,7 @@ function HUDController.Start(stateFolder: Instance, remotes: Instance)
 		end
 		architectLine.Visible = architectLine.Text ~= ""
 
-		results.Text = if state == S.Results or state == S.Reset then resultsText(tostring(stateFolder:GetAttribute("LastResult") or "")) else ""
+		results.Text = if state == S.Results or state == S.Reset then resultsText(snap.LastResult) else ""
 		results.Visible = results.Text ~= ""
 	end
 

@@ -2,6 +2,10 @@
 -- ArchitectController (Phase 2): placeholder Architect panel, shown only to the current Architect.
 -- Shows the offered patch cards, a keyword box (resolved locally to a card; never broadcast),
 -- a turn timer, and a confirm step. Sends only { patchId = <id> }; the server decides everything.
+--
+-- Turn identity is MatchId + TurnNumber (turn numbers restart every match). When the identity
+-- changes, selection, pending state, keyword text and feedback are cleared, and server responses
+-- tagged with any other turn are ignored.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10,6 +14,7 @@ local shared = ReplicatedStorage:WaitForChild("WORLD_EXE"):WaitForChild("Shared"
 local Config = require(shared:WaitForChild("Config"))
 local PatchCatalog = require(shared:WaitForChild("PatchCatalog"))
 local UIUtil = require(script.Parent:WaitForChild("UIUtil"))
+local MatchStateClient = require(script.Parent:WaitForChild("MatchStateClient"))
 
 local Palette = Config.Palette
 local REFRESH_SECONDS = 0.1
@@ -29,7 +34,7 @@ local FEEDBACK: { [string]: string } = {
 
 local ArchitectController = {}
 
-function ArchitectController.Start(stateFolder: Instance, remotes: Instance)
+function ArchitectController.Start(remotes: Instance)
 	local player = Players.LocalPlayer
 	local request = remotes:WaitForChild(Config.Remotes.RequestPatchSubmission) :: RemoteEvent
 	local result = remotes:WaitForChild(Config.Remotes.SubmissionResult) :: RemoteEvent
@@ -115,10 +120,18 @@ function ArchitectController.Start(stateFolder: Instance, remotes: Instance)
 	feedback.LayoutOrder = 7
 	feedback.Font = Enum.Font.Gotham
 
-	local shownTurn = -1
+	local shownKey = "" -- MatchId:TurnNumber currently rendered
+	local shownMatch: any = nil
 	local selected: string? = nil
 	local pending = false
 	local cardButtons: { [string]: TextButton } = {}
+
+	local function resetTurnState()
+		selected = nil
+		pending = false
+		keywordBox.Text = ""
+		feedback.Text = ""
+	end
 
 	local function renderSelection()
 		for id, button in cardButtons do
@@ -188,29 +201,39 @@ function ArchitectController.Start(stateFolder: Instance, remotes: Instance)
 	end)
 
 	result.OnClientEvent:Connect(function(data: any)
-		pending = false
 		if typeof(data) ~= "table" then
 			return
 		end
+		-- Ignore responses for any turn other than the one currently shown.
+		if MatchStateClient.TurnKey(data.MatchId, data.TurnNumber) ~= shownKey then
+			gui:SetAttribute("IgnoredResponses", (gui:GetAttribute("IgnoredResponses") or 0) + 1)
+			return
+		end
+		pending = false
 		feedback.Text = FEEDBACK[tostring(data.reason)] or "Request rejected."
 	end)
 
 	task.spawn(function()
 		while true do
+			local snap = MatchStateClient.Get()
+			local turn = snap.Turn
 			local t = workspace:GetServerTimeNow()
-			local architectId = stateFolder:GetAttribute("ArchitectUserId")
-			local turnEndsAt = stateFolder:GetAttribute("TurnEndsAt")
-			local turn = stateFolder:GetAttribute("TurnNumber")
-			local mine = architectId == player.UserId and typeof(turnEndsAt) == "number" and turnEndsAt > t
-			if mine and turn ~= shownTurn then
-				shownTurn = if typeof(turn) == "number" then turn else -1
-				selected = nil
-				pending = false
-				keywordBox.Text = ""
-				feedback.Text = ""
-				local offered = tostring(stateFolder:GetAttribute("OfferedPatches") or "")
-				buildCards(if offered == "" then {} else string.split(offered, ","))
+			if snap.MatchId ~= shownMatch then
+				-- New match: nothing from the previous match may carry over.
+				shownMatch = snap.MatchId
+				shownKey = ""
+				resetTurnState()
+				buildCards({})
 			end
+			local turnEndsAt = turn.TurnEndsAt
+			local mine = turn.ArchitectUserId == player.UserId and typeof(turnEndsAt) == "number" and turnEndsAt > t
+			local key = MatchStateClient.TurnKey(turn.TurnMatchId, turn.TurnNumber)
+			if mine and key ~= shownKey then
+				shownKey = key
+				resetTurnState()
+				buildCards(if typeof(turn.OfferedPatches) == "table" then turn.OfferedPatches else {})
+			end
+			gui:SetAttribute("TurnKey", shownKey)
 			gui.Enabled = mine
 			if mine then
 				timer.Text = "Time left: " .. UIUtil.formatTime((turnEndsAt :: number) - t)

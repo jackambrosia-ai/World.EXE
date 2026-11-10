@@ -24,9 +24,11 @@ if not root or not stateFolder or not remotes then
 end
 
 local controllers = script.Parent:WaitForChild("Controllers")
+local MatchStateClient = require(controllers:WaitForChild("MatchStateClient"))
 local HUDController = require(controllers:WaitForChild("HUDController"))
 local ArchitectController = require(controllers:WaitForChild("ArchitectController"))
-HUDController.Start(stateFolder, remotes)
-ArchitectController.Start(stateFolder, remotes)
+MatchStateClient.Start(stateFolder)
+HUDController.Start(remotes)
+ArchitectController.Start(remotes)
 
 print(`[WORLD_EXE] Client ready v{Config.Version} ({Players.LocalPlayer.Name}); server status={tostring(root:GetAttribute("BootstrapStatus"))}`)

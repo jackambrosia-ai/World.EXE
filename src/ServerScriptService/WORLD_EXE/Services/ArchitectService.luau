@@ -37,7 +37,7 @@ type Turn = {
 local ArchitectService = {}
 
 local rng = Random.new()
-local stateFolder: Instance? = nil
+local onChanged: () -> () = function() end -- MatchService republishes its snapshot
 local matchId = 0 -- 0 = no match running
 local order: { Player } = {}
 local lastArchitect: Player? = nil
@@ -106,18 +106,22 @@ end
 ---------------------------------------------------------------------------------------------------
 -- Turn state
 
-local function publishTurn()
-	local folder = stateFolder
-	if folder == nil then
-		return
-	end
+-- Turn fields included in MatchService's versioned snapshot.
+function ArchitectService.GetTurnSnapshot(): { [string]: any }
 	local turn = current
-	folder:SetAttribute("ArchitectUserId", if turn then turn.architect.UserId else 0)
-	folder:SetAttribute("ArchitectName", if turn then turn.architect.DisplayName else "")
-	folder:SetAttribute("TurnNumber", turnCount)
-	folder:SetAttribute("TurnEndsAt", if turn then turn.endsAt else 0)
-	folder:SetAttribute("OfferedPatches", if turn then table.concat(turn.offered, ",") else "")
-	folder:SetAttribute("NextTurnAt", if matchId ~= 0 and nextTurnAt < math.huge then nextTurnAt else 0)
+	return {
+		ArchitectUserId = if turn then turn.architect.UserId else 0,
+		ArchitectName = if turn then turn.architect.DisplayName else "",
+		TurnMatchId = if turn then turn.matchId else matchId,
+		TurnNumber = if turn then turn.number else turnCount,
+		TurnEndsAt = if turn then turn.endsAt else 0,
+		OfferedPatches = if turn then table.clone(turn.offered) else {},
+		NextTurnAt = if matchId ~= 0 and nextTurnAt < math.huge then nextTurnAt else 0,
+	}
+end
+
+local function publishTurn()
+	onChanged()
 end
 
 local function isEligible(player: Player): boolean
@@ -219,42 +223,52 @@ local function allowRequest(player: Player): boolean
 	return true
 end
 
-local function reply(player: Player, ok: boolean, reason: string, patchId: string?)
-	NetService.Get(Config.Remotes.SubmissionResult):FireClient(player, { ok = ok, reason = reason, patchId = patchId })
+-- Every response names the match and turn it refers to, so the client can ignore responses that
+-- arrive after its UI has moved on to a different turn or match.
+local function reply(player: Player, matchRef: number, turnRef: number, ok: boolean, reason: string, patchId: string?)
+	NetService.Get(Config.Remotes.SubmissionResult):FireClient(player, {
+		ok = ok,
+		reason = reason,
+		patchId = patchId,
+		MatchId = matchRef,
+		TurnNumber = turnRef,
+	})
 end
 
 local lastScale = 1
 
 local function onSubmission(player: Player, payload: any)
+	local turn = current
+	local matchRef = if turn then turn.matchId else matchId
+	local turnRef = if turn then turn.number else turnCount
 	if not allowRequest(player) then
-		return reply(player, false, "rate_limited")
+		return reply(player, matchRef, turnRef, false, "rate_limited")
 	end
 	local raw, problem = ArchitectService.ParsePayload(payload)
 	if raw == nil then
-		return reply(player, false, problem or "bad_payload")
+		return reply(player, matchRef, turnRef, false, problem or "bad_payload")
 	end
-	local turn = current
 	if turn == nil or matchId == 0 then
-		return reply(player, false, "no_open_turn")
+		return reply(player, matchRef, turnRef, false, "no_open_turn")
 	end
 	if turn.architect ~= player then
-		return reply(player, false, "not_architect")
+		return reply(player, matchRef, turnRef, false, "not_architect")
 	end
 	if turn.matchId ~= matchId then
-		return reply(player, false, "stale_turn")
+		return reply(player, matchRef, turnRef, false, "stale_turn")
 	end
 	if now() >= turn.endsAt then
-		return reply(player, false, "window_closed")
+		return reply(player, matchRef, turnRef, false, "window_closed")
 	end
 	local patchId = PatchCatalog.Resolve(raw)
 	if patchId == nil then
-		return reply(player, false, "unknown_patch")
+		return reply(player, matchRef, turnRef, false, "unknown_patch")
 	end
 	if not turn.offeredSet[patchId] then
-		return reply(player, false, "not_offered")
+		return reply(player, matchRef, turnRef, false, "not_offered")
 	end
 	resolveTurn("accepted", patchId, lastScale)
-	reply(player, true, "accepted", patchId)
+	reply(player, matchRef, turnRef, true, "accepted", patchId)
 end
 
 ---------------------------------------------------------------------------------------------------
@@ -325,9 +339,8 @@ function ArchitectService.GetCurrentArchitect(): Player?
 	return if current then current.architect else nil
 end
 
-function ArchitectService.Init(folder: Instance)
-	stateFolder = folder
-	publishTurn()
+function ArchitectService.Init(changedCallback: () -> ())
+	onChanged = changedCallback
 	NetService.Get(Config.Remotes.RequestPatchSubmission).OnServerEvent:Connect(onSubmission)
 end
 

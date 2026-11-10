@@ -4,7 +4,7 @@
 
 local Config = {}
 
-Config.Version = "0.2.0-phase2"
+Config.Version = "0.2.1-phase2"
 Config.RootName = "WORLD_EXE"
 
 -- CollectionService tags used by the Studio-owned arena.
@@ -92,7 +92,8 @@ Config.MatchStates = table.freeze({
 	Reset = "RESET",
 })
 
--- Match timing (seconds). Target total ~8.5 min (ACTIVE + FINAL_PHASE); tune in playtests.
+-- Match timing (seconds). Target match length 8–12 min; initial gameplay duration 8:30
+-- (ACTIVE 7:00 + FINAL_PHASE 1:30), approved 2026-11-10. Tune in playtests.
 Config.Match = table.freeze({
 	MinPlayers = 2,
 	StudioMinPlayers = 1, -- used only in Studio so solo playtests can run the loop
@@ -137,8 +138,10 @@ Config.Remotes = table.freeze({
 	MatchStateChanged = "MatchStateChanged", -- server -> all: state snapshot on each transition
 })
 
--- Replicated match-state attributes live on ReplicatedStorage.WORLD_EXE.MatchState.
+-- Replicated match state: ReplicatedStorage.WORLD_EXE.MatchState carries ONE attribute holding a
+-- JSON snapshot with a monotonically increasing Version (no partially updated multi-attribute state).
 Config.MatchStateFolder = "MatchState"
+Config.MatchSnapshotAttribute = "Snapshot"
 
 Config.LobbySpawnTag = "LobbySpawn"
 Config.OutOfBoundsY = -60 -- characters below this are eliminated and respawn
@@ -151,6 +154,7 @@ Config.SpawnProtectionName = "WORLD_EXE_SpawnProtection"
 Config.StudioControls = table.freeze({
 	TimeScale = "StudioTimeScale", -- multiplies match-phase and turn-interval durations
 	MinPlayers = "StudioMinPlayers",
+	FailOnEnter = "StudioFailOnEnter", -- state name: makes that state's entry fail (recovery test)
 })
 
 -- Reference-board palette (docs/04_UI_AND_ART_DIRECTION.md).

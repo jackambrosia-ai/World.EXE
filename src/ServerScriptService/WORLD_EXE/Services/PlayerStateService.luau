@@ -14,6 +14,7 @@ local ArenaService = require(script.Parent:WaitForChild("ArenaService"))
 local Roles = Config.Roles
 local ROLE_ATTR = Config.PlayerAttributes.Role
 local ALIVE_ATTR = Config.PlayerAttributes.Alive
+local LAST_SPAWN_ATTR = "WORLD_EXE_LastSpawn"
 local WATCHDOG_SECONDS = 0.5
 
 local PlayerStateService = {}
@@ -24,6 +25,16 @@ local arenaSpawns: { SpawnLocation } = {}
 local arenaPhase = false -- true while participants should (re)spawn in the arena
 local protectionActive = false
 local lastArenaPad: { [Player]: SpawnLocation } = {}
+-- Per-player spawn generation. Every scheduled LoadCharacter remembers the generation it was
+-- issued under; any later spawn request, role change, phase change, or departure bumps it, so a
+-- stale request is dropped instead of loading the character in the wrong place.
+local spawnGeneration: { [Player]: number } = {}
+local loadsPerformed: { [Player]: number } = {}
+-- Loads are serialized per player: the engine ignores a LoadCharacter issued while that player's
+-- previous load is still finishing, so at most one load runs and only the newest request waits.
+type SpawnRequest = { generation: number, intent: string, pad: SpawnLocation }
+local pendingSpawn: { [Player]: SpawnRequest } = {}
+local loadRunning: { [Player]: boolean } = {}
 local joinRole: () -> string = function()
 	return Roles.Lobby
 end
@@ -92,8 +103,68 @@ function PlayerStateService.RefreshRespawnLocation(player: Player)
 	end
 end
 
+local function bumpSpawnGeneration(player: Player): number
+	local generation = (spawnGeneration[player] or 0) + 1
+	spawnGeneration[player] = generation
+	return generation
+end
+
+function PlayerStateService.GetSpawnGeneration(player: Player): number
+	return spawnGeneration[player] or 0
+end
+
+-- Number of LoadCharacter calls this service actually performed for the player (for tests).
+function PlayerStateService.GetLoadsPerformed(player: Player): number
+	return loadsPerformed[player] or 0
+end
+
+-- Runs pending spawn requests for one player, one LoadCharacter at a time. Each request is
+-- re-checked immediately before loading: still connected, no newer spawn generation, and the
+-- intent still matches the player's role and the current phase. Otherwise it is dropped.
+local function processSpawns(player: Player)
+	if loadRunning[player] then
+		return -- the running loop picks up the newest request when its load returns
+	end
+	loadRunning[player] = true
+	while player.Parent == Players do
+		local request = pendingSpawn[player]
+		if request == nil then
+			break
+		end
+		pendingSpawn[player] = nil
+		-- Diagnostic outcome (server-set, read by tests): "<intent>#<generation>:<result>".
+		local label = `{request.intent}#{request.generation}`
+		if spawnGeneration[player] ~= request.generation then
+			player:SetAttribute(LAST_SPAWN_ATTR, label .. ":superseded")
+			continue
+		end
+		local wantsArena = arenaPhase and PlayerStateService.GetRole(player) == Roles.Participant
+		if (request.intent == "arena") ~= wantsArena then
+			player:SetAttribute(LAST_SPAWN_ATTR, label .. ":intent_mismatch")
+			continue
+		end
+		player.RespawnLocation = request.pad
+		loadsPerformed[player] = (loadsPerformed[player] or 0) + 1
+		player:SetAttribute(LAST_SPAWN_ATTR, label .. ":loading")
+		local ok, err = pcall(player.LoadCharacter, player)
+		if not ok then
+			warn(`[WORLD_EXE] LoadCharacter failed for {player.Name}: {err}`)
+		elseif player.Parent == Players then
+			player:SetAttribute(LAST_SPAWN_ATTR, label .. ":loaded")
+		end
+	end
+	loadRunning[player] = nil
+end
+
+-- Requests a fresh character at `pad`. `intent` is "arena" or "lobby". The newest request wins.
+local function requestLoad(player: Player, intent: string, pad: SpawnLocation)
+	pendingSpawn[player] = { generation = bumpSpawnGeneration(player), intent = intent, pad = pad }
+	task.defer(processSpawns, player)
+end
+
 function PlayerStateService.SetRole(player: Player, role: string)
 	assert(role == Roles.Lobby or role == Roles.Participant or role == Roles.Spectator, "invalid role " .. tostring(role))
+	bumpSpawnGeneration(player)
 	player:SetAttribute(ROLE_ATTR, role)
 	PlayerStateService.RefreshRespawnLocation(player)
 end
@@ -101,6 +172,7 @@ end
 function PlayerStateService.SetArenaPhase(enabled: boolean)
 	arenaPhase = enabled
 	for _, player in Players:GetPlayers() do
+		bumpSpawnGeneration(player)
 		PlayerStateService.RefreshRespawnLocation(player)
 	end
 end
@@ -140,24 +212,14 @@ function PlayerStateService.SpawnParticipants(participants: { Player })
 	for i, player in participants do
 		local pad = pads[((i - 1) % #pads) + 1]
 		lastArenaPad[player] = pad
-		player.RespawnLocation = pad
-		task.spawn(function()
-			if player.Parent == Players then
-				player:LoadCharacter()
-			end
-		end)
+		requestLoad(player, "arena", pad)
 	end
 end
 
 -- Respawns every player in the lobby.
 function PlayerStateService.ReturnAllToLobby()
 	for _, player in Players:GetPlayers() do
-		player.RespawnLocation = pickLobbyPad()
-		task.spawn(function()
-			if player.Parent == Players then
-				player:LoadCharacter()
-			end
-		end)
+		requestLoad(player, "lobby", pickLobbyPad())
 	end
 end
 
@@ -192,13 +254,19 @@ local function onPlayerAdded(player: Player)
 	if player.Character then
 		onCharacterAdded(player, player.Character)
 		-- Joined before the server was ready: make sure they are standing in the right place.
-		task.spawn(function()
-			player:LoadCharacter()
-		end)
+		if arenaPhase and PlayerStateService.GetRole(player) == Roles.Participant then
+			requestLoad(player, "arena", pickArenaPad(player))
+		else
+			requestLoad(player, "lobby", pickLobbyPad())
+		end
 	end
 end
 
 local function onPlayerRemoving(player: Player)
+	bumpSpawnGeneration(player) -- invalidates any pending load
+	spawnGeneration[player] = nil
+	loadsPerformed[player] = nil
+	pendingSpawn[player] = nil
 	lastArenaPad[player] = nil
 	for _, callback in leftCallbacks do
 		task.spawn(callback, player)

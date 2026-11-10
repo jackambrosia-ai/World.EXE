@@ -3,7 +3,7 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 2 IMPLEMENTED (solo-tested) — PR open for review, not merged; Phase 3 not started and requires separate owner approval
+- Overall status: PHASE 2 — review round 1 corrections applied (solo-tested); PR #2 open for re-review, not merged; Phase 3 not started and requires separate owner approval
 - Current phase: Phase 2 — Match lifecycle and Architect selection
 - Current branch: `phase-02-match`
 - Current PR: [jackambrosia-ai/World.EXE#2](https://github.com/jackambrosia-ai/World.EXE/pull/2) (do not merge without owner approval)
@@ -17,7 +17,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 - Studio save: Studio MCP cannot save the place — the owner must press Ctrl+S after each change set
 - StreamingEnabled: unchanged (enabled), per Phase 0 review
 - Multi-client testing: not available through Studio MCP; all Phase 1 and Phase 2 tests are **solo**. Outstanding multi-client tests are listed in the Phase 2 report.
-- Latest technical review: Phase 1 review round 2 (ChatGPT) — addressed and merged. Phase 2 awaiting review.
+- Latest technical review: Phase 2 review round 1 (ChatGPT, relayed by the owner 2026-11-10) — 5 findings addressed; design decisions approved. See "Phase 2 review round 1 corrections".
 - Last updated: 2026-11-10
 
 ## Phase tracker
@@ -25,7 +25,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 |---|---|---|---|---|
 | 0 | Audit and setup | Complete (owner decisions recorded) | — | Read-only audit; ForgeGUI read-only audit |
 | 1 | Foundation and arena | **Complete — merged** (solo-tested; multi-client tests outstanding) | [PR #1](https://github.com/jackambrosia-ai/World.EXE/pull/1) → `9b9cbd0` | Solo playtests: see reports below |
-| 2 | Match and Architect | Implemented — solo-tested, PR open for review | [PR #2](https://github.com/jackambrosia-ai/World.EXE/pull/2) (`phase-02-match`) | Solo playtests + unit tests: see Phase 2 report |
+| 2 | Match and Architect | Review round 1 corrections applied — solo-tested, awaiting re-review | [PR #2](https://github.com/jackambrosia-ai/World.EXE/pull/2) (`phase-02-match`) | Solo playtests + unit tests: see Phase 2 report |
 | 3 | Patch engine | Not started | — | — |
 | 4 | Four prototype patches | Not started | — | — |
 | 5 | Stability/objectives/scoring | Not started | — | — |
@@ -35,13 +35,62 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
 
+## Phase 2 review round 1 corrections (2026-11-10)
+
+### Findings and resolutions
+| # | Finding | Resolution |
+|---|---|---|
+| 1 | Architect UI turn identity | `ArchitectController` keys the rendered turn by `MatchId:TurnNumber` (from the snapshot's `Turn.TurnMatchId`/`TurnNumber`). A new match clears selection, pending state, keyword text, feedback and cards; a new turn key rebuilds the panel. The current key is exposed as the panel's `TurnKey` attribute for tests. |
+| 2 | Deferred `LoadCharacter` races | `PlayerStateService` keeps a per-player **spawn generation**, bumped by every spawn request, role change (`SetRole`), phase change (`SetArenaPhase`) and departure. Requests are **serialized per player**: one `LoadCharacter` runs at a time and only the newest request waits. Immediately before loading, the request is re-checked (still connected, generation current, intent arena/lobby still matches role + phase) and dropped otherwise. Diagnostic player attribute `WORLD_EXE_LastSpawn` = `<intent>#<generation>:<superseded|intent_mismatch|loading|loaded>`. |
+| 3 | Transition hook failures | `MatchService.transition` runs the entry hook in `pcall`. On failure, `recover()` runs isolated cleanup steps (stop Architect, protection off, arena phase off, all roles → Lobby, return everyone to the lobby, clear runtime folders), sets LOBBY with no participants, increments `Recoveries`, logs and warns. Studio-only fault injection: `StudioFailOnEnter`. |
+| 4 | Tagged submission responses | Every `SubmissionResult` carries `MatchId` and `TurnNumber` (the turn the request was evaluated against). The client ignores responses whose `MatchId:TurnNumber` differs from the turn it is showing (counted in the panel's `IgnoredResponses` attribute). |
+| 5 | Partially updated replicated state | Replaced the per-field attributes with **one `Snapshot` attribute** (JSON) on `ReplicatedStorage.WORLD_EXE.MatchState` containing match state, Architect turn, last result and reset info, with a monotonically increasing `Version`. Publishing is suppressed mid-transition and done once at the end; Architect turn changes trigger a full republish. The new client module `MatchStateClient` is the only reader and ignores older/duplicate/malformed versions. `MatchStateChanged` fires the same snapshot. |
+
+### Bug found during testing (fixed)
+The first generation-only version still left a participant in the lobby after a recovery: the engine **silently ignores a `LoadCharacter` issued while that player's previous load is still finishing**. Observed: recovery lobby load at 5.75 s, next match's arena load at 6.55 s → `arena#22:loading` with no `CharacterAdded`; the participant stayed on a lobby pad during ACTIVE. Fixed by serializing loads per player (above); re-test shows the arena request waiting for the lobby load and then landing on an arena pad.
+
+### Approved design decisions (recorded)
+Respawn in ACTIVE and FINAL_PHASE; lobby auto-ready; no new Architect turns in FINAL_PHASE; keep `SubmissionResult`; Studio minimum 1 / live 2; ACTIVE 420 s + FINAL_PHASE 90 s. Match duration standardized in `README.md`, `CLAUDE_START_HERE.md` and `docs/01_GAME_DESIGN.md` to **8–12 minutes, initial gameplay duration 8:30**.
+
+### Changed files
+- `src/ServerScriptService/WORLD_EXE/Services/MatchService.luau` — versioned snapshot, publish suppression, recovery path, fault injection.
+- `src/ServerScriptService/WORLD_EXE/Services/PlayerStateService.luau` — spawn generations, serialized loads, revalidation, diagnostics.
+- `src/ServerScriptService/WORLD_EXE/Services/ArchitectService.luau` — `GetTurnSnapshot()`, change callback, tagged replies.
+- `src/StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/MatchStateClient.luau` — new.
+- `src/StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/{ArchitectController,HUDController}.luau`, `ClientBootstrap.client.luau` — read the snapshot; turn keys; stale-reply filtering.
+- `src/ReplicatedStorage/WORLD_EXE/Shared/Config.luau` — v0.2.1-phase2, `MatchSnapshotAttribute`, `StudioControls.FailOnEnter`, duration comment.
+- `README.md`, `CLAUDE_START_HERE.md`, `docs/01_GAME_DESIGN.md` (duration), `src/README.md`, this file.
+- Studio: all 13 scripts hash-verified identical to `src/`. No geometry changes.
+
+### Tests (all **solo** — one Studio client)
+| Test | Result |
+|---|---|
+| Unit (fresh play VM, cloned modules): rotation fairness 400 turns, round-robin, 11 bad payloads, valid payload, catalog, turn snapshot fields | 6/6 PASS |
+| Unit: `MatchStateClient` — reads v5; ignores older v4, duplicate v5, malformed JSON; accepts v6 and fills a missing turn; turn key includes match id | 6/6 PASS |
+| **Architect UI over consecutive matches** (one turn per match): match 3 turn 1 submission accepted, reply tagged `3:1`, feedback "Patch submitted."; match 4 turn 1 → panel key `4:1`, feedback empty, no selection, keyword empty, 4 cards | PASS |
+| **Stale/delayed feedback**: reply tagged `3:1` sent during `4:1` → ignored; reply tagged `4:1` arriving after the panel moved to `5:1` → ignored; reply tagged with the current turn (`6:1`) → shown | PASS (IgnoredResponses 0→1→2, current reply displayed) |
+| **Transition failure at INITIALIZING** (after spawns were scheduled): state → LOBBY, reason "recovered: entering INITIALIZING failed", participants 0, Architect 0, role Lobby, no force field, player on a lobby pad, 0 runtime objects; next match starts normally | PASS |
+| **Overlapping respawn requests** (recovery lobby load, then next match's arena load ~0.9 s later): arena request waits, then loads; player on an arena pad in ACTIVE | PASS (after the serialization fix) |
+| **Transition failure at ACTIVE** (after Architect start): LOBBY, participants 0, Architect 0, no scheduled turn; next match proceeds with the player on an arena pad | PASS |
+| **Snapshot consistency** (client observed every snapshot over 3 matches): versions strictly increasing; Architect only in ACTIVE and tagged with the current match; no participants/Architect in LOBBY/COUNTDOWN; participants ≥ 1 in match states; RESULTS tagged with the current match; no scheduled turn outside ACTIVE | 17 snapshots, **0 violations** |
+| Regression: real-remote submissions — number payload, extra key, 40-char id, code-like text, unknown patch rejected; alias `drones` accepted; second submission `no_open_turn`; every reply tagged `13:1` | PASS |
+| Regression: burst of 8 → 4 `rate_limited` | PASS |
+| Regression: death → arena respawn (5.2 s); out of bounds → eliminated 0.25 s → arena; non-participant in arena → lobby (0.13 s) | PASS |
+| Regression: countdown with minimum 2 → LOBBY ("countdown cancelled: not enough players"), stays in LOBBY, restarts when the minimum is restored | PASS |
+| Regression: stress — 4 more full cycles (matches 14→18): 40 snapshot versions, 0 out-of-order, 0 illegal transitions, baseline matched at every reset, 0 runtime objects left | PASS |
+| Edit DataModel after play: no test clones, runtime objects or test attributes | PASS |
+| Output | Only the two **intended** injected-failure warnings; no other errors or warnings |
+
+### Unverified — multi-client Studio testing is not available through Studio MCP
+Not run and **not claimed**: Architect authorization with two players (`not_architect`, `stale_turn`); a player leaving during a turn or mid-match; abort when all participants leave; mid-match join → Spectator; > 12 players; concurrent spawning; multi-client replication of the snapshot/HUD; streaming at distance; spawn-generation invalidation on **departure** (code path present, not exercised); real UI clicks. These need Studio **Test → Clients and Servers** with 2+ clients, run by the owner.
+
 ## Phase 2 report — Match lifecycle and Architect selection (2026-11-10)
 
 Approved by the owner 2026-11-10. Pre-phase checks: `Place1.rbxl` saved and unchanged since the post-Phase-1 backup (hash-identical); fresh backup `WorldEXE_pre-phase2_2026-11-10.rbxl` verified hash-identical; live Studio scripts hash-identical to `main` before any edit.
 
 ### Completed features
 - **Match state machine** (`MatchService`, the only writer of match state): LOBBY → COUNTDOWN → INITIALIZING → ACTIVE → FINAL_PHASE → RESULTS → RESET → LOBBY, plus COUNTDOWN → LOBBY (below minimum) and INITIALIZING/ACTIVE/FINAL_PHASE → RESULTS when no participants remain. Illegal transitions assert. One server loop (0.25 s) evaluates all deadlines — there are no per-state timer callbacks that could fire into a later match. `MatchId` increments at INITIALIZING; Architect turns and results carry it.
-- **Timing** (`Config.Match`): countdown 10 s, initializing 5 s, ACTIVE 420 s, FINAL_PHASE 90 s (≈8.5 min, inside both the 7–9 and 8–12 min ranges currently stated in the docs), results 12 s, reset 3 s. Low-stability trigger for the final phase is left for Phase 5.
+- **Timing** (`Config.Match`): countdown 10 s, initializing 5 s, ACTIVE 420 s, FINAL_PHASE 90 s (8:30 of gameplay; target range now standardized to 8–12 min), results 12 s, reset 3 s. Low-stability trigger for the final phase is left for Phase 5.
 - **Participation** (`PlayerStateService`): server-set player attribute `WORLD_EXE_Role` (Lobby / Participant / Spectator) and `WORLD_EXE_Alive`. Everyone in the lobby at the end of the countdown becomes a participant (cap 12; overflow spectates). Players joining during LOBBY/COUNTDOWN join the lobby; joining later → Spectator until the next match. Leaving removes the player from the roster and the Architect queue; an Architect who leaves ends their turn as skipped.
 - **Spawning & respawning**: new enclosed **Lobby** platform (`Workspace.WORLD_EXE.Lobby`, 4 `LobbySpawn` SpawnLocations, built by `tools/studio/phase2_build_lobby.luau`, outside the arena map so Phase 1 validation/baseline are unaffected). The server sets each player's `RespawnLocation`: participants respawn on an arena pad during INITIALIZING/ACTIVE/FINAL_PHASE (different pad from last time); everyone else in the lobby. INITIALIZING reloads each participant on a distinct arena pad; RESET reloads everyone in the lobby.
 - **Spawn protection**: a visible ForceField on participants for the INITIALIZING window only, removed at ACTIVE.

@@ -2,11 +2,16 @@
 -- MatchService (Phase 2, server only). The ONLY module that changes match state.
 --
 -- LOBBY -> COUNTDOWN -> INITIALIZING -> ACTIVE -> FINAL_PHASE -> RESULTS -> RESET -> LOBBY
--- Also: COUNTDOWN -> LOBBY (not enough players), INITIALIZING/ACTIVE -> RESULTS (no participants).
+-- Also: COUNTDOWN -> LOBBY (not enough players), INITIALIZING/ACTIVE/FINAL_PHASE -> RESULTS
+-- (no participants), and any state -> LOBBY via recovery when a state's entry hook fails.
 --
 -- A single server loop evaluates deadlines every Config.Match.TickSeconds, so there are no
 -- per-state timer callbacks that could fire into a later match. MatchId increments when a
 -- match initializes; everything match-scoped (Architect turns, results) carries it.
+--
+-- Replication: the whole state (match + Architect turn + last result) is published as ONE JSON
+-- attribute with a monotonically increasing Version, so clients never observe a half-updated
+-- state. Publishing is suppressed while a transition is in progress and done once at the end.
 
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
@@ -45,6 +50,13 @@ local stateEndsAt = 0
 local activeStartedAt = 0
 local outcome = ""
 local outcomeReason = ""
+local lastReason = ""
+local lastResult: { [string]: any }? = nil
+local lastResetRemoved = 0
+local lastResetBaselineMatches = true
+local recoveries = 0
+local version = 0
+local inTransition = false
 local participants: { Player } = {}
 local transitionLog: { string } = {}
 local running = false
@@ -53,12 +65,17 @@ local function now(): number
 	return workspace:GetServerTimeNow()
 end
 
-local function studioNumber(name: string, default: number): number
+local function studioValue(name: string): any
 	if RunService:IsStudio() and controls then
-		local value = controls:GetAttribute(name)
-		if typeof(value) == "number" and value == value and value > 0 and value < math.huge then
-			return value
-		end
+		return controls:GetAttribute(name)
+	end
+	return nil
+end
+
+local function studioNumber(name: string, default: number): number
+	local value = studioValue(name)
+	if typeof(value) == "number" and value == value and value > 0 and value < math.huge then
+		return value
 	end
 	return default
 end
@@ -74,37 +91,43 @@ local function minPlayers(): number
 	return Timing.MinPlayers
 end
 
-local function snapshot(reason: string): { [string]: any }
+---------------------------------------------------------------------------------------------------
+-- Snapshot
+
+local function snapshot(): { [string]: any }
 	return {
+		Version = version,
 		State = state,
 		MatchId = matchId,
 		StateStartedAt = stateStartedAt,
 		StateEndsAt = stateEndsAt,
 		ParticipantCount = #participants,
 		MinPlayers = minPlayers(),
-		Reason = reason,
+		Reason = lastReason,
+		Recoveries = recoveries,
+		Turn = ArchitectService.GetTurnSnapshot(),
+		LastResult = lastResult,
+		LastResetRemoved = lastResetRemoved,
+		LastResetBaselineMatches = lastResetBaselineMatches,
 	}
 end
 
-local function publish(reason: string)
-	for key, value in snapshot(reason) do
-		stateFolder:SetAttribute(key, value)
+-- Publishes one consistent, versioned snapshot (skipped mid-transition; the transition publishes).
+local function publish()
+	if inTransition or stateFolder == nil then
+		return
 	end
-	NetService.Get(Config.Remotes.MatchStateChanged):FireAllClients(snapshot(reason))
+	version += 1
+	local snap = snapshot()
+	stateFolder:SetAttribute(Config.MatchSnapshotAttribute, HttpService:JSONEncode(snap))
+	NetService.Get(Config.Remotes.MatchStateChanged):FireAllClients(snap)
 end
 
 local function lobbyCount(): number
 	return #PlayerStateService.GetPlayersWithRole(Roles.Lobby)
 end
 
-local function removeParticipant(player: Player)
-	local index = table.find(participants, player)
-	if index then
-		table.remove(participants, index)
-	end
-end
-
-local function buildResults(): string
+local function buildResults(): { [string]: any }
 	local names = {}
 	for _, player in participants do
 		table.insert(names, player.DisplayName)
@@ -119,7 +142,7 @@ local function buildResults(): string
 		end
 		table.insert(turns, { Turn = result.Turn, Architect = result.ArchitectName, Outcome = result.Outcome, PatchId = result.PatchId })
 	end
-	return HttpService:JSONEncode({
+	return {
 		MatchId = matchId,
 		Outcome = outcome,
 		Reason = outcomeReason,
@@ -128,7 +151,7 @@ local function buildResults(): string
 		TurnsAccepted = accepted,
 		TurnsSkipped = skipped,
 		Turns = turns,
-	})
+	}
 end
 
 ---------------------------------------------------------------------------------------------------
@@ -136,22 +159,81 @@ end
 
 local enter: { [string]: () -> () } = {}
 
-local function transition(to: string, reason: string)
-	local from = state
-	assert(ALLOWED[from] and ALLOWED[from][to], `illegal match transition {from} -> {to}`)
-	state = to
-	stateStartedAt = now()
-	stateEndsAt = 0
+local function logTransition(from: string, to: string, reason: string)
 	table.insert(transitionLog, `{matchId}:{from}->{to}:{reason}`)
 	if #transitionLog > 50 then
 		table.remove(transitionLog, 1)
 	end
 	print(`[WORLD_EXE] Match {matchId}: {from} -> {to} ({reason})`)
-	local hook = enter[to]
-	if hook then
-		hook()
+end
+
+-- Returns every player to a clean lobby state after a failed entry hook. Each step is isolated
+-- so one failure cannot stop the rest; the state always ends in LOBBY with no participants.
+local function recover(failedState: string, err: any)
+	warn(`[WORLD_EXE] Match {matchId}: entering {failedState} failed: {err}. Recovering to LOBBY.`)
+	local steps: { () -> () } = {
+		function()
+			ArchitectService.StopMatch("cancelled")
+		end,
+		function()
+			PlayerStateService.SetSpawnProtection(false)
+		end,
+		function()
+			PlayerStateService.SetArenaPhase(false)
+		end,
+		function()
+			for _, player in Players:GetPlayers() do
+				PlayerStateService.SetRole(player, Roles.Lobby)
+			end
+		end,
+		function()
+			PlayerStateService.ReturnAllToLobby()
+		end,
+		function()
+			ArenaService.ResetRuntime()
+		end,
+	}
+	for _, step in steps do
+		local ok, stepErr = pcall(step)
+		if not ok then
+			warn(`[WORLD_EXE] Recovery step failed: {stepErr}`)
+		end
 	end
-	publish(reason)
+	participants = {}
+	outcome, outcomeReason = "", ""
+	activeStartedAt = 0
+	recoveries += 1
+	logTransition(failedState, S.Lobby, "recovery")
+	state = S.Lobby
+	stateStartedAt = now()
+	stateEndsAt = 0
+	lastReason = `recovered: entering {failedState} failed`
+end
+
+local function transition(to: string, reason: string)
+	local from = state
+	assert(ALLOWED[from] and ALLOWED[from][to], `illegal match transition {from} -> {to}`)
+	inTransition = true
+	state = to
+	stateStartedAt = now()
+	stateEndsAt = 0
+	lastReason = reason
+	logTransition(from, to, reason)
+	local ok, err = pcall(function()
+		local hook = enter[to]
+		if hook then
+			hook()
+		end
+		-- Studio-only fault injection for tests: fail after the hook has done its work.
+		if studioValue(Config.StudioControls.FailOnEnter) == to then
+			error("injected test failure")
+		end
+	end)
+	if not ok then
+		recover(to, err)
+	end
+	inTransition = false
+	publish()
 end
 
 local function deadline(seconds: number)
@@ -194,7 +276,7 @@ enter[S.Active] = function()
 end
 
 enter[S.FinalPhase] = function()
-	-- Phase 2 policy: no new Architect turns in the final phase.
+	-- Approved policy: no new Architect turns in the final phase.
 	ArchitectService.StopMatch("cancelled")
 	deadline(Timing.FinalPhaseSeconds)
 end
@@ -203,7 +285,7 @@ enter[S.Results] = function()
 	ArchitectService.StopMatch("cancelled")
 	PlayerStateService.SetSpawnProtection(false)
 	PlayerStateService.SetArenaPhase(false)
-	stateFolder:SetAttribute("LastResult", buildResults())
+	lastResult = buildResults()
 	deadline(Timing.ResultsSeconds)
 end
 
@@ -216,8 +298,8 @@ enter[S.Reset] = function()
 	if not baseline.matches then
 		warn(`[WORLD_EXE] Reset: arena differs from baseline ({baseline.total} differences): {baseline.differences[1]}`)
 	end
-	stateFolder:SetAttribute("LastResetRemoved", removed)
-	stateFolder:SetAttribute("LastResetBaselineMatches", baseline.matches)
+	lastResetRemoved = removed
+	lastResetBaselineMatches = baseline.matches
 	participants = {}
 	for _, player in Players:GetPlayers() do
 		PlayerStateService.SetRole(player, Roles.Lobby)
@@ -279,9 +361,10 @@ end
 
 local function onPlayerLeft(player: Player)
 	ArchitectService.OnPlayerLeft(player)
-	if table.find(participants, player) then
-		removeParticipant(player)
-		stateFolder:SetAttribute("ParticipantCount", #participants)
+	local index = table.find(participants, player)
+	if index then
+		table.remove(participants, index)
+		publish()
 	end
 end
 
@@ -313,14 +396,14 @@ function MatchService.Init(controlFolder: Instance)
 		folder.Parent = shared
 		stateFolder = folder
 	end
-	stateFolder:SetAttribute("LastResult", "")
-	ArchitectService.Init(stateFolder)
+	ArchitectService.Init(publish)
 	PlayerStateService.SetJoinPolicy(function()
 		return if state == S.Lobby or state == S.Countdown then Roles.Lobby else Roles.Spectator
 	end)
 	PlayerStateService.OnPlayerLeft(onPlayerLeft)
 	enter[S.Lobby]()
-	publish("server start")
+	lastReason = "server start"
+	publish()
 end
 
 function MatchService.Start()
