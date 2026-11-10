@@ -70,7 +70,28 @@ local function tagKey(inst: Instance): string
 	return table.concat(tags, ",")
 end
 
+local function vectorKey(v: Vector3): string
+	return `{q(v.X)},{q(v.Y)},{q(v.Z)}`
+end
+
+local function physicalPropertiesKey(props: PhysicalProperties?): string
+	if props == nil then
+		return "material-default"
+	end
+	return `{q(props.Density)},{q(props.Friction)},{q(props.Elasticity)},{q(props.FrictionWeight)},{q(props.ElasticityWeight)}`
+end
+
 -- Everything about an instance that the arena contract depends on.
+--
+-- Compared for BaseParts: CFrame (position + rotation), Size, Part.Shape, Material (sets default
+-- friction/density), CustomPhysicalProperties, CollisionGroup, Anchored, CanCollide, CanQuery,
+-- CanTouch, Massless, AssemblyLinearVelocity / AssemblyAngularVelocity (an anchored part with
+-- velocity acts as a conveyor), CollisionFidelity for mesh/union parts, MeshId for MeshParts.
+--
+-- Intentionally NOT compared (visual-only or irrelevant to anchored arena geometry): Color,
+-- Transparency, Reflectance, CastShadow, Locked, Archivable, surface types (no physics effect),
+-- RootPriority (only affects unanchored assemblies; Anchored is compared), network ownership
+-- (runtime state), and the internal geometry of unions (not readable from Luau; none in the map).
 local function describe(inst: Instance): string
 	local fields = {
 		inst.ClassName,
@@ -79,10 +100,20 @@ local function describe(inst: Instance): string
 		`tags[{tagKey(inst)}]`,
 	}
 	if inst:IsA("BasePart") then
-		local s = inst.Size
 		table.insert(fields, `cf[{cframeKey(inst.CFrame)}]`)
-		table.insert(fields, `size[{q(s.X)},{q(s.Y)},{q(s.Z)}]`)
-		table.insert(fields, `anchored={inst.Anchored} collide={inst.CanCollide} query={inst.CanQuery} touch={inst.CanTouch}`)
+		table.insert(fields, `size[{vectorKey(inst.Size)}]`)
+		if inst:IsA("Part") then
+			table.insert(fields, `shape={inst.Shape.Name}`)
+		end
+		table.insert(fields, `material={inst.Material.Name} physics[{physicalPropertiesKey(inst.CustomPhysicalProperties)}] group={inst.CollisionGroup}`)
+		table.insert(fields, `anchored={inst.Anchored} collide={inst.CanCollide} query={inst.CanQuery} touch={inst.CanTouch} massless={inst.Massless}`)
+		table.insert(fields, `vel[{vectorKey(inst.AssemblyLinearVelocity)}] angvel[{vectorKey(inst.AssemblyAngularVelocity)}]`)
+		if inst:IsA("TriangleMeshPart") then
+			table.insert(fields, `fidelity={inst.CollisionFidelity.Name}`)
+		end
+		if inst:IsA("MeshPart") then
+			table.insert(fields, `mesh={inst.MeshId}`)
+		end
 		if inst:IsA("SpawnLocation") then
 			table.insert(fields, `spawn[enabled={inst.Enabled} neutral={inst.Neutral} duration={inst.Duration}]`)
 		end
@@ -362,8 +393,7 @@ end
 -- Baseline
 
 -- Compares the map with the snapshot captured at Init: added, removed, re-created
--- (identity), and changed instances (class, path, CFrame, size, anchoring, collision,
--- attributes, tags, spawn settings, model primary part).
+-- (identity), and changed instances (every field listed above describe()).
 function ArenaService.CompareToBaseline(): BaselineReport
 	assert(map and baseline, "ArenaService not initialized")
 	local current = snapshot(map)

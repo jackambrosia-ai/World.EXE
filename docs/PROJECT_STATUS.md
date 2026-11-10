@@ -3,25 +3,25 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 1 — review round 1 corrections applied (solo-tested); awaiting re-review; Phase 2 not started
+- Overall status: PHASE 1 — review round 2 correction applied (solo-tested); awaiting re-review; Phase 2 not started
 - Current phase: Phase 1 — Foundation and Sandbox arena blockout
 - Current branch: `phase-01-arena`
 - Current PR: [jackambrosia-ai/World.EXE#1](https://github.com/jackambrosia-ai/World.EXE/pull/1) (do not merge without owner approval)
-- PR head: docs-only commit after `1efe67b` (exact hash in the PR conversation)
+- PR head: see "Review round 2 correction → Commits" below (exact hash also in the PR description)
 - Last verified Studio place: `Place1.rbxl` (on disk: `OneDrive\Documents\Place1.rbxl`), unpublished (PlaceId 0)
 - Source synchronization method: **owner decision — no Rojo / no mirroring toolchain.** Claude edits Studio directly via Studio MCP and keeps an identical copy of every WORLD_EXE script in `src/`, verified by byte-length + hash comparison after each change (see `src/README.md`).
 - Baseline place backup: `OneDrive\Documents\RobloxBackups\WorldEXE_baseline_2026-11-09.rbxl` (byte-identical copy of the pre-Phase-1 place; rollback point)
 - Studio save: Studio MCP cannot save the place — the owner must press Ctrl+S after each change set
 - StreamingEnabled: unchanged (enabled), per Phase 0 review
 - Multi-client testing: not available through Studio MCP; all Phase 1 tests are **solo**
-- Latest technical review: Phase 1 review round 1 (ChatGPT, relayed by the owner 2026-11-09) — 6 findings, all addressed below
+- Latest technical review: Phase 1 review round 2 (ChatGPT, relayed by the owner 2026-11-09) — snapshot must capture `Part.Shape` and other physics properties; addressed below. Round 1 (6 findings) also addressed below.
 - Last updated: 2026-11-09
 
 ## Phase tracker
 | Phase | Scope | Status | PR/Commit | Studio test evidence |
 |---|---|---|---|---|
 | 0 | Audit and setup | Complete (owner decisions recorded) | — | Read-only audit; ForgeGUI read-only audit |
-| 1 | Foundation and arena | Review round 1 corrections applied — solo-tested, awaiting re-review | [PR #1](https://github.com/jackambrosia-ai/World.EXE/pull/1) | Solo playtests: see reports below |
+| 1 | Foundation and arena | Review rounds 1–2 corrections applied — solo-tested, awaiting re-review | [PR #1](https://github.com/jackambrosia-ai/World.EXE/pull/1) | Solo playtests: see reports below |
 | 2 | Match and Architect | Not started — needs separate owner approval | — | — |
 | 3 | Patch engine | Not started | — | — |
 | 4 | Four prototype patches | Not started | — | — |
@@ -32,6 +32,39 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
 
+## Review round 2 correction — Phase 1 (2026-11-09)
+
+### Change
+`ArenaService` baseline snapshots now also record, for every BasePart: `Part.Shape` (Part and subclasses such as SpawnLocation), `Material` (it sets default friction/density), `CustomPhysicalProperties` (all five components, or `material-default`), `CollisionGroup`, `Massless`, and `AssemblyLinearVelocity` / `AssemblyAngularVelocity` (an anchored part with velocity acts as a conveyor); plus `CollisionFidelity` for mesh/union parts and `MeshId` for MeshParts (none exist in the map yet).
+
+**Intentionally excluded** (documented in `ArenaService.luau` above `describe()`): Color, Transparency, Reflectance, CastShadow, Locked, Archivable and surface types (visual-only or no physics effect); RootPriority (only matters for unanchored assemblies — Anchored is compared); network ownership (runtime state); internal union geometry (not readable from Luau; no unions in the map).
+
+### Changed files
+- `src/ServerScriptService/WORLD_EXE/Services/ArenaService.luau` — `describe()` extended, new helpers `vectorKey()` / `physicalPropertiesKey()`, inclusion/exclusion list documented. Studio copy hash-verified identical (15481 bytes).
+- `docs/PROJECT_STATUS.md` — this section.
+- No other scripts, no geometry, and no arena layout changes.
+
+### Tests (all **solo** Studio playtests via Studio MCP)
+| Test | Result |
+|---|---|
+| **New:** `CentralCore.ReactorBase` Shape Cylinder → Block is reported as drift (`shape=Cylinder … => … shape=Block`); restored to Cylinder, baseline matches again | **PASS** |
+| **New:** CollisionGroup changed (registered test group); CustomPhysicalProperties set; Material → Ice; Massless toggled; conveyor velocity on an anchored part | 5/5 detected, each matches again after restore |
+| **New:** visual-only change (Color + Transparency) is not reported, by design | PASS |
+| Regression: the 21 round-1 snapshot cases (move, rotate, resize, Anchored, CanCollide, CanQuery, CanTouch, attribute value/added/type, tag removed/added, rename, reparent, SpawnLocation Enabled, Attachment moved, Model PrimaryPart, removed, added, identity swap, class swap) + float-noise ignored | 22/22 PASS |
+| Init valid, baseline matches before and after all restores, arena still valid | PASS |
+| Bootstrap on server start | PASS — `Ready`, 0 errors, DecayTile=64 |
+| Regression: 12/12 forced spawns | PASS |
+| Edit DataModel after stopping play (ReactorBase still Cylinder; CoverWall_W Default group, SmoothPlastic, no custom physics, zero velocity; no test objects) | PASS |
+| Output | Only the two `[WORLD_EXE] … ready v0.1.1-phase1` lines |
+
+Totals this round: 32/32 snapshot cases, 12/12 spawns. Validation and runtime-folder code are unchanged since round 1 (35/35 and 6/6 there).
+
+### Commits
+- Round 2 correction commit: COMMIT_PLACEHOLDER
+
+### Outstanding (not claimed)
+- Concurrent-spawn test and multi-client streaming test (Studio Test → Clients and Servers, 2+ clients) — not run.
+
 ## Review round 1 corrections — Phase 1 (2026-11-09)
 
 ### Findings and resolutions
@@ -39,7 +72,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 |---|---|---|
 | 1 | Type/value-check every tagged attribute | `Config.AttributeSchema` declares each attribute's kind (`id`, `zone`, `positive`, `links`) and `Config.TagClasses` the required class per tag. `Validate()` enforces: non-empty unique string ids per tag; `Zone` ∈ `Config.Zones`; `InteractionRadius` finite and > 0 (rejects 0, negatives, NaN, ±inf, strings); `Links` is a string of comma-separated ids with no empty entries, whitespace, duplicates or self-links, every id known, every link symmetric; tagged instances have the right class; tag counts match. |
 | 2 | Stronger spawn validation | Each `ArenaSpawn` must be a `SpawnLocation` that is Enabled, Neutral, Anchored and CanCollide. Floor support: raycasts from the pad centre and four inset corners must hit anchored, collidable, non-`DecayTile` floor within 0.05 studs of the pad bottom (reports "no floor" or "floats N studs"). The 4×6×4 overhead-clearance check is retained. |
-| 3 | Replace additive fingerprint | Removed. `ArenaService` now captures a per-instance snapshot of `Workspace.WORLD_EXE.Map` at Init (keyed by instance identity) recording class, full path, all attributes (name + type + value), tags, and for BaseParts CFrame (position + rotation, 0.001 precision), size, Anchored, CanCollide, CanQuery, CanTouch; SpawnLocation Enabled/Neutral/Duration; Attachment CFrame; Model PrimaryPart. `CompareToBaseline()` reports added, removed, and changed instances (first 25 listed, total counted). Visual-only properties (color, material, transparency) are intentionally not compared. |
+| 3 | Replace additive fingerprint | Removed (extended in round 2 with Shape and physics properties). `ArenaService` now captures a per-instance snapshot of `Workspace.WORLD_EXE.Map` at Init (keyed by instance identity) recording class, full path, all attributes (name + type + value), tags, and for BaseParts CFrame (position + rotation, 0.001 precision), size, Anchored, CanCollide, CanQuery, CanTouch; SpawnLocation Enabled/Neutral/Duration; Attachment CFrame; Model PrimaryPart. `CompareToBaseline()` reports added, removed, and changed instances (first 25 listed, total counted). Visual-only properties (color, material, transparency) are intentionally not compared. |
 | 4 | Should SkySteps be DecayTiles? | **Decision: no.** See "SkySteps decision" below. The 5 steps were untagged, `TileId` removed, recoloured as solid floor; `DecayTile` count is now 64. |
 | 5 | Runtime-folder safety | The server marks folders it creates with attribute `WORLD_EXE_RuntimeFolder=true`. `ResetRuntime()` empties only a single marked `Folder` per name; a non-Folder, an unmarked Folder, or duplicate same-named children are left untouched and reported as problems (Bootstrap → `Degraded`). |
 | 6 | Status update | This section. |
