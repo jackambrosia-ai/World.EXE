@@ -101,3 +101,5 @@ Claude also has access to ForgeGUI. Use [`docs/09_FORGEGUI_WORKFLOW.md`](./docs/
 - Roblox Studio MCP remains the tool for inspecting/editing the live place, wiring functional UI, and playtesting.
 - Generated artwork is not a working interface until Claude builds the Roblox UI hierarchy, scripts, interactions, and responsive behavior.
 - Generation may consume ForgeGUI credits; publishing/importing may create Roblox assets or use a selected publishing connection. Claude must confirm scope, budget, and the destination before any credit-consuming generation, upload, or publication.
+
+See [ForgeGUI workflow](./docs/09_FORGEGUI_WORKFLOW.md) for asset generation, approval, import, and functional UI requirements.
