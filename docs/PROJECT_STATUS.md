@@ -3,7 +3,7 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 2 — review round 2 correction applied (solo-tested); multi-client run pending; PR #2 open, not merged; Phase 3 not started and requires separate owner approval
+- Overall status: PHASE 2 — code review passed; two-client acceptance run done (17 PASS, 1 split, 1 NOT TESTED, cleanup pending save + backup); PR #2 open, not merged; Phase 3 not started and requires separate owner approval
 - Current phase: Phase 2 — Match lifecycle and Architect selection
 - Current branch: `phase-02-match`
 - Current PR: [jackambrosia-ai/World.EXE#2](https://github.com/jackambrosia-ai/World.EXE/pull/2) (do not merge without owner approval)
@@ -16,7 +16,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
   - `WorldEXE_pre-phase2_2026-11-10.rbxl` — verified pre-Phase-2 copy (identical content to post-Phase-1); current rollback point for Phase 2
 - Studio save: Studio MCP cannot save the place — the owner must press Ctrl+S after each change set
 - StreamingEnabled: unchanged (enabled), per Phase 0 review
-- Multi-client testing: not available through Studio MCP; all Phase 1 and Phase 2 tests are **solo**. Outstanding multi-client tests are listed in the Phase 2 report.
+- Multi-client testing: Phase 2 run with Studio Clients and Servers (1 server + 2 clients) on 2026-11-10 — see the matrix in "Phase 2 review round 2 correction". Phase 1 tests remain solo.
 - Latest technical review: Phase 2 review round 1 (ChatGPT, relayed by the owner 2026-11-10) — 5 findings addressed; design decisions approved. See "Phase 2 review round 1 corrections".
 - Last updated: 2026-11-10
 
@@ -67,31 +67,37 @@ ChatGPT accepted `9c6de7a` (no remaining code blockers) and confirmed this plan.
 - Client UI-click and client-visual tests stay NOT TESTED unless Studio MCP can reach the client windows or the owner performs them and provides evidence.
 - After testing: remove `StudioMinPlayers`, re-verify every script hash against GitHub, then the owner saves and a fresh post-Phase-2 `.rbxl` backup is made before merging.
 
-Results are recorded only from an actual run; until then each scenario is NOT TESTED.
+**Run on 2026-11-10 in two sessions** (each: Studio Local Server, 1 server + 2 clients, `Player1` / `Player2`). Studio MCP reached the server and both clients as separate instances, including mouse input on client UI. Code under test: PR head `8711fa8` (no gameplay changes since `9c6de7a`).
+- **Session 1:** `StudioMinPlayers = 2`; the test server's `StudioTimeScale` set to 0.2 after start (turn interval 9 s; the 12 s submission window is never scaled). Scenarios 3–5, 7–18, 20.
+- **Session 2** (procedure approved by ChatGPT): Edit-place `StudioMinPlayers = 3`, `StudioTimeScale = 1`. Scenarios 1, 2, 6, 20.
 
 | # | Scenario | Expected | Result | Actual / evidence |
 |---|---|---|---|---|
-| 1 | One connected player cannot start a match | Stays in LOBBY; no COUNTDOWN | NOT TESTED | — |
-| 2 | Second player connects | COUNTDOWN starts automatically, match begins | NOT TESTED | — |
-| 3 | Both clients join: roles and lobby spawn | Both `Lobby`, both on lobby pads | NOT TESTED | — |
-| 4 | Concurrent spawns at INITIALIZING | 2 participants on distinct arena pads, spawn protection on | NOT TESTED | — |
-| 5 | Snapshot replication | Both clients see the same snapshot version/state as the server | NOT TESTED | — |
-| 6 | Countdown cancellation when count drops below 2 | COUNTDOWN → LOBBY ("not enough players") | NOT TESTED | — |
-| 7 | Non-Architect submission | `not_architect`, turn unaffected | NOT TESTED | — |
-| 8 | Spectator unauthorized submission | Rejected (`not_architect` / `no_open_turn`), no effect | NOT TESTED | — |
-| 9 | Duplicate rapid submission by the Architect | Exactly one `accepted`; others rejected | NOT TESTED | — |
-| 10 | Architect panel visibility | Shown only on the Architect's client | NOT TESTED | — |
-| 11 | Architect panel real clicks (select card, submit) | Accepted via UI | NOT TESTED | — |
-| 12 | Rotation between two players | Alternates; no consecutive repeat | NOT TESTED | — |
-| 13 | Architect death during an open turn | Turn skipped `architect_ineligible` | NOT TESTED | — |
-| 14 | Non-Architect death | Respawns on an arena pad, still Participant | NOT TESTED | — |
-| 15 | Stale snapshot / delayed submission response | Older versions ignored; replies for other turns ignored | NOT TESTED | — |
-| 16 | Two complete matches | No stale turn UI, feedback, role or spawn state in match 2 | NOT TESTED | — |
-| 17 | Disconnect during the Architect's open turn | `architect_left`, roster and participant count updated (before/after recorded) | NOT TESTED | — |
-| 18 | All participants leave | Abort to RESULTS (`no participants`) | NOT TESTED | — |
-| 19 | Player joins mid-match | Spectator, kept in lobby, joins next match | NOT TESTED | — |
-| 20 | Output — Server / Client 1 / Client 2 | No unexpected warnings or errors | NOT TESTED | — |
-| 21 | Cleanup | `StudioMinPlayers` removed; scripts match GitHub; post-Phase-2 backup saved | NOT TESTED | — |
+| 1 | One connected player cannot start a match | Stays in LOBBY; no COUNTDOWN | **PASS** | S2: 2 players connected, minimum 3 → 10 s observed in LOBBY, snapshot v1 unchanged, both HUDs "players ready 2 / 3 needed". After Player2 disconnected (#6), Player1 alone with minimum 2 → LOBBY for 10 s (no other states), HUD "players ready 1 / 2 needed". |
+| 2 | Requirement met → match begins automatically | COUNTDOWN starts without intervention | **PASS — threshold-change test** | S2: minimum lowered 3 → 2 on the running server; COUNTDOWN ("enough players", 10 s) 0.03 s later (snapshot v2). Not a literal later join: Studio launches both clients together. In S1 the match also started automatically with 2 players ("LOBBY -> COUNTDOWN (enough players)"). |
+| 3 | Both clients join: roles and lobby spawn | Both `Lobby`, both on lobby pads | **PASS (indirect)** | S2 start: both `Lobby` (HUD "In lobby"). S1 after each RESET: both `Lobby` on lobby pads (`LobbySpawn_4`/`LobbySpawn_1`, then `LobbySpawn_4`/`LobbySpawn_3`). The initial join moment of S1 was not observed (the match had already started when inspected). |
+| 4 | Concurrent spawns at INITIALIZING | 2 participants on distinct arena pads, spawn protection on | **PASS (pads) / NOT TESTED (ForceField)** | Match 2: `Spawn_CORE_1` + `Spawn_YARD_1`; match 3: `Spawn_CORE_4` + `Spawn_CORE_2`; both `arena#…:loaded`. ForceField: the sample landed after the 1 s INITIALIZING window (time scale 0.2), so multiplayer spawn protection was **not observed** (it passed in solo tests). |
+| 5 | Snapshot replication | Both clients see the same snapshots as the server | **PASS** | Server recorded per-version JSON hashes; Player1 observed v25–v27, Player2 v27–v28, every hash identical to the server's. S2: Player1's client v3 matched the server's v3. |
+| 6 | Countdown cancellation when the count drops below 2 | COUNTDOWN → LOBBY ("not enough players") | **PASS** | S2 (server timestamps from t0): t+0.03 s COUNTDOWN v2 (2 players). t+2.05 s BEFORE: COUNTDOWN, 8.0 s left, 2 players → Player2 kicked. t+3.10 s v3 LOBBY "countdown cancelled: not enough players", 1 player. Server log: `Match 0: COUNTDOWN -> LOBBY (countdown cancelled: not enough players)`. Player1 stayed in LOBBY (see #1). |
+| 7 | Non-Architect submission | `not_architect`, turn unaffected | **PASS** | Player1 during Player2's turn `1:8` → `not_architect` (tag `1:8`); turn still open under Player2; Player1's panel hidden. |
+| 8 | Spectator unauthorized submission | Rejected, no effect | **PASS (role set by server)** | Player2's role set to Spectator by the server (a real mid-match joiner isn't possible with two fixed clients), and the watchdog moved them to the lobby within 0.5 s (z 46 → 160 on server and client). Submission during Player1's turn `3:4` → `not_architect`, turn unaffected, no panel. |
+| 9 | Duplicate rapid submission by the Architect | Exactly one `accepted` | **PASS** | Player2 (Architect, turn `1:6`) fired 3 identical requests in one frame → `accepted`, `no_open_turn`, `no_open_turn` (all tagged `1:6`); log `turn 6: Player2 -> accepted DECAY`. Observation: the scripted duplicates' `no_open_turn` replies overwrite the "Patch submitted." text; the real UI blocks duplicates with its pending flag. |
+| 10 | Architect panel visibility | Shown only on the Architect's client | **PASS** | Enabled on the Architect's client (`TurnKey` = current turn) and disabled on the other client in turns `1:6`, `1:8`, `3:4`, `2:2`, `2:3`. |
+| 11 | Architect panel real clicks | Accepted via UI | **PASS** | Studio MCP mouse input on Player1's client: click `Card_ZERO_G`, then `Submit` → server log `Match 1 turn 17: Player1 -> accepted ZERO_G`; client button "SUBMIT ZERO-G", feedback "Patch submitted.". |
+| 12 | Rotation between two players | Alternates; no consecutive repeat | **PASS** | Match 1 turns 1–20 alternated Player1/Player2 (server log). While Player2 was a Spectator, Player1 took turns 3:2–3:4 in a row as the sole eligible player (expected). |
+| 13 | Architect becomes ineligible during an open turn | Turn skipped `architect_ineligible` | **PASS** | Death: Player1 killed in turn `1:9` → turn cleared after 0.20 s, log `turn 9: Player1 -> architect_ineligible`. Role change: Player2 set to Spectator during its own turn `3:1` → log `turn 1: Player2 -> architect_ineligible`. |
+| 14 | Non-Architect death | Respawns on an arena pad, still Participant | **PASS** | Player2 killed → respawned on `Spawn_YARD_4`, role Participant, alive. |
+| 15 | Stale snapshot / delayed submission response | Older versions ignored; replies for other turns ignored | **PASS** | The server sent Player2 a reply tagged `1:13` during turn `1:14` → feedback stayed empty, `IgnoredResponses` incremented. Snapshot versions only increased on both clients (#5). |
+| 16 | Two complete matches | No stale turn UI, feedback, role or spawn state | **PASS** | Matches 1 and 2 each ran ACTIVE → FINAL_PHASE → RESULTS → RESET → LOBBY. Match 1 result: completed/time, 3 accepted / 17 skipped, both participants; reset baseline matched. In the next match, both panels opened fresh (keys `2:2` / `2:3`, empty feedback and keyword, no selection, 4 cards, role Participant), although Player1 had ended match 1 with "Patch submitted." and a selected card. New arena pads each match. |
+| 17 | Disconnect during the Architect's open turn | `architect_left`, roster updated | **PASS** | BEFORE: v84 match 4 ACTIVE, participants 2, Architect Player2, turn `4:2`, players 2. Player2 kicked. AFTER (1.57 s): v86 ACTIVE, participants 1, no Architect, next turn scheduled, players 1. Log `turn 2: Player2 -> architect_left`; turn 3 went to Player1. |
+| 18 | All participants leave | Abort to RESULTS (`no participants`) | **PASS** | BEFORE: v88 match 4 ACTIVE, participants 1, players 1. Player1 kicked. RESULTS at 7.6 s: reason "no participants", outcome `aborted`, participants []. Then RESET → LOBBY; 3 s later still LOBBY with 0 players. Log `Match 4: ACTIVE -> RESULTS (no participants)`. |
+| 19 | Player joins mid-match | Spectator, kept in lobby, joins next match | **NOT TESTED** | Studio cannot add a player to a running Clients and Servers session. The spectator role path was exercised by setting the role (#8). |
+| 20 | Output — Server / Client 1 / Client 2 | No unexpected warnings or errors | **PASS** | Server (both sessions): only `[WORLD_EXE]` info lines (bootstrap, transitions, turns, outcomes). Clients: only `[WORLD_EXE] Client ready v0.2.1-phase2 (PlayerN)`, captured before each disconnect. No warnings or errors anywhere. |
+| 21 | Cleanup | Test attributes removed; scripts match GitHub; post-Phase-2 backup | **PARTIAL** | `StudioMinPlayers` removed from the Edit place (no attributes remain on `ServerScriptService.WORLD_EXE`). All 13 Studio scripts byte-identical to GitHub `phase-02-match` (`8711fa8`). **Pending:** owner stops the test session and saves (Ctrl+S); then the post-Phase-2 `.rbxl` backup is made and verified. |
+
+Investigated during the run (not defects): a client read once showed the Spectator inside the arena; a 250 ms server trace showed the watchdog moving them within 0.5 s (the read had landed before the tick). Early cross-instance tests missed their turn windows because Studio MCP calls between instances take several seconds; they were repeated with the waits inside the client scripts.
+
+**Summary:** 17 PASS (#2 as a threshold-change test, #3 indirect, #8 role set by server), 1 PASS/NOT TESTED split (#4: ForceField unobserved), 1 NOT TESTED (#19), 1 PARTIAL (#21, save + backup pending). No defects found; no gameplay code changed.
 
 ## Phase 2 review round 1 corrections (2026-11-10)
 
