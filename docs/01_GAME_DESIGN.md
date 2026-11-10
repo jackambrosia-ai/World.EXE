@@ -17,7 +17,7 @@ Players are test subjects in a shared virtual simulation. A malfunctioning Reali
 ## 3. Target scope
 - Platform: Roblox.
 - Initial target: 8–12 players per server, subject to Studio performance and actual Roblox server constraints.
-- Target match length: about 8–12 minutes after the first public tuning pass.
+- Target match length: 8–12 minutes. Initial gameplay duration: 8:30 (ACTIVE 7:00 + FINAL_PHASE 1:30); revisit after the first public tuning pass.
 - Initial release: one polished modular arena, one main mode (Stability Run), 10–12 patches after expansion, three initial abilities, a patch archive, basic XP/currency, and persistent data.
 - Prototype milestone: one blockout arena, complete match loop, and four functioning patches.
 
@@ -52,7 +52,7 @@ Handle early server shutdown, players leaving, and insufficient participants wit
 - Architect is a gameplay role, not permission to execute arbitrary code or spawn arbitrary objects.
 
 ### Match length and cadence
-Target approximately 8–12 minutes. Start with a conservative patch cadence that allows warnings, player reaction, and cleanup. Do not attempt to activate every patch in every match. A target of roughly 5–7 major patch activations per match is a reasonable first balancing hypothesis; verify with playtests.
+Target 8–12 minutes, starting at 8:30 of gameplay (ACTIVE 7:00 + FINAL_PHASE 1:30). Start with a conservative patch cadence that allows warnings, player reaction, and cleanup. Do not attempt to activate every patch in every match. A target of roughly 5–7 major patch activations per match is a reasonable first balancing hypothesis; verify with playtests.
 
 ### Concurrent patch limit
 Start with a maximum of three concurrent major patches. Some short-lived effects may be treated as sub-effects owned by a major patch. The engine must reject or defer activations that exceed the cap. Never silently delete a still-active patch to make room unless an explicit replacement rule says so.

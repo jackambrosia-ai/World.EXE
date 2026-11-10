@@ -66,7 +66,7 @@ The experience combines creative player-driven patch submissions, survival and c
 - One launch mode: Stability Run.
 - One launch arena: The Sandbox (Central Core, Research Yard, Skybridge).
 - 8–12 players initially.
-- Approximately 7–9 minutes per match; tune with tests.
+- Target match length 8–12 minutes; initial gameplay duration 8:30 (ACTIVE 7:00 + FINAL_PHASE 1:30); tune with tests.
 - No more than three active major patches initially.
 - First four prototype patches: ZERO_G, DECAY, DRONE_SWARM, SUPPLY_DROP.
 - First three abilities: PHASE_DASH, ANCHOR, SCANNER.

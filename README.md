@@ -16,7 +16,7 @@ WORLD.EXE is an original medium-scope Roblox multiplayer reality-manipulation sa
 - **Launch mode:** Stability Run
 - **Initial arena:** The Sandbox, with Central Core, Research Yard, and Skybridge
 - **Target server size:** 8–12 players initially
-- **Target round length:** approximately 7–9 minutes (tune through playtesting)
+- **Target round length:** 8–12 minutes; initial gameplay duration 8:30 (ACTIVE 7:00 + FINAL_PHASE 1:30), tuned through playtesting
 - **Initial active major patch cap:** 3 (tune after performance testing)
 
 ## First prototype patches

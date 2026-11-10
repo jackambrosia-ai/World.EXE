@@ -3,20 +3,21 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 1 COMPLETE — merged to `main` (solo-tested); Phase 2 not started and requires separate owner approval
-- Current phase: Phase 1 complete; next is Phase 2 — Match lifecycle and Architect selection (awaiting approval)
-- Current branch: `main`
-- Current PR: none open. Phase 1 merged via [jackambrosia-ai/World.EXE#1](https://github.com/jackambrosia-ai/World.EXE/pull/1)
+- Overall status: PHASE 2 — code review passed; two-client acceptance run done (19 PASS, 1 split, 1 NOT TESTED); place saved and post-Phase-2 backup verified; PR #2 open, not merged; Phase 3 not started and requires separate owner approval
+- Current phase: Phase 2 — Match lifecycle and Architect selection
+- Current branch: `phase-02-match`
+- Current PR: [jackambrosia-ai/World.EXE#2](https://github.com/jackambrosia-ai/World.EXE/pull/2) (do not merge without owner approval)
 - Phase 1 merge: squash-merged 2026-11-10 by owner approval as `9b9cbd0` (from PR head `ddc784c`; merged tree identical to that head). The `phase-01-arena` branch still exists on GitHub and can be deleted.
-- Last verified Studio place: `Place1.rbxl` (on disk: `OneDrive\Documents\Place1.rbxl`), unpublished (PlaceId 0); saved by the owner after the round 2 changes (2026-11-09 23:56)
+- Last verified Studio place: `Place1.rbxl` (on disk: `OneDrive\Documents\Place1.rbxl`), unpublished (PlaceId 0). Phase 2 changes are in the open Studio session and **not yet saved** — owner must press Ctrl+S.
 - Source synchronization method: **owner decision — no Rojo / no mirroring toolchain.** Claude edits Studio directly via Studio MCP and keeps an identical copy of every WORLD_EXE script in `src/`, verified by byte-length + hash comparison after each change (see `src/README.md`).
 - Place backups (outside the repo, `OneDrive\Documents\RobloxBackups\`):
   - `WorldEXE_baseline_2026-11-09.rbxl` — pre-Phase-1 place (byte-identical copy)
-  - `WorldEXE_post-phase1_2026-11-10.rbxl` — post-Phase-1 place incl. both review rounds (byte-identical copy of the saved `Place1.rbxl`); current rollback point
-- Studio save: Studio MCP cannot save the place — the owner must press Ctrl+S after each change set
+  - `WorldEXE_post-phase1_2026-11-10.rbxl` — post-Phase-1 place incl. both review rounds (byte-identical copy of the saved `Place1.rbxl`)
+  - `WorldEXE_pre-phase2_2026-11-10.rbxl` — verified pre-Phase-2 copy (identical content to post-Phase-1); current rollback point for Phase 2
+- Studio save: Studio MCP cannot save the place — the owner must press Ctrl+S after each change set. Latest save 2026-11-10 03:21:24 (post-Phase-2, backed up).
 - StreamingEnabled: unchanged (enabled), per Phase 0 review
-- Multi-client testing: not available through Studio MCP; all Phase 1 tests are **solo**. Concurrent-spawn and multi-client streaming tests remain outstanding.
-- Latest technical review: Phase 1 review round 2 (ChatGPT, relayed by the owner 2026-11-09) — addressed; ChatGPT recommended squash-merge after save + backup were confirmed.
+- Multi-client testing: Phase 2 run with Studio Clients and Servers (1 server + 2 clients) on 2026-11-10 — see the matrix in "Phase 2 review round 2 correction". Phase 1 tests remain solo.
+- Latest technical review: Phase 2 review round 1 (ChatGPT, relayed by the owner 2026-11-10) — 5 findings addressed; design decisions approved. See "Phase 2 review round 1 corrections".
 - Last updated: 2026-11-10
 
 ## Phase tracker
@@ -24,7 +25,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 |---|---|---|---|---|
 | 0 | Audit and setup | Complete (owner decisions recorded) | — | Read-only audit; ForgeGUI read-only audit |
 | 1 | Foundation and arena | **Complete — merged** (solo-tested; multi-client tests outstanding) | [PR #1](https://github.com/jackambrosia-ai/World.EXE/pull/1) → `9b9cbd0` | Solo playtests: see reports below |
-| 2 | Match and Architect | Not started — needs separate owner approval | — | — |
+| 2 | Match and Architect | Review round 1 corrections applied — solo-tested, awaiting re-review | [PR #2](https://github.com/jackambrosia-ai/World.EXE/pull/2) (`phase-02-match`) | Solo playtests + unit tests: see Phase 2 report |
 | 3 | Patch engine | Not started | — | — |
 | 4 | Four prototype patches | Not started | — | — |
 | 5 | Stability/objectives/scoring | Not started | — | — |
@@ -33,6 +34,184 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 8 | UI and visual polish | Not started | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 2 review round 2 correction (2026-11-10)
+
+Re-review at `852f234` confirmed the round 1 findings fixed; one remaining issue.
+
+### Change
+`ArchitectService` now requires the current Architect to be a **living Participant**:
+- On submission (after the ownership check): if the Architect is dead or no longer a Participant, the turn is skipped (`architect_ineligible`, nothing activates) and the request is rejected with reason `architect_ineligible`.
+- Every tick while a turn is open: if the Architect has left → `architect_left` (unchanged); if dead or no longer a Participant → `architect_ineligible`.
+- `ArchitectService.HandleSubmission` exports the RemoteEvent handler so tests can drive the exact accept path on a module clone. Client feedback text added for `architect_ineligible`.
+- Turn identity, serialized spawns, recovery and snapshot protections are unchanged.
+
+Changed files: `src/ServerScriptService/WORLD_EXE/Services/ArchitectService.luau`, `src/StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/ArchitectController.luau`, this file. Studio copies hash-verified identical.
+
+### Regression tests (solo)
+| Test | Result |
+|---|---|
+| Live: Architect killed with 11.7 s left in turn `1:1` → turn cleared after 0.23 s, next turn scheduled; log `turn 1: amfam1 -> architect_ineligible` | PASS |
+| Clone, exact accept path: eligible Architect submits (control) | PASS — `accepted`, patch recorded |
+| Clone: Architect stops being a Participant, then submits | PASS — `architect_ineligible`, no patch, turn closed |
+| Clone: Architect dies, then submits before the next tick | PASS — `architect_ineligible`, no patch, turn closed |
+| Live regression via real remote: bad id → `bad_patch_id`; `zero-g` → accepted; second → `no_open_turn`; all tagged `1:3`; panel key `1:3` | PASS |
+| Output | Only `[WORLD_EXE]` info lines (match ids 998/999 are the test clones); no warnings or errors |
+| Edit DataModel after play | Clean |
+
+### Multi-client Studio test (Test → Clients and Servers, 1 server + 2 clients)
+ChatGPT accepted `9c6de7a` (no remaining code blockers) and confirmed this plan. Procedure:
+- `StudioMinPlayers = 2` (set temporarily on `ServerScriptService.WORLD_EXE` in the Edit place; Studio-only).
+- Server / Client 1 / Client 2 Output captured separately.
+- Disconnect tests: record `MatchId`, state, participant count, Architect and relevant Output **before and after** each disconnect.
+- Client UI-click and client-visual tests stay NOT TESTED unless Studio MCP can reach the client windows or the owner performs them and provides evidence.
+- After testing: remove `StudioMinPlayers`, re-verify every script hash against GitHub, then the owner saves and a fresh post-Phase-2 `.rbxl` backup is made before merging.
+
+**Run on 2026-11-10 in two sessions** (each: Studio Local Server, 1 server + 2 clients, `Player1` / `Player2`). Studio MCP reached the server and both clients as separate instances, including mouse input on client UI. Code under test: PR head `8711fa8` (no gameplay changes since `9c6de7a`).
+- **Session 1:** `StudioMinPlayers = 2`; the test server's `StudioTimeScale` set to 0.2 after start (turn interval 9 s; the 12 s submission window is never scaled). Scenarios 3–5, 7–18, 20.
+- **Session 2** (procedure approved by ChatGPT): Edit-place `StudioMinPlayers = 3`, `StudioTimeScale = 1`. Scenarios 1, 2, 6, 20.
+
+| # | Scenario | Expected | Result | Actual / evidence |
+|---|---|---|---|---|
+| 1 | One connected player cannot start a match | Stays in LOBBY; no COUNTDOWN | **PASS** | S2: 2 players connected, minimum 3 → 10 s observed in LOBBY, snapshot v1 unchanged, both HUDs "players ready 2 / 3 needed". After Player2 disconnected (#6), Player1 alone with minimum 2 → LOBBY for 10 s (no other states), HUD "players ready 1 / 2 needed". |
+| 2 | Requirement met → match begins automatically | COUNTDOWN starts without intervention | **PASS — threshold-change test** | S2: minimum lowered 3 → 2 on the running server; COUNTDOWN ("enough players", 10 s) 0.03 s later (snapshot v2). Not a literal later join: Studio launches both clients together. In S1 the match also started automatically with 2 players ("LOBBY -> COUNTDOWN (enough players)"). |
+| 3 | Both clients join: roles and lobby spawn | Both `Lobby`, both on lobby pads | **PASS (indirect)** | S2 start: both `Lobby` (HUD "In lobby"). S1 after each RESET: both `Lobby` on lobby pads (`LobbySpawn_4`/`LobbySpawn_1`, then `LobbySpawn_4`/`LobbySpawn_3`). The initial join moment of S1 was not observed (the match had already started when inspected). |
+| 4 | Concurrent spawns at INITIALIZING | 2 participants on distinct arena pads, spawn protection on | **PASS (pads) / NOT TESTED (ForceField)** | Match 2: `Spawn_CORE_1` + `Spawn_YARD_1`; match 3: `Spawn_CORE_4` + `Spawn_CORE_2`; both `arena#…:loaded`. ForceField: the sample landed after the 1 s INITIALIZING window (time scale 0.2), so multiplayer spawn protection was **not observed** (it passed in solo tests). |
+| 5 | Snapshot replication | Both clients see the same snapshots as the server | **PASS** | Server recorded per-version JSON hashes; Player1 observed v25–v27, Player2 v27–v28, every hash identical to the server's. S2: Player1's client v3 matched the server's v3. |
+| 6 | Countdown cancellation when the count drops below 2 | COUNTDOWN → LOBBY ("not enough players") | **PASS** | S2 (server timestamps from t0): t+0.03 s COUNTDOWN v2 (2 players). t+2.05 s BEFORE: COUNTDOWN, 8.0 s left, 2 players → Player2 kicked. t+3.10 s v3 LOBBY "countdown cancelled: not enough players", 1 player. Server log: `Match 0: COUNTDOWN -> LOBBY (countdown cancelled: not enough players)`. Player1 stayed in LOBBY (see #1). |
+| 7 | Non-Architect submission | `not_architect`, turn unaffected | **PASS** | Player1 during Player2's turn `1:8` → `not_architect` (tag `1:8`); turn still open under Player2; Player1's panel hidden. |
+| 8 | Spectator unauthorized submission | Rejected, no effect | **PASS (role set by server)** | Player2's role set to Spectator by the server (a real mid-match joiner isn't possible with two fixed clients), and the watchdog moved them to the lobby within 0.5 s (z 46 → 160 on server and client). Submission during Player1's turn `3:4` → `not_architect`, turn unaffected, no panel. |
+| 9 | Duplicate rapid submission by the Architect | Exactly one `accepted` | **PASS** | Player2 (Architect, turn `1:6`) fired 3 identical requests in one frame → `accepted`, `no_open_turn`, `no_open_turn` (all tagged `1:6`); log `turn 6: Player2 -> accepted DECAY`. Observation: the scripted duplicates' `no_open_turn` replies overwrite the "Patch submitted." text; the real UI blocks duplicates with its pending flag. |
+| 10 | Architect panel visibility | Shown only on the Architect's client | **PASS** | Enabled on the Architect's client (`TurnKey` = current turn) and disabled on the other client in turns `1:6`, `1:8`, `3:4`, `2:2`, `2:3`. |
+| 11 | Architect panel real clicks | Accepted via UI | **PASS** | Studio MCP mouse input on Player1's client: click `Card_ZERO_G`, then `Submit` → server log `Match 1 turn 17: Player1 -> accepted ZERO_G`; client button "SUBMIT ZERO-G", feedback "Patch submitted.". |
+| 12 | Rotation between two players | Alternates; no consecutive repeat | **PASS** | Match 1 turns 1–20 alternated Player1/Player2 (server log). While Player2 was a Spectator, Player1 took turns 3:2–3:4 in a row as the sole eligible player (expected). |
+| 13 | Architect becomes ineligible during an open turn | Turn skipped `architect_ineligible` | **PASS** | Death: Player1 killed in turn `1:9` → turn cleared after 0.20 s, log `turn 9: Player1 -> architect_ineligible`. Role change: Player2 set to Spectator during its own turn `3:1` → log `turn 1: Player2 -> architect_ineligible`. |
+| 14 | Non-Architect death | Respawns on an arena pad, still Participant | **PASS** | Player2 killed → respawned on `Spawn_YARD_4`, role Participant, alive. |
+| 15 | Stale snapshot / delayed submission response | Older versions ignored; replies for other turns ignored | **PASS** | The server sent Player2 a reply tagged `1:13` during turn `1:14` → feedback stayed empty, `IgnoredResponses` incremented. Snapshot versions only increased on both clients (#5). |
+| 16 | Two complete matches | No stale turn UI, feedback, role or spawn state | **PASS** | Matches 1 and 2 each ran ACTIVE → FINAL_PHASE → RESULTS → RESET → LOBBY. Match 1 result: completed/time, 3 accepted / 17 skipped, both participants; reset baseline matched. In the next match, both panels opened fresh (keys `2:2` / `2:3`, empty feedback and keyword, no selection, 4 cards, role Participant), although Player1 had ended match 1 with "Patch submitted." and a selected card. New arena pads each match. |
+| 17 | Disconnect during the Architect's open turn | `architect_left`, roster updated | **PASS** | BEFORE: v84 match 4 ACTIVE, participants 2, Architect Player2, turn `4:2`, players 2. Player2 kicked. AFTER (1.57 s): v86 ACTIVE, participants 1, no Architect, next turn scheduled, players 1. Log `turn 2: Player2 -> architect_left`; turn 3 went to Player1. |
+| 18 | All participants leave | Abort to RESULTS (`no participants`) | **PASS** | BEFORE: v88 match 4 ACTIVE, participants 1, players 1. Player1 kicked. RESULTS at 7.6 s: reason "no participants", outcome `aborted`, participants []. Then RESET → LOBBY; 3 s later still LOBBY with 0 players. Log `Match 4: ACTIVE -> RESULTS (no participants)`. |
+| 19 | Player joins mid-match | Spectator, kept in lobby, joins next match | **NOT TESTED** | Studio cannot add a player to a running Clients and Servers session. The spectator role path was exercised by setting the role (#8). |
+| 20 | Output — Server / Client 1 / Client 2 | No unexpected warnings or errors | **PASS** | Server (both sessions): only `[WORLD_EXE]` info lines (bootstrap, transitions, turns, outcomes). Clients: only `[WORLD_EXE] Client ready v0.2.1-phase2 (PlayerN)`, captured before each disconnect. No warnings or errors anywhere. |
+| 21 | Cleanup | Test attributes removed; scripts match GitHub; post-Phase-2 backup | **PASS** | `StudioMinPlayers` removed from the Edit place (no attributes remain on `ServerScriptService.WORLD_EXE`). All 13 Studio scripts byte-identical to GitHub `phase-02-match` (the `src/` tree is unchanged from `8711fa8` through `cfd6cfd`). Test session stopped; the owner saved `Place1.rbxl` at 2026-11-10 03:21:24, after the cleanup (03:17) and the last code change (`9c6de7a`, 02:07). Backup `OneDrive\Documents\RobloxBackups\WorldEXE_post-phase2_2026-11-10.rbxl`: 121,000 bytes, SHA-256 `0F402A70A592516BC281390A491E301F9B70D1EF3FD4775E1194A76442B7B204`, identical to the saved place. |
+
+Investigated during the run (not defects): a client read once showed the Spectator inside the arena; a 250 ms server trace showed the watchdog moving them within 0.5 s (the read had landed before the tick). Early cross-instance tests missed their turn windows because Studio MCP calls between instances take several seconds; they were repeated with the waits inside the client scripts.
+
+**Summary:** 19 PASS (#2 as a threshold-change test, #3 indirect, #8 role set by server), 1 PASS/NOT TESTED split (#4: ForceField unobserved), 1 NOT TESTED (#19). No defects found; no gameplay code changed.
+
+## Phase 2 review round 1 corrections (2026-11-10)
+
+### Findings and resolutions
+| # | Finding | Resolution |
+|---|---|---|
+| 1 | Architect UI turn identity | `ArchitectController` keys the rendered turn by `MatchId:TurnNumber` (from the snapshot's `Turn.TurnMatchId`/`TurnNumber`). A new match clears selection, pending state, keyword text, feedback and cards; a new turn key rebuilds the panel. The current key is exposed as the panel's `TurnKey` attribute for tests. |
+| 2 | Deferred `LoadCharacter` races | `PlayerStateService` keeps a per-player **spawn generation**, bumped by every spawn request, role change (`SetRole`), phase change (`SetArenaPhase`) and departure. Requests are **serialized per player**: one `LoadCharacter` runs at a time and only the newest request waits. Immediately before loading, the request is re-checked (still connected, generation current, intent arena/lobby still matches role + phase) and dropped otherwise. Diagnostic player attribute `WORLD_EXE_LastSpawn` = `<intent>#<generation>:<superseded|intent_mismatch|loading|loaded>`. |
+| 3 | Transition hook failures | `MatchService.transition` runs the entry hook in `pcall`. On failure, `recover()` runs isolated cleanup steps (stop Architect, protection off, arena phase off, all roles → Lobby, return everyone to the lobby, clear runtime folders), sets LOBBY with no participants, increments `Recoveries`, logs and warns. Studio-only fault injection: `StudioFailOnEnter`. |
+| 4 | Tagged submission responses | Every `SubmissionResult` carries `MatchId` and `TurnNumber` (the turn the request was evaluated against). The client ignores responses whose `MatchId:TurnNumber` differs from the turn it is showing (counted in the panel's `IgnoredResponses` attribute). |
+| 5 | Partially updated replicated state | Replaced the per-field attributes with **one `Snapshot` attribute** (JSON) on `ReplicatedStorage.WORLD_EXE.MatchState` containing match state, Architect turn, last result and reset info, with a monotonically increasing `Version`. Publishing is suppressed mid-transition and done once at the end; Architect turn changes trigger a full republish. The new client module `MatchStateClient` is the only reader and ignores older/duplicate/malformed versions. `MatchStateChanged` fires the same snapshot. |
+
+### Bug found during testing (fixed)
+The first generation-only version still left a participant in the lobby after a recovery: the engine **silently ignores a `LoadCharacter` issued while that player's previous load is still finishing**. Observed: recovery lobby load at 5.75 s, next match's arena load at 6.55 s → `arena#22:loading` with no `CharacterAdded`; the participant stayed on a lobby pad during ACTIVE. Fixed by serializing loads per player (above); re-test shows the arena request waiting for the lobby load and then landing on an arena pad.
+
+### Commits
+- Corrections commit: `0f4bf4e`. The PR head after this round is the docs-only commit directly after it that records this line (exact hash in the PR conversation).
+
+### Approved design decisions (recorded)
+Respawn in ACTIVE and FINAL_PHASE; lobby auto-ready; no new Architect turns in FINAL_PHASE; keep `SubmissionResult`; Studio minimum 1 / live 2; ACTIVE 420 s + FINAL_PHASE 90 s. Match duration standardized in `README.md`, `CLAUDE_START_HERE.md` and `docs/01_GAME_DESIGN.md` to **8–12 minutes, initial gameplay duration 8:30**.
+
+### Changed files
+- `src/ServerScriptService/WORLD_EXE/Services/MatchService.luau` — versioned snapshot, publish suppression, recovery path, fault injection.
+- `src/ServerScriptService/WORLD_EXE/Services/PlayerStateService.luau` — spawn generations, serialized loads, revalidation, diagnostics.
+- `src/ServerScriptService/WORLD_EXE/Services/ArchitectService.luau` — `GetTurnSnapshot()`, change callback, tagged replies.
+- `src/StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/MatchStateClient.luau` — new.
+- `src/StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/{ArchitectController,HUDController}.luau`, `ClientBootstrap.client.luau` — read the snapshot; turn keys; stale-reply filtering.
+- `src/ReplicatedStorage/WORLD_EXE/Shared/Config.luau` — v0.2.1-phase2, `MatchSnapshotAttribute`, `StudioControls.FailOnEnter`, duration comment.
+- `README.md`, `CLAUDE_START_HERE.md`, `docs/01_GAME_DESIGN.md` (duration), `src/README.md`, this file.
+- Studio: all 13 scripts hash-verified identical to `src/`. No geometry changes.
+
+### Tests (all **solo** — one Studio client)
+| Test | Result |
+|---|---|
+| Unit (fresh play VM, cloned modules): rotation fairness 400 turns, round-robin, 11 bad payloads, valid payload, catalog, turn snapshot fields | 6/6 PASS |
+| Unit: `MatchStateClient` — reads v5; ignores older v4, duplicate v5, malformed JSON; accepts v6 and fills a missing turn; turn key includes match id | 6/6 PASS |
+| **Architect UI over consecutive matches** (one turn per match): match 3 turn 1 submission accepted, reply tagged `3:1`, feedback "Patch submitted."; match 4 turn 1 → panel key `4:1`, feedback empty, no selection, keyword empty, 4 cards | PASS |
+| **Stale/delayed feedback**: reply tagged `3:1` sent during `4:1` → ignored; reply tagged `4:1` arriving after the panel moved to `5:1` → ignored; reply tagged with the current turn (`6:1`) → shown | PASS (IgnoredResponses 0→1→2, current reply displayed) |
+| **Transition failure at INITIALIZING** (after spawns were scheduled): state → LOBBY, reason "recovered: entering INITIALIZING failed", participants 0, Architect 0, role Lobby, no force field, player on a lobby pad, 0 runtime objects; next match starts normally | PASS |
+| **Overlapping respawn requests** (recovery lobby load, then next match's arena load ~0.9 s later): arena request waits, then loads; player on an arena pad in ACTIVE | PASS (after the serialization fix) |
+| **Transition failure at ACTIVE** (after Architect start): LOBBY, participants 0, Architect 0, no scheduled turn; next match proceeds with the player on an arena pad | PASS |
+| **Snapshot consistency** (client observed every snapshot over 3 matches): versions strictly increasing; Architect only in ACTIVE and tagged with the current match; no participants/Architect in LOBBY/COUNTDOWN; participants ≥ 1 in match states; RESULTS tagged with the current match; no scheduled turn outside ACTIVE | 17 snapshots, **0 violations** |
+| Regression: real-remote submissions — number payload, extra key, 40-char id, code-like text, unknown patch rejected; alias `drones` accepted; second submission `no_open_turn`; every reply tagged `13:1` | PASS |
+| Regression: burst of 8 → 4 `rate_limited` | PASS |
+| Regression: death → arena respawn (5.2 s); out of bounds → eliminated 0.25 s → arena; non-participant in arena → lobby (0.13 s) | PASS |
+| Regression: countdown with minimum 2 → LOBBY ("countdown cancelled: not enough players"), stays in LOBBY, restarts when the minimum is restored | PASS |
+| Regression: stress — 4 more full cycles (matches 14→18): 40 snapshot versions, 0 out-of-order, 0 illegal transitions, baseline matched at every reset, 0 runtime objects left | PASS |
+| Edit DataModel after play: no test clones, runtime objects or test attributes | PASS |
+| Output | Only the two **intended** injected-failure warnings; no other errors or warnings |
+
+### Unverified — multi-client Studio testing is not available through Studio MCP
+*(Superseded: most of these were run in the two-client acceptance test above; see its matrix for current results.)* Not run at that time: Architect authorization with two players (`not_architect`, `stale_turn`); a player leaving during a turn or mid-match; abort when all participants leave; mid-match join → Spectator; > 12 players; concurrent spawning; multi-client replication of the snapshot/HUD; streaming at distance; spawn-generation invalidation on **departure** (code path present, not exercised); real UI clicks. These need Studio **Test → Clients and Servers** with 2+ clients, run by the owner.
+
+## Phase 2 report — Match lifecycle and Architect selection (2026-11-10)
+
+Approved by the owner 2026-11-10. Pre-phase checks: `Place1.rbxl` saved and unchanged since the post-Phase-1 backup (hash-identical); fresh backup `WorldEXE_pre-phase2_2026-11-10.rbxl` verified hash-identical; live Studio scripts hash-identical to `main` before any edit.
+
+### Completed features
+- **Match state machine** (`MatchService`, the only writer of match state): LOBBY → COUNTDOWN → INITIALIZING → ACTIVE → FINAL_PHASE → RESULTS → RESET → LOBBY, plus COUNTDOWN → LOBBY (below minimum) and INITIALIZING/ACTIVE/FINAL_PHASE → RESULTS when no participants remain. Illegal transitions assert. One server loop (0.25 s) evaluates all deadlines — there are no per-state timer callbacks that could fire into a later match. `MatchId` increments at INITIALIZING; Architect turns and results carry it.
+- **Timing** (`Config.Match`): countdown 10 s, initializing 5 s, ACTIVE 420 s, FINAL_PHASE 90 s (8:30 of gameplay; target range now standardized to 8–12 min), results 12 s, reset 3 s. Low-stability trigger for the final phase is left for Phase 5.
+- **Participation** (`PlayerStateService`): server-set player attribute `WORLD_EXE_Role` (Lobby / Participant / Spectator) and `WORLD_EXE_Alive`. Everyone in the lobby at the end of the countdown becomes a participant (cap 12; overflow spectates). Players joining during LOBBY/COUNTDOWN join the lobby; joining later → Spectator until the next match. Leaving removes the player from the roster and the Architect queue; an Architect who leaves ends their turn as skipped.
+- **Spawning & respawning**: new enclosed **Lobby** platform (`Workspace.WORLD_EXE.Lobby`, 4 `LobbySpawn` SpawnLocations, built by `tools/studio/phase2_build_lobby.luau`, outside the arena map so Phase 1 validation/baseline are unaffected). The server sets each player's `RespawnLocation`: participants respawn on an arena pad during INITIALIZING/ACTIVE/FINAL_PHASE (different pad from last time); everyone else in the lobby. INITIALIZING reloads each participant on a distinct arena pad; RESET reloads everyone in the lobby.
+- **Spawn protection**: a visible ForceField on participants for the INITIALIZING window only, removed at ACTIVE.
+- **Out-of-bounds / containment**: watchdog every 0.5 s — characters below Y = −60 are eliminated (then respawn per role); non-participants found inside the arena bounds are returned to the lobby.
+- **Safe reset**: RESET empties runtime folders (marker-checked, Phase 1 safety rules), compares the map to its baseline snapshot (warns on drift), resets every role to Lobby, and returns everyone to the lobby.
+- **Architect** (`ArchitectService`): roster shuffled at match start, then round-robin; the chosen player moves to the back, so nobody goes twice in a row when another eligible (alive participant) player exists. First turn 15 s into ACTIVE, 12 s submission window (never time-scaled), 45 s between turns, 4 cards offered. Timeout / Architect leaving / phase change → turn skipped, nothing activates. No new turns in FINAL_PHASE (an open turn is cancelled).
+- **Submission validation** (server): rate limit (burst 4, 1/s refill) → payload must be a table with exactly one key `patchId` → string, 1–32 chars of `[A-Za-z0-9 _-]` → an open turn exists → sender is the current Architect → turn belongs to the current match → window not expired → id/alias resolves through `PatchCatalog` → id is one of the offered cards. Each rejection returns a reason code via `SubmissionResult`. Accepted submissions are recorded and announced; **no patch behaviour runs** (Phase 3).
+- **Patch catalog** (`Shared/PatchCatalog`): finite list of the four prototype patches with display names, warnings, effect text and aliases (case/punctuation-insensitive).
+- **Replication** *(superseded by the versioned `Snapshot` attribute in review round 1)*: `ReplicatedStorage.WORLD_EXE.MatchState` attributes (State, MatchId, StateStartedAt, StateEndsAt, ParticipantCount, MinPlayers, Reason, ArchitectUserId/Name, TurnNumber, TurnEndsAt, OfferedPatches, NextTurnAt, LastResult JSON, LastReset*) plus `MatchStateChanged` / `PatchAnnouncement` / `SubmissionResult` RemoteEvents created by `NetService`.
+- **Placeholder UI** (built-in Roblox UI only, palette from the reference board): HUD status panel (phase + timer, role, players needed / participants, Architect line or next-turn timer, results summary) and amber announcement banner; Architect panel on the right side, shown only to the current Architect, with 4 cards, keyword box (resolved locally to a card, never broadcast), confirm button, timer and feedback text.
+- **Studio-only test controls**: `StudioTimeScale`, `StudioMinPlayers` attributes on `ServerScriptService.WORLD_EXE` (ignored on live servers; see `src/README.md`).
+
+### Changed / added files
+- Added: `src/ReplicatedStorage/WORLD_EXE/Shared/PatchCatalog.luau`, `src/ServerScriptService/WORLD_EXE/Services/{NetService,PlayerStateService,ArchitectService,MatchService}.luau`, `src/StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/{UIUtil,HUDController,ArchitectController}.luau`, `tools/studio/phase2_build_lobby.luau`.
+- Changed: `Config.luau` (v0.2.0-phase2; Phase 2 sections appended, Phase 1 content unchanged), `Bootstrap.server.luau`, `ClientBootstrap.client.luau`, `src/README.md`, this file.
+- Studio: all 12 scripts hash-verified identical to `src/`; new `Workspace.WORLD_EXE.Lobby`. Arena map unchanged (DecayTile 64, ArenaSpawn 12, baseline matched at every reset).
+
+### Tests (all **solo** — one Studio client; no multi-client run)
+| Group | Result |
+|---|---|
+| Unit (Edit mode): fair rotation — 400 simulated turns, 8 players, 25 % random ineligibility | PASS — 0 consecutive repeats when an alternative existed; 49–51 turns each |
+| Unit: strict round-robin A B C A B C; sole eligible player may repeat; nobody eligible → nil | PASS |
+| Unit: payload validation — 15 cases (non-table, string, nil, empty, extra key, array, wrong key, number/NaN id, empty, 33 chars, code-like text, newline, valid id, valid alias text) | 15/15 PASS |
+| Unit: catalog resolution — 12 inputs incl. aliases, unknown, empty; exactly 4 approved ids | 13/13 PASS |
+| Live: Bootstrap `Ready`, 4 remotes created, client ready | PASS |
+| Live: INITIALIZING → participant on an arena pad with ForceField; ACTIVE → ForceField removed | PASS |
+| Live: Architect selected (solo → self), 4 cards offered, panel shown only during the open turn | PASS |
+| Live (client → real RemoteEvent): number payload, extra `duration` key, 40-char id, code-like text, unknown id | rejected: `bad_payload`, `bad_payload`, `bad_patch_id`, `bad_patch_id`, `unknown_patch` |
+| Live: alias `gravity` → accepted as ZERO_G; announcement + HUD banner shown; second submission → `no_open_turn` | PASS |
+| Live: burst of 8 rapid requests | 4 served, 4 `rate_limited` |
+| Live: turn timeout → skipped, next turn after the interval; open turn cancelled at FINAL_PHASE | PASS (log) |
+| Live: death in ACTIVE → respawn on an arena pad, still Participant; `Alive` false→true | PASS (3.8 s) |
+| Live: below Y = −60 → eliminated by watchdog (0.37 s) → respawn in arena | PASS |
+| Live: non-participant teleported into the arena → returned to the lobby (0.2 s); participant left in place | PASS |
+| Live: RESULTS summary JSON (outcome, duration, participants, 1 accepted / 4 skipped turns) | PASS |
+| Live: RESET removed 2 planted runtime objects, baseline matched, role → Lobby, player on a lobby pad, Architect cleared | PASS |
+| Live: COUNTDOWN with `StudioMinPlayers=2` → LOBBY ("countdown cancelled: not enough players"), stays in LOBBY, restarts when the minimum is met | PASS |
+| Live: repeated resets — 10 matches total in one session; recorder over 4 cycles: 0 illegal transitions, baseline matched at every reset, 0 runtime objects left | PASS |
+| Edit DataModel after stopping play: no Remotes/MatchState/runtime folders/test attributes saved | PASS |
+| Output | Only `[WORLD_EXE]` info lines (bootstrap, client ready, transitions, turns); **no errors or warnings** |
+
+### Not tested at the time (requires multi-client) — superseded by the two-client acceptance test above
+- `not_architect` and `stale_turn` rejections (need a second player); fair rotation with real players (covered only by the unit simulation).
+- Player leaving during an Architect turn / during a match; abort to RESULTS when all participants leave.
+- Mid-match join → Spectator; lobby overflow beyond 12 participants.
+- Concurrent spawning on distinct pads; multi-client replication of state, HUD and announcements; streaming at distance (carried over from Phase 1).
+- Clicking the placeholder UI with real input (the client viewport was not visible to the test harness); the submission path was exercised through the same RemoteEvent the UI uses.
+
+### Design decisions for review
+- Respawn policy: participants respawn in the arena during ACTIVE **and** FINAL_PHASE (no elimination). Phase 5 can change this.
+- Readiness: every lobby player is treated as ready (no ready toggle).
+- Final phase: stops new Architect turns rather than restricting the patch subset.
+- An extra remote, `SubmissionResult`, carries per-request feedback to the submitting client.
+- Studio defaults to a minimum of 1 player (live: 2) so solo playtests run the loop.
 
 ## Review round 2 correction — Phase 1 (2026-11-09)
 
