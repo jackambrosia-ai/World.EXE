@@ -21,7 +21,7 @@ def main():
     # Reject unexpectedly altered PR branch names; never interpolate into a shell.
     if branch.startswith("-") or any(c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._/-" for c in branch):
         raise ValueError("Unsafe PR branch name")
-    sh("git", "fetch", "--no-tags", "origin", "main", branch)
+    sh("git", "fetch", "--no-tags", "origin", branch)
     diff = sh("git", "diff", "--no-ext-diff", "--no-color", "origin/main...FETCH_HEAD", "--", "src", "docs", "prompts", "tools", "README.md", "CLAUDE_START_HERE.md")
     if not diff.strip():
         raise RuntimeError("Empty reviewable diff; manual inspection required")
