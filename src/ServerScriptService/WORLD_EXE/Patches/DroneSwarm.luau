@@ -1,16 +1,21 @@
 --!strict
 -- DRONE_SWARM (Phase 4): a small, capped group of hostile drones, fully server-owned.
--- * Spawns DRONES_PER_PATCH drones at distinct DroneWaypoint parts, with at most MAX_DRONES alive
---   across every DRONE_SWARM patch. With no room left, activation fails (full rollback, slot freed).
+-- * Capacity policy: all or nothing. A swarm spawns exactly DRONES_PER_PATCH drones at distinct
+--   DroneWaypoint parts, or none: if fewer than DRONES_PER_PATCH drone slots (MAX_DRONES across
+--   every DRONE_SWARM patch) or waypoints are free, activation fails (full rollback, slot freed).
+--   Partial swarms are never spawned.
 -- * One tracked loop per patch steps every drone at a bounded rate (STEP_SECONDS) and re-picks
 --   targets every RETARGET_SECONDS. There is no per-frame work and no pathfinding: drones patrol
 --   the waypoint graph (Links) and chase only a target they can see.
 -- * Targets: living Participants only (never Lobby, Spectators or dead players), within
---   AGGRO_RANGE with clear line of sight. Breaking line of sight drops the lock.
+--   AGGRO_RANGE with clear line of sight. A lock is dropped when the target becomes ineligible,
+--   moves beyond DISENGAGE_RANGE (checked every step), or breaks line of sight (checked every
+--   retarget). Drones are slower than players, so running away always escapes.
 -- * Damage is telegraphed and bounded: a locked drone turns amber, and a hit needs range, line of
 --   sight, the drone's own cooldown and a per-player cooldown shared by all drones. HIT_DAMAGE is
---   far below max health, never an instant elimination. A supply-drop shield blocks one hit.
---   Spawn protection (ForceField) also blocks damage.
+--   far below max health, never an instant elimination. Protection order: spawn protection
+--   (ForceField) blocks the hit without using anything; otherwise a supply-drop shield blocks it
+--   and is used up; otherwise the player takes damage.
 -- * Drones are placeholder neon spheres built in code (anchored, no collision, ignored by
 --   raycasts) until drone artwork is approved. Everything is in the patch's cleanup bag.
 
@@ -27,7 +32,8 @@ local MAX_DRONES = 6
 local STEP_SECONDS = 0.1
 local RETARGET_SECONDS = 1
 local SPEED = 14 -- studs/s; default walk speed is 16, so a player can always outrun a drone
-local AGGRO_RANGE = 70
+local AGGRO_RANGE = 70 -- a new lock needs the target within this distance
+local DISENGAGE_RANGE = 90 -- an existing lock is dropped beyond this distance
 local HIT_RANGE = 5
 local HIT_DAMAGE = 15
 local DRONE_HIT_COOLDOWN = 1.5
@@ -48,7 +54,7 @@ type Drone = {
 
 local activeDrones = 0
 local playerNextHit: { [Player]: number } = setmetatable({}, { __mode = "k" }) :: any
-local stats = { Hits = 0, Blocked = 0 }
+local stats = { Hits = 0, Blocked = 0, Protected = 0, Disengaged = 0 }
 
 local function now(): number
 	return workspace:GetServerTimeNow()
@@ -94,10 +100,13 @@ function DroneSwarm.Activate(ctx: any)
 	if #ids == 0 then
 		error("no DroneWaypoint parts in the arena")
 	end
-	local count = math.min(DRONES_PER_PATCH, MAX_DRONES - activeDrones, #ids)
-	if count <= 0 then
-		error(`drone cap reached ({activeDrones}/{MAX_DRONES})`)
+	if MAX_DRONES - activeDrones < DRONES_PER_PATCH then
+		error(`drone cap reached ({activeDrones}/{MAX_DRONES}, a swarm needs {DRONES_PER_PATCH})`)
 	end
+	if #ids < DRONES_PER_PATCH then
+		error(`not enough DroneWaypoints ({#ids}, a swarm needs {DRONES_PER_PATCH})`)
+	end
+	local count = DRONES_PER_PATCH
 	local rng = Random.new()
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
@@ -188,6 +197,11 @@ function DroneSwarm.Activate(ctx: any)
 		local t = now()
 		drone.nextHit = t + DRONE_HIT_COOLDOWN
 		playerNextHit[player] = t + PLAYER_HIT_COOLDOWN
+		-- Spawn protection first: it blocks the hit without using up a supply shield.
+		if player.Character and player.Character:FindFirstChildOfClass("ForceField") then
+			stats.Protected += 1
+			return
+		end
 		if PlayerStateService.ConsumeShield(player) then
 			stats.Blocked += 1
 			return
@@ -207,6 +221,14 @@ function DroneSwarm.Activate(ctx: any)
 		if target and not isEligible(target) then
 			setTarget(drone, nil)
 			target = nil
+		end
+		if target then
+			local targetRoot = rootPartOf(target)
+			if targetRoot == nil or (targetRoot.Position - drone.part.Position).Magnitude > DISENGAGE_RANGE then
+				stats.Disengaged += 1
+				setTarget(drone, nil)
+				target = nil
+			end
 		end
 		if retarget then
 			local rootPart = target and rootPartOf(target)
@@ -282,7 +304,7 @@ function DroneSwarm.GetActiveCount(): number
 end
 
 -- Server-side hit counters since server start (for tests).
-function DroneSwarm.GetStats(): { Hits: number, Blocked: number }
+function DroneSwarm.GetStats(): { Hits: number, Blocked: number, Protected: number, Disengaged: number }
 	return table.clone(stats)
 end
 
@@ -293,6 +315,7 @@ DroneSwarm.Tuning = table.freeze({
 	RetargetSeconds = RETARGET_SECONDS,
 	Speed = SPEED,
 	AggroRange = AGGRO_RANGE,
+	DisengageRange = DISENGAGE_RANGE,
 	HitRange = HIT_RANGE,
 	HitDamage = HIT_DAMAGE,
 	DroneHitCooldown = DRONE_HIT_COOLDOWN,
