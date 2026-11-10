@@ -6,7 +6,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 - Overall status: PHASE 1 COMPLETE (solo-tested) — awaiting review; Phase 2 not started
 - Current phase: Phase 1 — Foundation and Sandbox arena blockout
 - Current branch: `phase-01-arena`
-- Current PR: none yet — push pending `gh auth login` on the owner's machine
+- Current PR: [jackambrosia-ai/World.EXE#1](https://github.com/jackambrosia-ai/World.EXE/pull/1) (do not merge without owner approval)
 - Last verified Studio place: `Place1.rbxl` (on disk: `OneDrive\Documents\Place1.rbxl`), unpublished (PlaceId 0)
 - Source synchronization method: **owner decision — no Rojo / no mirroring toolchain.** Claude edits Studio directly via Studio MCP and keeps an identical copy of every WORLD_EXE script in `src/`, verified by byte-length + hash comparison after each change (see `src/README.md`).
 - Baseline place backup: `OneDrive\Documents\RobloxBackups\WorldEXE_baseline_2026-11-09.rbxl` (byte-identical copy of the pre-Phase-1 place; rollback point)
@@ -20,7 +20,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | Phase | Scope | Status | PR/Commit | Studio test evidence |
 |---|---|---|---|---|
 | 0 | Audit and setup | Complete (owner decisions recorded) | — | Read-only audit; ForgeGUI read-only audit |
-| 1 | Foundation and arena | Complete — solo-tested, awaiting review | `phase-01-arena` (local) | Solo playtest: see Latest phase report |
+| 1 | Foundation and arena | Complete — solo-tested, awaiting review | [PR #1](https://github.com/jackambrosia-ai/World.EXE/pull/1) (`ea9e05c`) | Solo playtest: see Latest phase report |
 | 2 | Match and Architect | Not started — needs separate owner approval | — | — |
 | 3 | Patch engine | Not started | — | — |
 | 4 | Four prototype patches | Not started | — | — |
@@ -93,7 +93,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 
 ### Manual steps still needed
 1. Press **Ctrl+S** in Studio to save the Phase 1 place.
-2. Run `gh auth login` so Claude can push `phase-01-arena` and open a PR for ChatGPT review.
+2. Ask ChatGPT to review PR #1 (pushed 2026-11-09).
 
 ### Recommended next task
 ChatGPT review of Phase 1, then Phase 2 (match lifecycle and Architect selection) after separate owner approval.
