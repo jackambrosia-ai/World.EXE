@@ -1,0 +1,177 @@
+name: WORLD.EXE AI Review Loop
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+# Opt-in only; runs on same-repository PRs to main, never fork code.
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: worldexe-ai-review-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review-and-correct:
+    if: >-
+      github.event_name == 'pull_request' &&
+      vars.AI_REVIEW_ENABLED == 'true' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'main' &&
+      github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    env:
+      HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Load trusted reviewer from main
+        shell: bash
+        run: |
+          git fetch --no-tags origin main
+          git show origin/main:.github/scripts/worldexe_ai_review.py > /tmp/worldexe_ai_review.py
+          python3 -m py_compile /tmp/worldexe_ai_review.py
+      - name: OpenAI review 1
+        id: review1
+        shell: bash
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_REVIEW_MODEL: ${{ vars.OPENAI_REVIEW_MODEL || 'gpt-5.1' }}
+        run: python3 /tmp/worldexe_ai_review.py
+      - name: Claude correction round 1
+        if: steps.review1.outputs.needs_fix == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            This is correction round 1 of a maximum of 3 on the currently open PR.
+            Read /tmp/worldexe-ai-review.md for the latest independent findings.
+            Fix only confirmed issues in the existing authorized phase.
+            Re-run available local static checks; commit and push fixes to this PR branch.
+            NEVER merge, publish, deploy, change phases, use ForgeGUI, spend credits,
+            edit GitHub workflows/secrets, or claim Roblox Studio tests were run.
+            Local Roblox Studio is not accessible in this GitHub runner.
+            Flag all src changes as requiring later Studio MCP synchronization and hash verification.
+            If a fix is uncertain, report it rather than inventing one.
+          claude_args: |
+            --max-turns 12
+      - name: Sync latest PR source after Claude 1
+        if: steps.review1.outputs.needs_fix == 'true'
+        shell: bash
+        run: |
+          test -z "$(git status --porcelain)" || { echo 'Uncommitted changes; stopping safely'; exit 1; }
+          git fetch --no-tags origin "$HEAD_BRANCH"
+          git checkout --detach FETCH_HEAD
+          if git diff --name-only origin/main...HEAD | grep -q '^\.github/'; then
+            echo 'PR modifies GitHub automation; requires manual review'; exit 1
+          fi
+      - name: OpenAI review 2
+        id: review2
+        if: steps.review1.outputs.needs_fix == 'true'
+        shell: bash
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_REVIEW_MODEL: ${{ vars.OPENAI_REVIEW_MODEL || 'gpt-5.1' }}
+        run: python3 /tmp/worldexe_ai_review.py
+      - name: Claude correction round 2
+        if: steps.review2.outputs.needs_fix == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            This is correction round 2 of a maximum of 3 on the currently open PR.
+            Read /tmp/worldexe-ai-review.md for the latest independent findings.
+            Fix only confirmed issues in the existing authorized phase.
+            Re-run available local static checks; commit and push fixes to this PR branch.
+            NEVER merge, publish, deploy, change phases, use ForgeGUI, spend credits,
+            edit GitHub workflows/secrets, or claim Roblox Studio tests were run.
+            Local Roblox Studio is not accessible in this GitHub runner.
+            Flag all src changes as requiring later Studio MCP synchronization and hash verification.
+            If a fix is uncertain, report it rather than inventing one.
+          claude_args: |
+            --max-turns 12
+      - name: Sync latest PR source after Claude 2
+        if: steps.review2.outputs.needs_fix == 'true'
+        shell: bash
+        run: |
+          test -z "$(git status --porcelain)" || { echo 'Uncommitted changes; stopping safely'; exit 1; }
+          git fetch --no-tags origin "$HEAD_BRANCH"
+          git checkout --detach FETCH_HEAD
+          if git diff --name-only origin/main...HEAD | grep -q '^\.github/'; then
+            echo 'PR modifies GitHub automation; requires manual review'; exit 1
+          fi
+      - name: OpenAI review 3
+        id: review3
+        if: steps.review2.outputs.needs_fix == 'true'
+        shell: bash
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_REVIEW_MODEL: ${{ vars.OPENAI_REVIEW_MODEL || 'gpt-5.1' }}
+        run: python3 /tmp/worldexe_ai_review.py
+      - name: Claude correction round 3
+        if: steps.review3.outputs.needs_fix == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            This is correction round 3 of a maximum of 3 on the currently open PR.
+            Read /tmp/worldexe-ai-review.md for the latest independent findings.
+            Fix only confirmed issues in the existing authorized phase.
+            Re-run available local static checks; commit and push fixes to this PR branch.
+            NEVER merge, publish, deploy, change phases, use ForgeGUI, spend credits,
+            edit GitHub workflows/secrets, or claim Roblox Studio tests were run.
+            Local Roblox Studio is not accessible in this GitHub runner.
+            Flag all src changes as requiring later Studio MCP synchronization and hash verification.
+            If a fix is uncertain, report it rather than inventing one.
+          claude_args: |
+            --max-turns 12
+      - name: Sync latest PR source after Claude 3
+        if: steps.review3.outputs.needs_fix == 'true'
+        shell: bash
+        run: |
+          test -z "$(git status --porcelain)" || { echo 'Uncommitted changes; stopping safely'; exit 1; }
+          git fetch --no-tags origin "$HEAD_BRANCH"
+          git checkout --detach FETCH_HEAD
+          if git diff --name-only origin/main...HEAD | grep -q '^\.github/'; then
+            echo 'PR modifies GitHub automation; requires manual review'; exit 1
+          fi
+      - name: OpenAI review 4
+        id: review4
+        if: steps.review3.outputs.needs_fix == 'true'
+        shell: bash
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_REVIEW_MODEL: ${{ vars.OPENAI_REVIEW_MODEL || 'gpt-5.1' }}
+        run: python3 /tmp/worldexe_ai_review.py
+      - name: Post final review summary (never merge)
+        if: success()
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: |
+          if [ -s /tmp/worldexe-ai-review.md ]; then
+            {
+              echo "Automated WORLD.EXE review loop completed. Maximum 3 correction rounds."
+              echo
+              cat /tmp/worldexe-ai-review.md
+              echo
+              echo "Any GitHub-source changes require Studio MCP synchronization and owner-save/backup before merge."
+              echo "No merge, phase transition, publication or ForgeGUI action was authorized."
+            } > /tmp/worldexe-final-comment.md
+            gh pr comment "$PR_NUMBER" --body-file /tmp/worldexe-final-comment.md
+          fi
+      - name: Stop if still blocked after third correction
+        if: steps.review4.outputs.needs_fix == 'true'
+        run: |
+          echo "Review still requests changes after 3 rounds; owner intervention required."
+          exit 1
