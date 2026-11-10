@@ -3,21 +3,24 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 2 — code review passed; two-client acceptance run done (19 PASS, 1 split, 1 NOT TESTED); place saved and post-Phase-2 backup verified; PR #2 open, not merged; Phase 3 not started and requires separate owner approval
-- Current phase: Phase 2 — Match lifecycle and Architect selection
-- Current branch: `phase-02-match`
-- Current PR: [jackambrosia-ai/World.EXE#2](https://github.com/jackambrosia-ai/World.EXE/pull/2) (do not merge without owner approval)
+- Overall status: PHASE 2 COMPLETE — merged to `main`; Phase 3 not started and requires separate owner approval
+- Current phase: Phase 2 complete; next is Phase 3 — Patch engine foundation (awaiting approval)
+- Current branch: `main`
+- Current PR: none open. Phase 2 merged via [jackambrosia-ai/World.EXE#2](https://github.com/jackambrosia-ai/World.EXE/pull/2)
 - Phase 1 merge: squash-merged 2026-11-10 by owner approval as `9b9cbd0` (from PR head `ddc784c`; merged tree identical to that head). The `phase-01-arena` branch still exists on GitHub and can be deleted.
-- Last verified Studio place: `Place1.rbxl` (on disk: `OneDrive\Documents\Place1.rbxl`), unpublished (PlaceId 0). Phase 2 changes are in the open Studio session and **not yet saved** — owner must press Ctrl+S.
+- Phase 2 merge: squash-merged 2026-11-10 by owner approval as `09d9c2a` (from PR head `2e99b13`; merged tree identical to that head; final gameplay code `9c6de7a`). The `phase-02-match` branch still exists on GitHub and can be deleted.
+- Last verified Studio place: `Place1.rbxl` (on disk: `OneDrive\Documents\Place1.rbxl`), unpublished (PlaceId 0); saved 2026-11-10 03:21:24 with the final Phase 2 scripts (hash-identical to `main`) and no test attributes.
 - Source synchronization method: **owner decision — no Rojo / no mirroring toolchain.** Claude edits Studio directly via Studio MCP and keeps an identical copy of every WORLD_EXE script in `src/`, verified by byte-length + hash comparison after each change (see `src/README.md`).
 - Place backups (outside the repo, `OneDrive\Documents\RobloxBackups\`):
   - `WorldEXE_baseline_2026-11-09.rbxl` — pre-Phase-1 place (byte-identical copy)
   - `WorldEXE_post-phase1_2026-11-10.rbxl` — post-Phase-1 place incl. both review rounds (byte-identical copy of the saved `Place1.rbxl`)
-  - `WorldEXE_pre-phase2_2026-11-10.rbxl` — verified pre-Phase-2 copy (identical content to post-Phase-1); current rollback point for Phase 2
+  - `WorldEXE_pre-phase2_2026-11-10.rbxl` — verified pre-Phase-2 copy (identical content to post-Phase-1)
+  - `WorldEXE_post-phase2_2026-11-10.rbxl` — post-Phase-2 place (SHA-256 `0F402A70…42B7B204`, identical to the saved `Place1.rbxl`); current rollback point
 - Studio save: Studio MCP cannot save the place — the owner must press Ctrl+S after each change set. Latest save 2026-11-10 03:21:24 (post-Phase-2, backed up).
 - StreamingEnabled: unchanged (enabled), per Phase 0 review
 - Multi-client testing: Phase 2 run with Studio Clients and Servers (1 server + 2 clients) on 2026-11-10 — see the matrix in "Phase 2 review round 2 correction". Phase 1 tests remain solo.
-- Latest technical review: Phase 2 review round 1 (ChatGPT, relayed by the owner 2026-11-10) — 5 findings addressed; design decisions approved. See "Phase 2 review round 1 corrections".
+- Latest technical review: Phase 2 final review (ChatGPT, `9c6de7a`) — no remaining code blockers; two-client acceptance run recorded; merged with owner approval.
+- Known Phase 2 gaps carried forward (not counted as passed): real mid-match join → Spectator; multiplayer spawn-protection window; > 12 players; streaming at distance; pending-respawn invalidation on departure. Hardening note for Phase 10: server→client remotes have no `OnServerEvent` handler (client spam is queued with warnings).
 - Last updated: 2026-11-10
 
 ## Phase tracker
@@ -25,7 +28,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 |---|---|---|---|---|
 | 0 | Audit and setup | Complete (owner decisions recorded) | — | Read-only audit; ForgeGUI read-only audit |
 | 1 | Foundation and arena | **Complete — merged** (solo-tested; multi-client tests outstanding) | [PR #1](https://github.com/jackambrosia-ai/World.EXE/pull/1) → `9b9cbd0` | Solo playtests: see reports below |
-| 2 | Match and Architect | Review round 1 corrections applied — solo-tested, awaiting re-review | [PR #2](https://github.com/jackambrosia-ai/World.EXE/pull/2) (`phase-02-match`) | Solo playtests + unit tests: see Phase 2 report |
+| 2 | Match and Architect | **Complete — merged** (solo + two-client Studio tests; gaps listed above) | [PR #2](https://github.com/jackambrosia-ai/World.EXE/pull/2) → `09d9c2a` | Two-client matrix: 19 PASS, 1 split, 1 NOT TESTED |
 | 3 | Patch engine | Not started | — | — |
 | 4 | Four prototype patches | Not started | — | — |
 | 5 | Stability/objectives/scoring | Not started | — | — |
