@@ -60,7 +60,8 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 Totals this round: 32/32 snapshot cases, 12/12 spawns. Validation and runtime-folder code are unchanged since round 1 (35/35 and 6/6 there).
 
 ### Commits
-- Round 2 correction commit: COMMIT_PLACEHOLDER
+- Round 2 correction commit: `9e96936` (ArenaService + this report).
+- Final PR head for this round: the docs-only commit directly after `9e96936` that records this line (a commit cannot contain its own hash; the exact head hash is in the PR description).
 
 ### Outstanding (not claimed)
 - Concurrent-spawn test and multi-client streaming test (Studio Test → Clients and Servers, 2+ clients) — not run.
