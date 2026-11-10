@@ -49,6 +49,9 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 ### Bug found during testing (fixed)
 The first generation-only version still left a participant in the lobby after a recovery: the engine **silently ignores a `LoadCharacter` issued while that player's previous load is still finishing**. Observed: recovery lobby load at 5.75 s, next match's arena load at 6.55 s → `arena#22:loading` with no `CharacterAdded`; the participant stayed on a lobby pad during ACTIVE. Fixed by serializing loads per player (above); re-test shows the arena request waiting for the lobby load and then landing on an arena pad.
 
+### Commits
+- Corrections commit: `0f4bf4e`. The PR head after this round is the docs-only commit directly after it that records this line (exact hash in the PR conversation).
+
 ### Approved design decisions (recorded)
 Respawn in ACTIVE and FINAL_PHASE; lobby auto-ready; no new Architect turns in FINAL_PHASE; keep `SubmissionResult`; Studio minimum 1 / live 2; ACTIVE 420 s + FINAL_PHASE 90 s. Match duration standardized in `README.md`, `CLAUDE_START_HERE.md` and `docs/01_GAME_DESIGN.md` to **8–12 minutes, initial gameplay duration 8:30**.
 
