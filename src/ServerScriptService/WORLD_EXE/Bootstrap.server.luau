@@ -1,6 +1,7 @@
 --!strict
 -- WORLD.EXE server entry point.
--- Initializes services in explicit order: Arena -> Net -> PlayerState -> Architect (via Match) -> Match.
+-- Initializes services in explicit order:
+-- Arena -> Net -> PlayerState -> WorldModifier -> Match (which initializes Patch and Architect).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
@@ -11,6 +12,7 @@ local services = serverRoot:WaitForChild("Services")
 local ArenaService = require(services:WaitForChild("ArenaService"))
 local NetService = require(services:WaitForChild("NetService"))
 local PlayerStateService = require(services:WaitForChild("PlayerStateService"))
+local WorldModifierService = require(services:WaitForChild("WorldModifierService"))
 local MatchService = require(services:WaitForChild("MatchService"))
 
 local root = workspace:WaitForChild(Config.RootName)
@@ -36,6 +38,9 @@ end
 for _, problem in PlayerStateService.Init() do
 	table.insert(errors, problem)
 end
+
+-- Capture shared-world baselines before any patch can run.
+WorldModifierService.Init()
 
 local matchOk, matchErr = pcall(MatchService.Init, serverRoot)
 if not matchOk then

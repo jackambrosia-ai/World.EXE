@@ -7,6 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local shared = ReplicatedStorage:WaitForChild("WORLD_EXE")
 local Config = require(shared:WaitForChild("Shared"):WaitForChild("Config"))
+local PatchCatalog = require(shared:WaitForChild("Shared"):WaitForChild("PatchCatalog"))
 local UIUtil = require(script.Parent:WaitForChild("UIUtil"))
 local MatchStateClient = require(script.Parent:WaitForChild("MatchStateClient"))
 
@@ -74,8 +75,11 @@ function HUDController.Start(remotes: Instance)
 	detail.Font = Enum.Font.Gotham
 	local architectLine = UIUtil.label("ArchitectLabel", "", 14, Palette.ElectricPurple, status)
 	architectLine.LayoutOrder = 3
+	local patchesLine = UIUtil.label("PatchesLabel", "", 14, Palette.AmberWarning, status)
+	patchesLine.LayoutOrder = 4
+	patchesLine.Font = Enum.Font.Gotham
 	local results = UIUtil.label("ResultsLabel", "", 14, Palette.ObjectiveGreen, status)
-	results.LayoutOrder = 4
+	results.LayoutOrder = 5
 	results.Font = Enum.Font.Gotham
 
 	local banner = UIUtil.panel("Announcement", Palette.AmberWarning, gui)
@@ -122,6 +126,24 @@ function HUDController.Start(remotes: Instance)
 		end
 		architectLine.Visible = architectLine.Text ~= ""
 
+		-- Running patches (Phase 3): name, phase and time left, plus slots used.
+		local parts = {}
+		if typeof(snap.Patches) == "table" then
+			for _, patch in snap.Patches do
+				if typeof(patch) == "table" then
+					local def = PatchCatalog.Get(tostring(patch.PatchId))
+					local name = if def then string.upper(def.DisplayName) else tostring(patch.PatchId)
+					if patch.State == "WARNING" and typeof(patch.WarningEndsAt) == "number" then
+						table.insert(parts, `{name} incoming {UIUtil.formatTime(patch.WarningEndsAt - t)}`)
+					elseif patch.State == "ACTIVE" and typeof(patch.ExpiresAt) == "number" then
+						table.insert(parts, `{name} {UIUtil.formatTime(patch.ExpiresAt - t)}`)
+					end
+				end
+			end
+		end
+		patchesLine.Text = if #parts > 0 then `Patches ({#parts}/{tostring(snap.PatchCapacity or "?")}): {table.concat(parts, " · ")}` else ""
+		patchesLine.Visible = patchesLine.Text ~= ""
+
 		results.Text = if state == S.Results or state == S.Reset then resultsText(snap.LastResult) else ""
 		results.Visible = results.Text ~= ""
 	end
@@ -132,7 +154,7 @@ function HUDController.Start(remotes: Instance)
 			return
 		end
 		if data.Outcome == "accepted" and typeof(data.DisplayName) == "string" then
-			bannerText.Text = string.format("PATCH SUBMITTED: %s by %s\n%s\n(Patch effects arrive in a later phase.)", string.upper(data.DisplayName), tostring(data.ArchitectName), tostring(data.Warning))
+			bannerText.Text = string.format("PATCH SUBMITTED: %s by %s\n%s\n(Patch effects arrive in Phase 4.)", string.upper(data.DisplayName), tostring(data.ArchitectName), tostring(data.Warning))
 		else
 			bannerText.Text = string.format("Architect turn skipped (%s)", tostring(data.Outcome))
 		end

@@ -4,7 +4,7 @@
 
 local Config = {}
 
-Config.Version = "0.2.1-phase2"
+Config.Version = "0.3.0-phase3"
 Config.RootName = "WORLD_EXE"
 
 -- CollectionService tags used by the Studio-owned arena.
@@ -155,6 +155,27 @@ Config.StudioControls = table.freeze({
 	TimeScale = "StudioTimeScale", -- multiplies match-phase and turn-interval durations
 	MinPlayers = "StudioMinPlayers",
 	FailOnEnter = "StudioFailOnEnter", -- state name: makes that state's entry fail (recovery test)
+})
+
+---------------------------------------------------------------------------------------------------
+-- Phase 3: patch engine
+
+Config.PatchStates = table.freeze({
+	Warning = "WARNING",
+	Active = "ACTIVE",
+	Ending = "ENDING",
+	Ended = "ENDED",
+})
+
+Config.Patches = table.freeze({
+	MaxActiveMajor = 3, -- slots: patches in WARNING, ACTIVE or ENDING each hold one
+	DefaultWarningSeconds = 4.5, -- used when a definition has no WarningSeconds
+	HistoryLimit = 50, -- ended records kept for results/tests
+})
+
+-- Shared world properties owned by WorldModifierService (effective value is clamped to this range).
+Config.WorldModifiers = table.freeze({
+	Gravity = table.freeze({ Min = 0, Max = 1000 }),
 })
 
 -- Reference-board palette (docs/04_UI_AND_ART_DIRECTION.md).

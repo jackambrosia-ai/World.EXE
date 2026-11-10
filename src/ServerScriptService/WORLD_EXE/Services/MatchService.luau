@@ -24,6 +24,8 @@ local ArenaService = require(services:WaitForChild("ArenaService"))
 local NetService = require(services:WaitForChild("NetService"))
 local PlayerStateService = require(services:WaitForChild("PlayerStateService"))
 local ArchitectService = require(services:WaitForChild("ArchitectService"))
+local PatchService = require(services:WaitForChild("PatchService"))
+local WorldModifierService = require(services:WaitForChild("WorldModifierService"))
 
 local S = Config.MatchStates
 local Roles = Config.Roles
@@ -54,6 +56,9 @@ local lastReason = ""
 local lastResult: { [string]: any }? = nil
 local lastResetRemoved = 0
 local lastResetBaselineMatches = true
+local lastResetPatchesCancelled = 0
+local lastResetModifiersCleared = 0
+local lastResetWorldAtBaseline = true
 local recoveries = 0
 local version = 0
 local inTransition = false
@@ -109,6 +114,11 @@ local function snapshot(): { [string]: any }
 		LastResult = lastResult,
 		LastResetRemoved = lastResetRemoved,
 		LastResetBaselineMatches = lastResetBaselineMatches,
+		LastResetPatchesCancelled = lastResetPatchesCancelled,
+		LastResetModifiersCleared = lastResetModifiersCleared,
+		LastResetWorldAtBaseline = lastResetWorldAtBaseline,
+		Patches = PatchService.GetSnapshot(),
+		PatchCapacity = Config.Patches.MaxActiveMajor,
 	}
 end
 
@@ -174,6 +184,12 @@ local function recover(failedState: string, err: any)
 	local steps: { () -> () } = {
 		function()
 			ArchitectService.StopMatch("cancelled")
+		end,
+		function()
+			PatchService.CancelAll("recovery")
+		end,
+		function()
+			WorldModifierService.ClearAll()
 		end,
 		function()
 			PlayerStateService.SetSpawnProtection(false)
@@ -283,6 +299,9 @@ end
 
 enter[S.Results] = function()
 	ArchitectService.StopMatch("cancelled")
+	-- Patches never outlive their match.
+	PatchService.CancelAll("match_end")
+	WorldModifierService.ClearAll()
 	PlayerStateService.SetSpawnProtection(false)
 	PlayerStateService.SetArenaPhase(false)
 	lastResult = buildResults()
@@ -290,6 +309,15 @@ enter[S.Results] = function()
 end
 
 enter[S.Reset] = function()
+	-- Patch resources first (idempotent; normally already ended at RESULTS), then shared world
+	-- properties, then any leftover runtime objects.
+	lastResetPatchesCancelled = PatchService.CancelAll("reset")
+	lastResetModifiersCleared = WorldModifierService.ClearAll()
+	lastResetWorldAtBaseline = WorldModifierService.IsAtBaseline()
+	PatchService.ResetMatchKeys()
+	if not lastResetWorldAtBaseline then
+		warn("[WORLD_EXE] Reset: shared world properties are not at baseline")
+	end
 	local removed, problems = ArenaService.ResetRuntime()
 	for _, problem in problems do
 		warn(`[WORLD_EXE] Reset: {problem}`)
@@ -317,6 +345,7 @@ end
 -- Loop
 
 local function tick()
+	PatchService.Update()
 	local t = now()
 	if state == S.Lobby then
 		if lobbyCount() >= minPlayers() then
@@ -396,6 +425,12 @@ function MatchService.Init(controlFolder: Instance)
 		folder.Parent = shared
 		stateFolder = folder
 	end
+	PatchService.Init({
+		isMatchLive = function(id: number): boolean
+			return id == matchId and (state == S.Active or state == S.FinalPhase)
+		end,
+		onChanged = publish,
+	})
 	ArchitectService.Init(publish)
 	PlayerStateService.SetJoinPolicy(function()
 		return if state == S.Lobby or state == S.Countdown then Roles.Lobby else Roles.Spectator
@@ -422,10 +457,12 @@ function MatchService.Start()
 	end)
 end
 
--- Server shutdown: stop turns and clear runtime objects.
+-- Server shutdown: stop turns, end patches, restore shared properties, clear runtime objects.
 function MatchService.Shutdown()
 	running = false
 	ArchitectService.StopMatch("cancelled")
+	PatchService.CancelAll("shutdown")
+	WorldModifierService.ClearAll()
 	ArenaService.ResetRuntime()
 end
 

@@ -12,6 +12,11 @@ These files are exact copies of the WORLD_EXE scripts in the Studio place. Paths
 | `ServerScriptService/WORLD_EXE/Services/PlayerStateService.luau` | `ServerScriptService.WORLD_EXE.Services.PlayerStateService` | ModuleScript |
 | `ServerScriptService/WORLD_EXE/Services/ArchitectService.luau` | `ServerScriptService.WORLD_EXE.Services.ArchitectService` | ModuleScript |
 | `ServerScriptService/WORLD_EXE/Services/MatchService.luau` | `ServerScriptService.WORLD_EXE.Services.MatchService` | ModuleScript |
+| `ServerScriptService/WORLD_EXE/Services/CleanupService.luau` | `ServerScriptService.WORLD_EXE.Services.CleanupService` | ModuleScript |
+| `ServerScriptService/WORLD_EXE/Services/WorldModifierService.luau` | `ServerScriptService.WORLD_EXE.Services.WorldModifierService` | ModuleScript |
+| `ServerScriptService/WORLD_EXE/Services/PatchService.luau` | `ServerScriptService.WORLD_EXE.Services.PatchService` | ModuleScript |
+| `ServerScriptService/WORLD_EXE/Patches/Placeholder.luau` | `ServerScriptService.WORLD_EXE.Patches.Placeholder` | ModuleScript |
+| `ServerScriptService/WORLD_EXE/Patches/TestBehaviors.luau` | `ServerScriptService.WORLD_EXE.Patches.TestBehaviors` | ModuleScript |
 | `StarterPlayer/StarterPlayerScripts/WORLD_EXE/ClientBootstrap.client.luau` | `StarterPlayer.StarterPlayerScripts.WORLD_EXE.ClientBootstrap` | LocalScript |
 | `StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/UIUtil.luau` | `StarterPlayer.StarterPlayerScripts.WORLD_EXE.Controllers.UIUtil` | ModuleScript |
 | `StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/MatchStateClient.luau` | `StarterPlayer.StarterPlayerScripts.WORLD_EXE.Controllers.MatchStateClient` | ModuleScript |
@@ -30,5 +35,7 @@ Attributes on `ServerScriptService.WORLD_EXE`, honoured only when `RunService:Is
 - `StudioTimeScale` (number > 0): multiplies match-phase durations and Architect turn intervals (the 12 s submission window is never scaled).
 - `StudioMinPlayers` (number ≥ 1): overrides the minimum player count. Without it, Studio uses `Config.Match.StudioMinPlayers` (1) so a solo playtest runs the loop; live servers always use `Config.Match.MinPlayers` (2).
 - `StudioFailOnEnter` (state name, e.g. `"INITIALIZING"`): makes that state's entry fail after its hook runs, to test transition-failure recovery.
+
+Studio-only test patches: `Patches/TestBehaviors` (`TEST_*` IDs) are registered by PatchService only when `RunService:IsStudio()`, are requested only with `{ Test = true }` from server-side test code, and are not in `PatchCatalog`, so players can never request them.
 
 Test note: code run through Studio MCP gets its own module instances (it cannot reach the running game's services), so live tests observe the game through the `Snapshot` attribute, player attributes (`WORLD_EXE_Role`, `WORLD_EXE_Alive`, `WORLD_EXE_LastSpawn`) and the real RemoteEvents; pure-function tests require clones of the modules.

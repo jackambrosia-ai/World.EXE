@@ -1,7 +1,8 @@
 --!strict
 -- WORLD.EXE approved patch catalog (finite and server-owned; replicated so the UI can show cards).
 -- Player input only ever selects one of these ids; keywords are aliases for approved ids.
--- Phase 2 uses the catalog for Architect selection and validation only; behaviour is Phase 3/4.
+-- Timings are initial proposals from docs/03_PATCH_CATALOG.md. Phase 3 runs every approved patch
+-- through the patch engine with a no-effect placeholder behaviour; real effects arrive in Phase 4.
 
 export type PatchDefinition = {
 	Id: string,
@@ -10,6 +11,8 @@ export type PatchDefinition = {
 	Warning: string,
 	Effect: string,
 	Aliases: { string },
+	WarningSeconds: number, -- announcement before activation
+	DurationSeconds: number, -- active period
 }
 
 local definitions: { PatchDefinition } = {
@@ -19,6 +22,8 @@ local definitions: { PatchDefinition } = {
 		Category = "Physics",
 		Warning = "GRAVITY UNSTABLE — Movement will feel weightless!",
 		Effect = "Reduces gravity across the arena.",
+		WarningSeconds = 4.5,
+		DurationSeconds = 35,
 		Aliases = { "ZEROG", "GRAVITY", "LOWGRAVITY", "WEIGHTLESS" },
 	},
 	{
@@ -27,6 +32,8 @@ local definitions: { PatchDefinition } = {
 		Category = "Environment",
 		Warning = "STRUCTURAL DECAY — Marked platforms are about to collapse!",
 		Effect = "Marked Research Yard tiles collapse for a short time.",
+		WarningSeconds = 4.5,
+		DurationSeconds = 40,
 		Aliases = { "COLLAPSE", "CRUMBLE" },
 	},
 	{
@@ -35,6 +42,8 @@ local definitions: { PatchDefinition } = {
 		Category = "Entity",
 		Warning = "SECURITY DRONES DEPLOYED — Keep moving and break line of sight!",
 		Effect = "A small group of hostile drones hunts players.",
+		WarningSeconds = 4.5,
+		DurationSeconds = 35,
 		Aliases = { "DRONES", "DRONE", "SWARM" },
 	},
 	{
@@ -43,6 +52,8 @@ local definitions: { PatchDefinition } = {
 		Category = "Beneficial",
 		Warning = "SUPPLY DROP INBOUND — Reach the marked landing zone!",
 		Effect = "A contested crate lands at a marked zone.",
+		WarningSeconds = 4.5,
+		DurationSeconds = 30,
 		Aliases = { "SUPPLY", "SUPPLIES", "CRATE" },
 	},
 }

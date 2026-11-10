@@ -31,6 +31,9 @@ local FEEDBACK: { [string]: string } = {
 	unknown_patch = "Unknown patch.",
 	not_offered = "That patch is not on your cards.",
 	architect_ineligible = "You can no longer act as Architect this turn.",
+	capacity_full = "The simulation is at its patch limit — turn skipped.",
+	match_not_live = "The match is not running.",
+	duplicate = "That turn already submitted a patch.",
 }
 
 local ArchitectController = {}

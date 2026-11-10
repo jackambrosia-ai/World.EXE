@@ -3,23 +3,24 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 2 COMPLETE — merged to `main`; Phase 3 not started and requires separate owner approval
-- Current phase: Phase 2 complete; next is Phase 3 — Patch engine foundation (awaiting approval)
-- Current branch: `main`
-- Current PR: none open. Phase 2 merged via [jackambrosia-ai/World.EXE#2](https://github.com/jackambrosia-ai/World.EXE/pull/2)
+- Overall status: PHASE 3 IMPLEMENTED — awaiting ChatGPT technical review; not merged. Phase 4 not started and requires separate owner approval
+- Current phase: Phase 3 — Patch engine foundation (in review)
+- Current branch: `phase-03-patch-engine` (from `main` `40a1d39`)
+- Current PR: Phase 3 PR targeting `main` (open, not merged). Phase 2 merged via [jackambrosia-ai/World.EXE#2](https://github.com/jackambrosia-ai/World.EXE/pull/2)
 - Phase 1 merge: squash-merged 2026-11-10 by owner approval as `9b9cbd0` (from PR head `ddc784c`; merged tree identical to that head). The `phase-01-arena` branch still exists on GitHub and can be deleted.
 - Phase 2 merge: squash-merged 2026-11-10 by owner approval as `09d9c2a` (from PR head `2e99b13`; merged tree identical to that head; final gameplay code `9c6de7a`). The `phase-02-match` branch still exists on GitHub and can be deleted.
-- Last verified Studio place: `Place1.rbxl` (on disk: `OneDrive\Documents\Place1.rbxl`), unpublished (PlaceId 0); saved 2026-11-10 03:21:24 with the final Phase 2 scripts (hash-identical to `main`) and no test attributes.
+- Last verified Studio place: `Place1.rbxl` (on disk: `OneDrive\Documents\Place1.rbxl`), unpublished (PlaceId 0). The open Studio session contains the Phase 3 scripts (all 18 hash-identical to `phase-03-patch-engine`) and no test attributes; **it must be saved (Ctrl+S) and a post-Phase-3 backup taken before merge.** Last saved file: 2026-11-10 03:21:24 (Phase 2).
 - Source synchronization method: **owner decision — no Rojo / no mirroring toolchain.** Claude edits Studio directly via Studio MCP and keeps an identical copy of every WORLD_EXE script in `src/`, verified by byte-length + hash comparison after each change (see `src/README.md`).
 - Place backups (outside the repo, `OneDrive\Documents\RobloxBackups\`):
   - `WorldEXE_baseline_2026-11-09.rbxl` — pre-Phase-1 place (byte-identical copy)
   - `WorldEXE_post-phase1_2026-11-10.rbxl` — post-Phase-1 place incl. both review rounds (byte-identical copy of the saved `Place1.rbxl`)
   - `WorldEXE_pre-phase2_2026-11-10.rbxl` — verified pre-Phase-2 copy (identical content to post-Phase-1)
-  - `WorldEXE_post-phase2_2026-11-10.rbxl` — post-Phase-2 place (SHA-256 `0F402A70…42B7B204`, identical to the saved `Place1.rbxl`); current rollback point
+  - `WorldEXE_post-phase2_2026-11-10.rbxl` — post-Phase-2 place (SHA-256 `0F402A70…42B7B204`, identical to the saved `Place1.rbxl`)
+  - `WorldEXE_pre-phase3_2026-11-10.rbxl` — verified pre-Phase-3 copy (SHA-256 `0F402A70…42B7B204`, identical to the saved place); current rollback point
 - Studio save: Studio MCP cannot save the place — the owner must press Ctrl+S after each change set. Latest save 2026-11-10 03:21:24 (post-Phase-2, backed up).
 - StreamingEnabled: unchanged (enabled), per Phase 0 review
 - Multi-client testing: Phase 2 run with Studio Clients and Servers (1 server + 2 clients) on 2026-11-10 — see the matrix in "Phase 2 review round 2 correction". Phase 1 tests remain solo.
-- Latest technical review: Phase 2 final review (ChatGPT, `9c6de7a`) — no remaining code blockers; two-client acceptance run recorded; merged with owner approval.
+- Latest technical review: Phase 2 final review (ChatGPT, `9c6de7a`) — no remaining code blockers; two-client acceptance run recorded; merged with owner approval. Phase 3 review pending.
 - Known Phase 2 gaps carried forward (not counted as passed): real mid-match join → Spectator; multiplayer spawn-protection window; > 12 players; streaming at distance; pending-respawn invalidation on departure. Hardening note for Phase 10: server→client remotes have no `OnServerEvent` handler (client spam is queued with warnings).
 - Last updated: 2026-11-10
 
@@ -29,7 +30,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 0 | Audit and setup | Complete (owner decisions recorded) | — | Read-only audit; ForgeGUI read-only audit |
 | 1 | Foundation and arena | **Complete — merged** (solo-tested; multi-client tests outstanding) | [PR #1](https://github.com/jackambrosia-ai/World.EXE/pull/1) → `9b9cbd0` | Solo playtests: see reports below |
 | 2 | Match and Architect | **Complete — merged** (solo + two-client Studio tests; gaps listed above) | [PR #2](https://github.com/jackambrosia-ai/World.EXE/pull/2) → `09d9c2a` | Two-client matrix: 19 PASS, 1 split, 1 NOT TESTED |
-| 3 | Patch engine | Not started | — | — |
+| 3 | Patch engine | **Implemented — in review, not merged** (solo Studio tests) | branch `phase-03-patch-engine` | Solo matrix: 25 PASS, 0 FAIL, 3 NOT TESTED (see Phase 3 report) |
 | 4 | Four prototype patches | Not started | — | — |
 | 5 | Stability/objectives/scoring | Not started | — | — |
 | 6 | Initial abilities | Not started | — | — |
@@ -37,6 +38,125 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 8 | UI and visual polish | Not started | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 3 report — Patch engine foundation (2026-11-10)
+
+Approved scope: lifecycle engine, shared-world modifiers, idempotent cleanup, and Architect integration. **No real patch effects**: ZERO_G, DECAY, DRONE_SWARM and SUPPLY_DROP run a no-op placeholder behavior until Phase 4.
+
+### Pre-checks (all passed, no blockers)
+- PR #2 merged (`09d9c2a`); `main` at `40a1d39`.
+- The 13 Studio scripts were hash-identical to `main` before any change.
+- Backup `WorldEXE_pre-phase3_2026-11-10.rbxl` created; SHA-256 identical to the saved place.
+- Branch `phase-03-patch-engine` created from `origin/main`.
+
+### Completed features
+- **CleanupService** (new): a cleanup bag that holds instances, connections, threads, functions and objects with `:Destroy`.
+  - `Cleanup()` releases items in reverse order with a pcall per item and returns `(released, errors)`.
+  - It is idempotent. An item added after cleanup is released immediately, so a late callback cannot leak.
+- **WorldModifierService** (new): the only writer of shared world properties. Phase 3 covers `Gravity` only.
+  - Patches add **tokens** (`set` / `multiply` / `add`, with priority and owner) instead of writing the property.
+  - Deterministic resolution: the highest-priority `set` wins (ties go to the earliest token); with no `set`, the captured baseline is used. Then the product of all `multiply` tokens and the sum of all `add` tokens are applied, and the result is clamped to `Config.WorldModifiers`.
+  - The result does not depend on the order tokens were added or removed. When the last token goes, the exact original value is restored.
+  - `RemoveModifier` and `ClearAll` are idempotent.
+- **PatchService** (new): server-authoritative patch lifecycle **WARNING → ACTIVE → ENDING → ENDED**.
+  - Each patch gets a unique runtime ID (`P{matchId}-{n}`). The service tracks PatchId, creator, MatchId, warning/active durations (from `PatchCatalog`, scaled by the Studio time scale), expiry, and a per-patch cleanup bag.
+  - `Request` validation: catalog ID only (`unknown_patch`), match must be live (`match_not_live`), the same source key cannot be reused (`duplicate`), and at most `Config.Patches.MaxActiveMajor = 3` concurrent patches (`capacity_full`).
+  - At warning end the patch is revalidated: the match must still be live and the creator still present (`creator_left`). Then `Activate` runs inside a pcall. On error the patch rolls back fully (`activation_failed`): instances, connections, threads and modifier tokens are released and the slot is freed.
+  - `finish` is idempotent and frees the slot in every path: expired, cancelled, match_end, reset, recovery, shutdown or activation_failed. `CancelAll` returns the count of patches cancelled.
+  - A bounded history of the last 50 ended patches is kept for diagnostics.
+  - Patch behaviors receive a context (`Add`, `AddModifier`, `IsLive`, `Folder`). Modifier tokens are owned by the patch's bag, so they are always removed with the patch.
+- **Placeholder behavior** (`Patches/Placeholder`): an empty `Activate` for the 4 approved patches.
+- **Test behaviors** (`Patches/TestBehaviors`) are registered **only when `RunService:IsStudio()`** and are requested with `{Test=true}`. They are never in `PatchCatalog`, so players cannot request them; the player path returns `unknown_patch`.
+  - `TEST_LIFECYCLE`: marker part, value, connection and thread.
+  - `TEST_GRAVITY_MULTIPLY`, `TEST_GRAVITY_SET_HIGH`, `TEST_GRAVITY_SET_LOW`: gravity modifier tokens.
+  - `TEST_FAIL_ACTIVATE`: creates a part and a modifier, then errors.
+- **ArchitectService integration**:
+  - An accepted submission now calls `PatchService.Request` with source key `turn:{match}:{turn}`. On success the announcement carries `RuntimeId` and the scaled warning and active durations.
+  - On rejection the turn resolves with the PatchService reason, which is sent to the client.
+  - A new Architect turn is **deferred** while all 3 slots are full, retrying on the existing no-eligible retry interval.
+- **MatchService integration**:
+  - `PatchService.Update()` runs at the start of every tick in the existing single deadline loop.
+  - RESULTS cancels all patches (`match_end`) and clears all modifiers. RESET does both again as a backstop, checks `IsAtBaseline` (warns if not), clears source keys, and then resets the arena.
+  - Recovery and shutdown cancel all patches and clear all modifiers.
+  - The snapshot adds `Patches` (runtime views), `PatchCapacity`, and the reset diagnostics `LastResetPatchesCancelled`, `LastResetModifiersCleared`, `LastResetWorldAtBaseline`.
+- **Bootstrap**: `WorldModifierService.Init()` captures baselines before `MatchService.Init`, which initializes PatchService before ArchitectService.
+- **HUD** (backwards compatible):
+  - New patches line, e.g. `Patches (1/3): DRONE SWARM incoming 0:01` during WARNING and `DRONE SWARM 0:07` during ACTIVE.
+  - The Phase 2 banner is kept, with the added line "(Patch effects arrive in Phase 4.)".
+  - The Architect panel has feedback for `capacity_full`, `match_not_live` and `duplicate`.
+- **Config / PatchCatalog**:
+  - Version `0.3.0-phase3`; new `PatchStates`, `Patches` and `WorldModifiers` sections.
+  - Each catalog entry gains `WarningSeconds` (4.5) and `DurationSeconds` (ZERO_G 35, DECAY 40, DRONE_SWARM 35, SUPPLY_DROP 30).
+
+### Changed / added files
+- Added:
+  - `src/ServerScriptService/WORLD_EXE/Services/CleanupService.luau`
+  - `src/ServerScriptService/WORLD_EXE/Services/WorldModifierService.luau`
+  - `src/ServerScriptService/WORLD_EXE/Services/PatchService.luau`
+  - `src/ServerScriptService/WORLD_EXE/Patches/Placeholder.luau`
+  - `src/ServerScriptService/WORLD_EXE/Patches/TestBehaviors.luau`
+- Changed:
+  - `Shared/Config.luau`, `Shared/PatchCatalog.luau`
+  - `Bootstrap.server.luau`, `Services/ArchitectService.luau`, `Services/MatchService.luau`
+  - `Controllers/HUDController.luau`, `Controllers/ArchitectController.luau`
+  - `src/README.md`, `docs/PROJECT_STATUS.md`
+- Unchanged: ArenaService, NetService, PlayerStateService, all client modules other than the two controllers, and all arena and lobby geometry.
+- Studio parity: all 18 scripts are hash-identical to `src/` (byte length + polynomial hash).
+
+### Design decisions for review
+1. **Capacity full → reject, and defer turns.** A 4th request is rejected with `capacity_full`. Nothing is queued and nothing running is displaced. ArchitectService also does not open a turn while 3/3 slots are used, so in normal play the rejection is only a race-condition backstop.
+2. **Revalidate at warning end.** A patch whose match has ended (`match_not_live`) or whose creator has left (`creator_left`) never activates. Creator UserId 0 (test/system) skips the presence check.
+3. **FINAL_PHASE keeps running patches.** RESULTS cancels everything (`match_end`); RESET repeats the cancel as an idempotent backstop.
+4. **Duplicate guard by source key.** One Architect turn can create at most one patch. Keys clear at RESET.
+5. **Test patches are Studio-only** and live outside the catalog.
+6. **Gravity is the only modifier property** in Phase 3. More properties are added only when a Phase 4 patch needs one.
+
+### Tests (all **solo** Studio, 2026-11-10)
+Method:
+- Engine tests (E) use MCP-context module instances inside a running play server, with real `workspace.Gravity` and real workspace folders, at time scale 0.2 unless noted.
+- Integration tests (A) use a clone of ArchitectService driving the MCP-context PatchService.
+- Live tests (L) use the real running game with real RemoteEvent submissions from a client-side auto-submitter, observed through the snapshot, the HUD and the Output.
+
+| # | Test | Result | Evidence |
+|---|---|---|---|
+| E1 | Activation / expiration | PASS | `TEST_LIFECYCLE`: WARNING → ACTIVE (4 tracked resources, marker present) → ENDED `expired`, released 4, 0 errors, marker removed |
+| E1b | Warning and active durations | PASS | Warning ended at the scaled 0.2 s; active lasted 0.43 s against an expected 0.40 s (tick granularity) |
+| E2 | 3 simultaneous patches | PASS | 3 patches in WARNING/ACTIVE at once; `HasCapacity()` false |
+| E2b | 4th request | PASS | Rejected `capacity_full`; the 3 running patches were unaffected; a request succeeded after one ended |
+| E3 | Multiple modifiers on one property | PASS | Run at scale 1. set 50 (p10) + set 100 (p5) + ×0.5 → **25.00**; remove HIGH → 50; remove MULTIPLY → 100; remove all → baseline 196.2, `IsAtBaseline`, 0 tokens; reverse removal order gave identical values |
+| E3b | Modifier removed on natural expiry | PASS | ×0.5 patch: 98.10 while active, exact baseline after `expired` |
+| E4 | Failed activation, full rollback | PASS | `TEST_FAIL_ACTIVATE` → `activation_failed`, released 2 (marker + modifier), slot freed, gravity at baseline, marker absent |
+| E5 | Double cleanup / double cancel | PASS | `CancelAll` → 3, then 0; `Cancel` on an ended patch → false; bag cleanup 2, then 0; late add released at once; `RemoveModifier`/`ClearAll` twice → no error |
+| E6 | Cancellation at match end | PASS | A WARNING patch whose match ended → `match_not_live`, never activated; `CancelAll("match_end")` ended the ACTIVE patch (released 4, markers 0) |
+| E7 | Invalid requests | PASS | `NUKE` → `unknown_patch`; test ID through the player path → `unknown_patch`; old MatchId → `match_not_live`; reused source key → `duplicate` |
+| E8 | Creator leaves during warning | PASS | Absent creator → `creator_left`, never activated |
+| E9 | Repeated cycles without leaks | PASS | 20 request/expire cycles: 0 running, 0 tracked resources, 0 markers, 0 tokens, gravity at baseline |
+| A1 | Architect turn deferred while full | PASS | With 3/3 slots full no turn opened; it opened after a slot freed |
+| A2 | Submission while full | PASS | Turn resolved `capacity_full`; no patch created |
+| A3 | Accepted submission creates a patch | PASS | One WARNING patch; RuntimeId and CreatorUserId match the turn result |
+| L1 | Live lifecycle via real submission | PASS | Match 1: P1-1 ZERO_G WARNING (4.5 s) → ACTIVE → `expired` |
+| L2 | Live cancellation at match end | PASS | Match 2: `P2-2 ZERO_G ended: match_end` at RESULTS; snapshot `Patches` empty from RESULTS on |
+| L3 | No leftovers after RESET | PASS | After every observed reset: patches 0, modifiers cleared, `LastResetWorldAtBaseline` true, arena baseline matched, runtime objects 0 |
+| L4 | Recovery cancels patches | PASS | `StudioFailOnEnter=FINAL_PHASE` with P3-3 ACTIVE → `P3-3 ZERO_G ended: recovery` → LOBBY, 0 patches, gravity 196.2 |
+| L5 | Consecutive matches without leaks | PASS | Matches 3 → 7: 3 resets checked, 0 problems; gravity 196.2 at every reset |
+| L6 | Open turn at FINAL_PHASE | PASS | The open turn resolved `cancelled`; no patch created |
+| L7 | HUD patches line and banner | PASS | WARNING `Patches (1/3): DRONE SWARM incoming 0:01`; ACTIVE `DRONE SWARM 0:07`; Phase 2 banner intact |
+| L8 | Phase 2 regression (lifecycle, Architect turns, announcements) | PASS | Every state reached in order across 7 live matches; turns offered, accepted and announced as before |
+| P1 | Source parity | PASS | 18/18 scripts hash-identical |
+| P2 | Server Output | PASS | Only `[WORLD_EXE]` info lines and the intended injected messages ("injected activation failure", "injected recovery failure"); no unexpected errors or warnings |
+| N1 | Multi-client (Clients and Servers) run | NOT TESTED | Needs the owner to start Clients and Servers. The engine is server-side and player-independent apart from creator presence (E8) |
+| N2 | 3 concurrent patches reached through live Architect play | NOT TESTED | Not reachable at the designed cadence: the turn interval is at least the patch duration, so at most 1 patch ran at once live. Covered by E2, A1 and A2 |
+| N3 | Live gravity change | NOT TESTED | The live catalog patches are placeholders (by scope). Gravity composition was tested in E3/E3b on real `workspace.Gravity` |
+
+Notes:
+- Two engine runs were repeated because of test-timing errors, not engine errors. The first E3 at scale 0.01 let the patches expire before measuring, and the first E6 let the ACTIVE patch expire before its check. Both reruns passed.
+- During one live run the time scale was lowered after FINAL_PHASE had started. That run's post-reset reading was discarded and the test was redone (L2).
+
+### Outstanding risks / for Phase 4
+- Real patch behaviors must create everything through `ctx.Add` / `ctx.AddModifier` to get automatic cleanup. A behavior that writes `workspace.Gravity` directly or parents objects outside the bag would bypass the guarantees. Code review must enforce this.
+- `Deactivate` hooks run before bag cleanup. A slow or yielding `Deactivate` would delay the tick loop, so Phase 4 behaviors should keep it non-yielding.
+- Capacity is counted across all patches as "major"; there is no minor/major split yet (only the 4 major patches exist).
+- Multi-client verification of Phase 3 is still outstanding (N1).
 
 ## Phase 2 review round 2 correction (2026-11-10)
 
