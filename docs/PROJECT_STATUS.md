@@ -41,3 +41,9 @@ Claude's Phase 0 audit report was supplied by the owner on 2026-11-09. Key repor
 5. Approve Phase 1 only after these prerequisites are confirmed.
 
 Claude: after each subsequent phase, update this file with branch, PR, commit, Studio objects/scripts changed, test type/results, Output errors, known risks, and next recommended phase. Do not mark a phase complete when a critical acceptance criterion fails.
+## ForgeGUI
+- Owner reports Claude has ForgeGUI connected.
+- Exact tools/capabilities: pending Claude read-only verification.
+- Credit-consuming generation: not authorized by default.
+- Asset upload/publication: not authorized by default.
+- Studio insertion and functional UI verification: required per asset before marking UI work complete.
