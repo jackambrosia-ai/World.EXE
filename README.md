@@ -86,3 +86,10 @@ Read `CLAUDE_START_HERE.md`, then execute only `prompts/00_AUDIT_AND_SETUP.md`. 
 - Use only original or properly licensed assets. Prefer blockout geometry until mechanics work.
 - Do not commit secrets, API keys, credentials, private player data, or unnecessary generated binaries.
 - Do not publish or change monetization without explicit owner approval.
+
+
+## Working with ChatGPT and Claude
+
+Read [`docs/07_COLLABORATION_WORKFLOW.md`](./docs/07_COLLABORATION_WORKFLOW.md) for the standard task cycle, [`docs/08_TASK_HANDOFF_TEMPLATE.md`](./docs/08_TASK_HANDOFF_TEMPLATE.md) for copy-ready prompts, and [`docs/PROJECT_STATUS.md`](./docs/PROJECT_STATUS.md) for the phase tracker.
+
+**Operating rule:** ChatGPT plans/reviews; Claude implements/tests in Studio; GitHub carries the specifications, code, and evidence; the owner approves major decisions. Claude should push a tested branch/PR before asking ChatGPT to review. Do not edit the same files concurrently.
