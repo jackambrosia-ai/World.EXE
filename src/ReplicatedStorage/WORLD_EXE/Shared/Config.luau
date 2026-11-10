@@ -4,7 +4,7 @@
 
 local Config = {}
 
-Config.Version = "0.3.0-phase3"
+Config.Version = "0.4.0-phase4"
 Config.RootName = "WORLD_EXE"
 
 -- CollectionService tags used by the Studio-owned arena.
@@ -128,6 +128,7 @@ Config.Roles = table.freeze({
 Config.PlayerAttributes = table.freeze({
 	Role = "WORLD_EXE_Role",
 	Alive = "WORLD_EXE_Alive",
+	Shield = "WORLD_EXE_ShieldUntil", -- server time the SUPPLY_DROP shield expires (absent = none)
 })
 
 -- RemoteEvents created by the server under ReplicatedStorage.WORLD_EXE.Remotes.

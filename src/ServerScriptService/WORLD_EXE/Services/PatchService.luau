@@ -17,7 +17,7 @@
 --   and the hook counts as failed (Activate -> full rollback, reason "activation_yielded").
 --   Long-running or slow work goes in ctx.Spawn / ctx.Delay: tracked threads that are cancelled
 --   when the patch ends for any reason (expiry, cancel, match end, reset, recovery, shutdown).
--- Phase 3 runs the four approved patches with a no-effect placeholder behaviour; Studio-only test
+-- Phase 4: each approved patch runs its behaviour module (BEHAVIOR_MODULES); Studio-only test
 -- patches (never in PatchCatalog) exercise resources, modifiers and failure paths.
 
 local Players = game:GetService("Players")
@@ -31,6 +31,14 @@ local services = script.Parent
 local CleanupService = require(services:WaitForChild("CleanupService"))
 local WorldModifierService = require(services:WaitForChild("WorldModifierService"))
 local patchModules = services.Parent:WaitForChild("Patches")
+
+-- Approved PatchId -> behaviour module under ServerScriptService.WORLD_EXE.Patches.
+local BEHAVIOR_MODULES: { [string]: string } = {
+	ZERO_G = "ZeroG",
+	DECAY = "Decay",
+	DRONE_SWARM = "DroneSwarm",
+	SUPPLY_DROP = "SupplyDrop",
+}
 
 local States = Config.PatchStates
 local Settings = Config.Patches
@@ -375,9 +383,10 @@ end
 function PatchService.Init(deps: { isMatchLive: (number) -> boolean, onChanged: () -> () })
 	isMatchLive = deps.isMatchLive
 	onChanged = deps.onChanged
-	local placeholder = require(patchModules:WaitForChild("Placeholder")) :: any
 	for _, id in PatchCatalog.Ids() do
-		behaviors[id] = placeholder
+		local moduleName = BEHAVIOR_MODULES[id]
+		assert(moduleName, `approved patch {id} has no behaviour module`)
+		behaviors[id] = require(patchModules:WaitForChild(moduleName)) :: any
 	end
 	if RunService:IsStudio() then
 		local tests = require(patchModules:WaitForChild("TestBehaviors")) :: any

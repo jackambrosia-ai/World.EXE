@@ -1,8 +1,8 @@
 --!strict
 -- WORLD.EXE approved patch catalog (finite and server-owned; replicated so the UI can show cards).
 -- Player input only ever selects one of these ids; keywords are aliases for approved ids.
--- Timings are initial proposals from docs/03_PATCH_CATALOG.md. Phase 3 runs every approved patch
--- through the patch engine with a no-effect placeholder behaviour; real effects arrive in Phase 4.
+-- Timings are initial proposals from docs/03_PATCH_CATALOG.md. Each id's server behaviour lives in
+-- ServerScriptService.WORLD_EXE.Patches (ZeroG, Decay, DroneSwarm, SupplyDrop).
 
 export type PatchDefinition = {
 	Id: string,
