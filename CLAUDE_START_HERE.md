@@ -1,73 +1,86 @@
 # Claude: Start Here — WORLD.EXE
 
-You are the implementation agent for WORLD.EXE. The user has already connected you to Roblox Studio. This GitHub repository is the shared source of truth with ChatGPT, which acts as game architect and technical reviewer.
+You are the implementation agent for WORLD.EXE. The user has connected you to Roblox Studio. ChatGPT is the project's game architect and technical reviewer. This GitHub repository is the shared source of truth for specifications and version-controlled code.
 
 Repository: https://github.com/jackambrosia-ai/World.EXE
 
-## First: do a read-only audit
+## Make sure you can read the repository
 
-Do not modify the Roblox place or repository yet.
+Choose the workflow that matches your Claude client:
 
-1. Confirm you can read this repository and identify the current branch and working-tree state.
-2. Read the complete project specifications in `docs/` if present. If the user separately supplied the WORLD.EXE Claude Development Package, reconcile it with this repository and copy its Markdown specifications into `docs/` so this repository becomes the durable shared source of truth.
-3. Confirm the Roblox Studio MCP connection. Use the Studio tool to list open Studio instances and identify the intended place.
-4. Inspect the current Studio DataModel/Explorer hierarchy, scripts, remotes, assets, and Output errors.
-5. Do not delete or overwrite existing content. Do not publish, purchase assets, or make other irreversible changes.
-6. Report:
-   - Repository and branch detected.
-   - Studio place and connection status.
-   - Existing project structure and reusable systems.
-   - Conflicts or risks.
-   - Missing project specifications.
-   - A proposed Phase 0 implementation plan.
-   - Any action that requires the owner's approval.
+- **Claude Projects / GitHub connector:** In Project Knowledge, click `+` → GitHub, authorize Claude's GitHub app to access the private repository `jackambrosia-ai/World.EXE`, and select `README.md`, this file, all of `docs/`, and all of `prompts/`. Sync the project after repository updates. This provides repository context; it does not by itself give a web chat local filesystem or Roblox Studio MCP access.
+- **Claude Code (recommended for direct implementation):** Clone the repository on the same computer as Roblox Studio, open a terminal in the clone, and launch Claude Code there:
+  ```bash
+  git clone https://github.com/jackambrosia-ai/World.EXE.git
+  cd World.EXE
+  claude
+  ```
+  If already cloned, run `git pull` and `git status`. Authenticate GitHub in the local terminal if needed. Keep the Roblox Studio MCP connection configured in this same local Claude Code environment.
+
+Do not assume that GitHub access and Roblox Studio access are the same connection. Verify both separately.
+
+## Required first action: read-only audit
+
+Read:
+- `README.md`
+- `docs/00_MASTER_INSTRUCTIONS.md`
+- `docs/01_GAME_DESIGN.md`
+- `docs/02_TECHNICAL_ARCHITECTURE.md`
+- `docs/03_PATCH_CATALOG.md`
+- `docs/04_UI_AND_ART_DIRECTION.md`
+- `docs/05_DEVELOPMENT_ROADMAP.md`
+- `docs/06_TESTING_AND_RELEASE.md`
+- `prompts/00_AUDIT_AND_SETUP.md`
+
+Then execute only the audit prompt. **Do not modify the Roblox place or repository yet.**
+
+1. Confirm repository, current branch, local working tree, and that all required docs/prompts are accessible.
+2. Confirm the Roblox Studio MCP connection and list connected Studio sessions.
+3. Identify the intended place and inspect its DataModel/Explorer hierarchy, scripts, remotes, assets, and Output errors.
+4. Determine whether this is a blank, partially built, or existing experience.
+5. Identify reusable systems, conflicts, risks, and missing prerequisites.
+6. Propose a backup approach.
+7. Recommend and verify a source synchronization workflow between the local repository and Studio (Rojo or an explicit alternative) before major code work.
+
+Report:
+- Repository and branch detected.
+- Studio place and connection status.
+- Existing project structure and reusable systems.
+- Which MCP capabilities are available and actually verified.
+- Source-sync recommendation and any local setup required.
+- Risks, conflicts, missing prerequisites, backup plan.
+- Proposed Phase 1 implementation plan.
+
+Do not create, delete, rename, or edit anything yet. Do not publish, purchase assets, upload assets, change monetization, or grant additional permissions.
+
+Wait for the owner's explicit approval before Phase 1.
 
 ## Project objective
 
-Build an original Roblox multiplayer reality-manipulation sandbox.
+Build an original Roblox multiplayer reality-manipulation sandbox. Players take turns submitting approved patches that change the world. Patches can modify physics, environment, spawn entities, or create beneficial opportunities. Several patches may coexist within explicit limits and compatibility rules.
 
-Players take turns submitting approved patches that change the world. Patches can modify physics, environment, spawn entities, or create beneficial opportunities. Several patches may coexist, within explicit limits and compatibility rules.
-
-The game combines:
-- Creative player-driven patch submissions.
-- Survival and meaningful counterplay.
-- Shared stabilizer objectives.
-- Individual scoring and placement.
-- A simulation stability meter and final instability phase.
-- Patch discovery, mastery, progression, and cosmetics.
+The experience combines creative player-driven patch submissions, survival and counterplay, shared stabilizer objectives, individual scoring/placement, a simulation stability meter and final instability phase, plus patch discovery/mastery/progression/cosmetics.
 
 ## Initial design targets
 
 - One launch mode: Stability Run.
 - One launch arena: The Sandbox (Central Core, Research Yard, Skybridge).
 - 8–12 players initially.
-- Approximately 8–12 minutes per match; tune through tests.
+- Approximately 7–9 minutes per match; tune with tests.
 - No more than three active major patches initially.
 - First four prototype patches: ZERO_G, DECAY, DRONE_SWARM, SUPPLY_DROP.
 - First three abilities: PHASE_DASH, ANCHOR, SCANNER.
 - Data-driven definitions and server-authoritative gameplay.
 
-## Implementation constraints
-
-- Server validates Architect turns, patch IDs, cooldowns, compatibility, damage, scoring, rewards, and progression.
-- Clients may request actions and render effects, but may not decide authoritative outcomes.
-- Every patch needs a unique active ID, owner/user attribution where applicable, start time, duration, lifecycle state, and cleanup handler.
-- Global modifiers must be composed from active sources and restored safely; do not let one patch blindly overwrite another patch's settings.
-- Patch combinations must be explicitly curated and tested at launch.
-- Use bounded entity counts, deterministic cleanup, and rate limits.
-- Use Roblox TextService filtering for any player-entered text that is displayed or persisted. Prefer approved patch IDs/aliases rather than executing arbitrary text.
-- Handle player departure, round cancellation, errors, and server shutdown without leaking effects or leaving shared settings altered.
-- Preserve existing place content. Back up before substantial Studio changes.
-
 ## Git workflow
-
-1. Work from this repository's local clone when using Claude Code.
-2. Create a focused branch for implementation phases (for example, `phase-0-audit`, `phase-1-foundation`).
-3. Make small commits with descriptive messages.
+1. Work from this local repository clone when using Claude Code.
+2. Use focused branches for implementation phases.
+3. Make small descriptive commits.
 4. Push completed work so ChatGPT can review it.
-5. Summarize files changed, tests run, results, known issues, and next steps in each phase report.
-6. Do not merge or publish release changes without the owner's approval.
+5. Summarize files changed, tests run, results, known issues, and next steps.
+6. Do not merge to main or publish a release without the owner's approval.
 
-## Required first response
+## Required behavior
+Never claim a feature works without testing it. Distinguish a solo test from a multi-client test. If a tool or capability is unavailable, state exactly what is missing and provide the next safe step. Follow all engineering and safety rules in `docs/00_MASTER_INSTRUCTIONS.md`.
 
-Complete only the read-only audit and report the findings. Do not begin building until the owner approves the Phase 0 plan.
+After audit approval, execute phase prompts in numerical order from `prompts/`, stopping at each acceptance gate.
