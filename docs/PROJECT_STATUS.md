@@ -6,7 +6,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 - Overall status: PHASE 4 IMPLEMENTED — awaiting ChatGPT technical review; not merged. Phase 5 not started and requires separate owner approval
 - Current phase: Phase 4 — Four prototype patches (in review)
 - Current branch: `phase-04-prototype-patches` (from `main` `abac96f`)
-- Current PR: Phase 4 PR targeting `main` (open, not merged). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
+- Current PR: [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5) targeting `main` (open, not merged). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
 - Studio place: the open Studio session contains the Phase 4 scripts (21, all hash-identical to `phase-04-prototype-patches`) and no test leftovers. **It must be saved (Ctrl+S) and a post-Phase-4 backup taken before merge.** The last saved file is the post-Phase-3 place below.
 - Phase 1 merge: squash-merged 2026-11-10 by owner approval as `9b9cbd0` (from PR head `ddc784c`; merged tree identical to that head). The `phase-01-arena` branch still exists on GitHub and can be deleted.
 - Phase 2 merge: squash-merged 2026-11-10 by owner approval as `09d9c2a` (from PR head `2e99b13`; merged tree identical to that head; final gameplay code `9c6de7a`). The `phase-02-match` branch still exists on GitHub and can be deleted.
@@ -37,7 +37,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 1 | Foundation and arena | **Complete — merged** (solo-tested; multi-client tests outstanding) | [PR #1](https://github.com/jackambrosia-ai/World.EXE/pull/1) → `9b9cbd0` | Solo playtests: see reports below |
 | 2 | Match and Architect | **Complete — merged** (solo + two-client Studio tests; gaps listed above) | [PR #2](https://github.com/jackambrosia-ai/World.EXE/pull/2) → `09d9c2a` | Two-client matrix: 19 PASS, 1 split, 1 NOT TESTED |
 | 3 | Patch engine | **Complete — merged** (solo Studio tests; multi-client outstanding) | [PR #3](https://github.com/jackambrosia-ai/World.EXE/pull/3) → `c2ab456` | Original: 25 PASS, 0 FAIL, 3 NOT TESTED. Round 1: 18 PASS, 0 FAIL, 1 NOT TESTED |
-| 4 | Four prototype patches | **Implemented — in review, not merged** (solo Studio tests) | branch `phase-04-prototype-patches` | Solo matrix: 36 PASS, 0 FAIL, 3 NOT TESTED (see Phase 4 report) |
+| 4 | Four prototype patches | **Implemented — in review, not merged** (solo Studio tests) | [PR #5](https://github.com/jackambrosia-ai/World.EXE/pull/5), branch `phase-04-prototype-patches` | Solo matrix: 36 PASS, 0 FAIL, 3 NOT TESTED (see Phase 4 report) |
 | 5 | Stability/objectives/scoring | Not started | — | — |
 | 6 | Initial abilities | Not started | — | — |
 | 7 | Interactions and expansion | Not started | — | — |
