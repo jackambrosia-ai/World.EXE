@@ -3,25 +3,27 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 1 — review round 2 correction applied (solo-tested); awaiting re-review; Phase 2 not started
-- Current phase: Phase 1 — Foundation and Sandbox arena blockout
-- Current branch: `phase-01-arena`
-- Current PR: [jackambrosia-ai/World.EXE#1](https://github.com/jackambrosia-ai/World.EXE/pull/1) (do not merge without owner approval)
-- PR head: see "Review round 2 correction → Commits" below (exact hash also in the PR description)
-- Last verified Studio place: `Place1.rbxl` (on disk: `OneDrive\Documents\Place1.rbxl`), unpublished (PlaceId 0)
+- Overall status: PHASE 1 COMPLETE — merged to `main` (solo-tested); Phase 2 not started and requires separate owner approval
+- Current phase: Phase 1 complete; next is Phase 2 — Match lifecycle and Architect selection (awaiting approval)
+- Current branch: `main`
+- Current PR: none open. Phase 1 merged via [jackambrosia-ai/World.EXE#1](https://github.com/jackambrosia-ai/World.EXE/pull/1)
+- Phase 1 merge: squash-merged 2026-11-10 by owner approval as `9b9cbd0` (from PR head `ddc784c`; merged tree identical to that head). The `phase-01-arena` branch still exists on GitHub and can be deleted.
+- Last verified Studio place: `Place1.rbxl` (on disk: `OneDrive\Documents\Place1.rbxl`), unpublished (PlaceId 0); saved by the owner after the round 2 changes (2026-11-09 23:56)
 - Source synchronization method: **owner decision — no Rojo / no mirroring toolchain.** Claude edits Studio directly via Studio MCP and keeps an identical copy of every WORLD_EXE script in `src/`, verified by byte-length + hash comparison after each change (see `src/README.md`).
-- Baseline place backup: `OneDrive\Documents\RobloxBackups\WorldEXE_baseline_2026-11-09.rbxl` (byte-identical copy of the pre-Phase-1 place; rollback point)
+- Place backups (outside the repo, `OneDrive\Documents\RobloxBackups\`):
+  - `WorldEXE_baseline_2026-11-09.rbxl` — pre-Phase-1 place (byte-identical copy)
+  - `WorldEXE_post-phase1_2026-11-10.rbxl` — post-Phase-1 place incl. both review rounds (byte-identical copy of the saved `Place1.rbxl`); current rollback point
 - Studio save: Studio MCP cannot save the place — the owner must press Ctrl+S after each change set
 - StreamingEnabled: unchanged (enabled), per Phase 0 review
-- Multi-client testing: not available through Studio MCP; all Phase 1 tests are **solo**
-- Latest technical review: Phase 1 review round 2 (ChatGPT, relayed by the owner 2026-11-09) — snapshot must capture `Part.Shape` and other physics properties; addressed below. Round 1 (6 findings) also addressed below.
-- Last updated: 2026-11-09
+- Multi-client testing: not available through Studio MCP; all Phase 1 tests are **solo**. Concurrent-spawn and multi-client streaming tests remain outstanding.
+- Latest technical review: Phase 1 review round 2 (ChatGPT, relayed by the owner 2026-11-09) — addressed; ChatGPT recommended squash-merge after save + backup were confirmed.
+- Last updated: 2026-11-10
 
 ## Phase tracker
 | Phase | Scope | Status | PR/Commit | Studio test evidence |
 |---|---|---|---|---|
 | 0 | Audit and setup | Complete (owner decisions recorded) | — | Read-only audit; ForgeGUI read-only audit |
-| 1 | Foundation and arena | Review rounds 1–2 corrections applied — solo-tested, awaiting re-review | [PR #1](https://github.com/jackambrosia-ai/World.EXE/pull/1) | Solo playtests: see reports below |
+| 1 | Foundation and arena | **Complete — merged** (solo-tested; multi-client tests outstanding) | [PR #1](https://github.com/jackambrosia-ai/World.EXE/pull/1) → `9b9cbd0` | Solo playtests: see reports below |
 | 2 | Match and Architect | Not started — needs separate owner approval | — | — |
 | 3 | Patch engine | Not started | — | — |
 | 4 | Four prototype patches | Not started | — | — |
@@ -61,7 +63,7 @@ Totals this round: 32/32 snapshot cases, 12/12 spawns. Validation and runtime-fo
 
 ### Commits
 - Round 2 correction commit: `9e96936` (ArenaService + this report).
-- Final PR head for this round: the docs-only commit directly after `9e96936` that records this line (a commit cannot contain its own hash; the exact head hash is in the PR description).
+- Final PR head for this round: `ddc784c` (docs-only commit recording `9e96936`). Squash-merged to `main` as `9b9cbd0` on 2026-11-10.
 
 ### Outstanding (not claimed)
 - Concurrent-spawn test and multi-client streaming test (Studio Test → Clients and Servers, 2+ clients) — not run.
@@ -121,9 +123,9 @@ Issue found while testing: the floor-support ray was initially 1 stud long, so a
 - **Multi-client streaming test** (clients far from each zone; tagged parts streaming in/out; client tolerance) — not run.
 - No lobby, spawn protection, or out-of-bounds handling beyond FallenPartsDestroyHeight (−500) — Phase 2 scope.
 
-### Manual steps still needed
-1. Press **Ctrl+S** in Studio to save these changes to `Place1.rbxl`.
-2. Ask ChatGPT to re-review PR #1.
+### Manual steps (resolved 2026-11-10)
+1. ~~Press Ctrl+S in Studio~~ — done; `Place1.rbxl` saved 2026-11-09 23:56 and backed up as `WorldEXE_post-phase1_2026-11-10.rbxl`.
+2. ~~ChatGPT re-review of PR #1~~ — done; squash-merged as `9b9cbd0`.
 
 ## Original Phase 1 report (2026-11-09, commit `ea9e05c`)
 
