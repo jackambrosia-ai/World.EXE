@@ -93,3 +93,11 @@ Read `CLAUDE_START_HERE.md`, then execute only `prompts/00_AUDIT_AND_SETUP.md`. 
 Read [`docs/07_COLLABORATION_WORKFLOW.md`](./docs/07_COLLABORATION_WORKFLOW.md) for the standard task cycle, [`docs/08_TASK_HANDOFF_TEMPLATE.md`](./docs/08_TASK_HANDOFF_TEMPLATE.md) for copy-ready prompts, and [`docs/PROJECT_STATUS.md`](./docs/PROJECT_STATUS.md) for the phase tracker.
 
 **Operating rule:** ChatGPT plans/reviews; Claude implements/tests in Studio; GitHub carries the specifications, code, and evidence; the owner approves major decisions. Claude should push a tested branch/PR before asking ChatGPT to review. Do not edit the same files concurrently.
+## ForgeGUI asset workflow
+
+Claude also has access to ForgeGUI. Use [`docs/09_FORGEGUI_WORKFLOW.md`](./docs/09_FORGEGUI_WORKFLOW.md) for the safe asset-generation and Studio-import workflow.
+
+- ForgeGUI is for visual asset/UI-art generation and related asset workflows, subject to the tools actually exposed in Claude's connected version.
+- Roblox Studio MCP remains the tool for inspecting/editing the live place, wiring functional UI, and playtesting.
+- Generated artwork is not a working interface until Claude builds the Roblox UI hierarchy, scripts, interactions, and responsive behavior.
+- Generation may consume ForgeGUI credits; publishing/importing may create Roblox assets or use a selected publishing connection. Claude must confirm scope, budget, and the destination before any credit-consuming generation, upload, or publication.
