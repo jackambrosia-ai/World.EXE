@@ -1,6 +1,7 @@
 --!strict
 -- HUDController (Phase 2): placeholder match HUD — phase + timer, role, Architect turn status,
--- patch announcements, and match results. Reads the versioned server snapshot only.
+-- patch announcements, running patches, shield status, and match results. Reads the versioned
+-- server snapshot and server-set player attributes only.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -113,6 +114,11 @@ function HUDController.Start(remotes: Instance)
 		else
 			detail.Text = string.format("%s · participants %s", roleText(role), tostring(snap.ParticipantCount or 0))
 		end
+		-- SUPPLY_DROP shield (Phase 4): server-set expiry; display only.
+		local shieldUntil = player:GetAttribute(Config.PlayerAttributes.Shield)
+		if typeof(shieldUntil) == "number" and shieldUntil > t then
+			detail.Text ..= " · SHIELD " .. UIUtil.formatTime(shieldUntil - t)
+		end
 
 		local architectId = turn.ArchitectUserId
 		local turnEndsAt = turn.TurnEndsAt
@@ -154,7 +160,7 @@ function HUDController.Start(remotes: Instance)
 			return
 		end
 		if data.Outcome == "accepted" and typeof(data.DisplayName) == "string" then
-			bannerText.Text = string.format("PATCH SUBMITTED: %s by %s\n%s\n(Patch effects arrive in Phase 4.)", string.upper(data.DisplayName), tostring(data.ArchitectName), tostring(data.Warning))
+			bannerText.Text = string.format("PATCH SUBMITTED: %s by %s\n%s", string.upper(data.DisplayName), tostring(data.ArchitectName), tostring(data.Warning))
 		else
 			bannerText.Text = string.format("Architect turn skipped (%s)", tostring(data.Outcome))
 		end

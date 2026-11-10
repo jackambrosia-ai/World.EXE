@@ -15,7 +15,10 @@ These files are exact copies of the WORLD_EXE scripts in the Studio place. Paths
 | `ServerScriptService/WORLD_EXE/Services/CleanupService.luau` | `ServerScriptService.WORLD_EXE.Services.CleanupService` | ModuleScript |
 | `ServerScriptService/WORLD_EXE/Services/WorldModifierService.luau` | `ServerScriptService.WORLD_EXE.Services.WorldModifierService` | ModuleScript |
 | `ServerScriptService/WORLD_EXE/Services/PatchService.luau` | `ServerScriptService.WORLD_EXE.Services.PatchService` | ModuleScript |
-| `ServerScriptService/WORLD_EXE/Patches/Placeholder.luau` | `ServerScriptService.WORLD_EXE.Patches.Placeholder` | ModuleScript |
+| `ServerScriptService/WORLD_EXE/Patches/ZeroG.luau` | `ServerScriptService.WORLD_EXE.Patches.ZeroG` | ModuleScript |
+| `ServerScriptService/WORLD_EXE/Patches/Decay.luau` | `ServerScriptService.WORLD_EXE.Patches.Decay` | ModuleScript |
+| `ServerScriptService/WORLD_EXE/Patches/DroneSwarm.luau` | `ServerScriptService.WORLD_EXE.Patches.DroneSwarm` | ModuleScript |
+| `ServerScriptService/WORLD_EXE/Patches/SupplyDrop.luau` | `ServerScriptService.WORLD_EXE.Patches.SupplyDrop` | ModuleScript |
 | `ServerScriptService/WORLD_EXE/Patches/TestBehaviors.luau` | `ServerScriptService.WORLD_EXE.Patches.TestBehaviors` | ModuleScript |
 | `StarterPlayer/StarterPlayerScripts/WORLD_EXE/ClientBootstrap.client.luau` | `StarterPlayer.StarterPlayerScripts.WORLD_EXE.ClientBootstrap` | LocalScript |
 | `StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/UIUtil.luau` | `StarterPlayer.StarterPlayerScripts.WORLD_EXE.Controllers.UIUtil` | ModuleScript |

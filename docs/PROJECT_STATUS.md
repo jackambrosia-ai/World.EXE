@@ -3,10 +3,11 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 3 COMPLETE — merged to `main`. Phase 4 (four prototype patches) is approved by ChatGPT but not started; it begins only after separate owner confirmation
-- Current phase: Phase 3 complete; next is Phase 4 — Four prototype patches (awaiting owner confirmation)
-- Current branch: `main`
-- Current PR: no WORLD.EXE phase PR open. Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
+- Overall status: PHASE 4 IMPLEMENTED — awaiting ChatGPT technical review; not merged. Phase 5 not started and requires separate owner approval
+- Current phase: Phase 4 — Four prototype patches (in review)
+- Current branch: `phase-04-prototype-patches` (from `main` `abac96f`)
+- Current PR: Phase 4 PR targeting `main` (open, not merged). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
+- Studio place: the open Studio session contains the Phase 4 scripts (21, all hash-identical to `phase-04-prototype-patches`) and no test leftovers. **It must be saved (Ctrl+S) and a post-Phase-4 backup taken before merge.** The last saved file is the post-Phase-3 place below.
 - Phase 1 merge: squash-merged 2026-11-10 by owner approval as `9b9cbd0` (from PR head `ddc784c`; merged tree identical to that head). The `phase-01-arena` branch still exists on GitHub and can be deleted.
 - Phase 2 merge: squash-merged 2026-11-10 by owner approval as `09d9c2a` (from PR head `2e99b13`; merged tree identical to that head; final gameplay code `9c6de7a`). The `phase-02-match` branch still exists on GitHub and can be deleted.
 - Phase 3 merge: squash-merged 2026-11-10 by owner approval as `c2ab456` (from PR head `27c3599`; merged tree identical to that head; final code reviewed at `d22939f`). The `phase-03-patch-engine` branch still exists on GitHub and can be deleted.
@@ -18,12 +19,14 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
   - `WorldEXE_pre-phase2_2026-11-10.rbxl` — verified pre-Phase-2 copy (identical content to post-Phase-1)
   - `WorldEXE_post-phase2_2026-11-10.rbxl` — post-Phase-2 place (SHA-256 `0F402A70…42B7B204`, identical to the saved `Place1.rbxl`)
   - `WorldEXE_pre-phase3_2026-11-10.rbxl` — verified pre-Phase-3 copy (SHA-256 `0F402A70…42B7B204`, identical to the saved place)
-  - `WorldEXE_post-phase3_2026-11-10.rbxl` — post-Phase-3 place (SHA-256 `2663A50D…F11FBB98`, identical to the saved `Place1.rbxl`); current rollback point
+  - `WorldEXE_post-phase3_2026-11-10.rbxl` — post-Phase-3 place (SHA-256 `2663A50D…F11FBB98`, identical to the saved `Place1.rbxl`)
+  - `WorldEXE_pre-phase4_2026-11-10.rbxl` — verified pre-Phase-4 copy (SHA-256 `2663A50D…F11FBB98`, identical to the saved place); current rollback point
 - Studio save: Studio MCP cannot save the place — the owner must press Ctrl+S after each change set. Latest save 2026-11-10 16:35:24 (post-Phase-3 incl. review round 1, backed up).
 - StreamingEnabled: unchanged (enabled), per Phase 0 review
 - Multi-client testing: Phase 2 run with Studio Clients and Servers (1 server + 2 clients) on 2026-11-10 — see the matrix in "Phase 2 review round 2 correction". Phase 1 tests remain solo.
 - Latest technical review: Phase 2 final review (ChatGPT, `9c6de7a`) — no remaining code blockers; two-client acceptance run recorded; merged with owner approval. Phase 3 review round 1 (ChatGPT, `04b734a`): hook yield-safety and non-finite modifiers — corrected. **Phase 3 final review (ChatGPT, `d22939f`): APPROVED, no blocking code issues**; merged with owner approval.
-- Known Phase 3 gaps carried forward (not counted as passed): multi-client (Clients and Servers) run; 3 concurrent patches reached through live Architect play; live gravity change (catalog patches are placeholders until Phase 4).
+- Known Phase 3 gaps carried forward (not counted as passed): multi-client (Clients and Servers) run; 3 concurrent patches reached through live Architect play. (The live gravity change was verified in Phase 4, Z1.)
+- Known Phase 4 gaps (not counted as passed): multi-client run; second-player crate claims; player leaving mid-patch.
 - Known Phase 2 gaps carried forward (not counted as passed): real mid-match join → Spectator; multiplayer spawn-protection window; > 12 players; streaming at distance; pending-respawn invalidation on departure. Hardening note for Phase 10: server→client remotes have no `OnServerEvent` handler (client spam is queued with warnings).
 - Last updated: 2026-11-10
 
@@ -34,13 +37,137 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 1 | Foundation and arena | **Complete — merged** (solo-tested; multi-client tests outstanding) | [PR #1](https://github.com/jackambrosia-ai/World.EXE/pull/1) → `9b9cbd0` | Solo playtests: see reports below |
 | 2 | Match and Architect | **Complete — merged** (solo + two-client Studio tests; gaps listed above) | [PR #2](https://github.com/jackambrosia-ai/World.EXE/pull/2) → `09d9c2a` | Two-client matrix: 19 PASS, 1 split, 1 NOT TESTED |
 | 3 | Patch engine | **Complete — merged** (solo Studio tests; multi-client outstanding) | [PR #3](https://github.com/jackambrosia-ai/World.EXE/pull/3) → `c2ab456` | Original: 25 PASS, 0 FAIL, 3 NOT TESTED. Round 1: 18 PASS, 0 FAIL, 1 NOT TESTED |
-| 4 | Four prototype patches | Not started | — | — |
+| 4 | Four prototype patches | **Implemented — in review, not merged** (solo Studio tests) | branch `phase-04-prototype-patches` | Solo matrix: 36 PASS, 0 FAIL, 3 NOT TESTED (see Phase 4 report) |
 | 5 | Stability/objectives/scoring | Not started | — | — |
 | 6 | Initial abilities | Not started | — | — |
 | 7 | Interactions and expansion | Not started | — | — |
 | 8 | UI and visual polish | Not started | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 4 report — Four prototype patches (2026-11-10)
+
+Approved scope: the four prototype patch behaviors, plugged into the Phase 3 `PatchService`. Nothing beyond that: no new patches, combinations, scoring or abilities. No ForgeGUI. Visuals are placeholder parts built in code.
+
+### Pre-checks (all passed, no blockers)
+- PR #3 merged (`c2ab456`); `main` at `abac96f`. Local `main` was synced.
+- Studio matched `main` on all 18 scripts before any change.
+- Backup `WorldEXE_pre-phase4_2026-11-10.rbxl` created, SHA-256 identical to the saved place (`2663A50D…F11FBB98`).
+- Branch `phase-04-prototype-patches` created from `main`.
+- Reviewed docs 02, 03, 05 and 06, and the arena's tagged content:
+  - 64 DecayTiles in an 8×8 Research Yard grid with nothing beneath them;
+  - 15 linked DroneWaypoints;
+  - 5 SupplyLandingPoints.
+
+### Completed features
+- **ZERO_G** (`Patches/ZeroG`): one gravity `multiply 0.3` token through `WorldModifierService` (196.2 → 58.86).
+  - It composes with other gravity tokens and is removed when the patch ends.
+  - It never writes `Workspace.Gravity`.
+- **DECAY** (`Patches/Decay`): only BaseParts tagged `DecayTile` inside the arena Map.
+  - Cycle: every 5 s, a group of up to 4 random free tiles turns amber neon (warning). After 2.5 s they become non-solid and see-through (red ForceField material) for 4 s, then are restored.
+  - At most 8 tiles are unsafe at once, across all DECAY patches. A shared claim table stops two DECAY patches from fighting over a tile.
+  - Only Color, Material, Transparency and CanCollide change. A restore-all runs at patch end for any reason.
+  - Destroyed or missing tiles are skipped without error.
+- **DRONE_SWARM** (`Patches/DroneSwarm`):
+  - 3 drones per patch, spawned at distinct waypoints, at most 6 alive across all swarms. With no room, activation fails: full rollback, slot freed.
+  - One tracked loop per patch at 10 Hz, retargeting every 1 s. No pathfinding: drones patrol the waypoint graph and chase only a target with clear line of sight within 70 studs.
+  - Targets are living Participants only.
+  - Speed 14 studs/s, below the default walk speed of 16.
+  - A locked drone turns amber.
+  - A hit needs range 5, line of sight, a 1.5 s per-drone cooldown and a 0.75 s per-player cooldown shared by all drones. It does 15 damage, never an instant kill. The shield and spawn-protection ForceField block hits.
+- **SUPPLY_DROP** (`Patches/SupplyDrop`):
+  - A random free tagged landing point (never client input), not shared with another active drop.
+  - A cyan beacon column appears at once; 3 s later a crate lands with a ProximityPrompt. The crate holds 2 items, at most 1 per player.
+  - Every claim goes through `SupplyDrop.TryClaim` on the server, which checks: patch live, crate present, living Participant, 1 s attempt cooldown, within 12 studs, not already claimed from this crate, not already shielded, items left.
+  - Reward: a **shield** that blocks the next drone hit, for up to 45 s.
+  - An empty crate despawns, and unclaimed supplies despawn at patch end.
+- **Shield state** (`PlayerStateService.GrantShield` / `HasShield` / `ConsumeShield`):
+  - Stored as a server-set expiry attribute, `WORLD_EXE_ShieldUntil`.
+  - Cleared on death and on every role change, so RESET and recovery clear it too.
+  - The HUD shows `SHIELD m:ss`.
+- **Engine wiring**:
+  - `PatchService` maps each approved id to its module (`BEHAVIOR_MODULES`) and fails loudly at Init if one is missing.
+  - The Phase 3 `Placeholder` module was removed.
+  - `Config` version `0.4.0-phase4`, plus `PlayerAttributes.Shield`.
+  - The HUD banner no longer says "Patch effects arrive in Phase 4".
+- Every behavior follows the Phase 3 rules:
+  - `Activate` is short and non-yielding. Deactivate is not used.
+  - All instances, connections, timers and loops go through `ctx.Add`, `ctx.AddModifier`, `ctx.Spawn` and `ctx.Delay`.
+  - Loops check `ctx.IsLive()`.
+  - Everything is reversed when the patch expires, is cancelled, or the match ends.
+
+### Changed / added files
+- Added: `src/ServerScriptService/WORLD_EXE/Patches/` `ZeroG.luau`, `Decay.luau`, `DroneSwarm.luau`, `SupplyDrop.luau`.
+- Removed: `src/ServerScriptService/WORLD_EXE/Patches/Placeholder.luau` (also deleted in Studio).
+- Changed:
+  - `Shared/Config.luau`, `Shared/PatchCatalog.luau` (comment)
+  - `Services/PatchService.luau`, `Services/PlayerStateService.luau`
+  - `Controllers/HUDController.luau`
+  - `src/README.md`, `docs/PROJECT_STATUS.md`
+- Unchanged: MatchService, ArchitectService, ArenaService, NetService, WorldModifierService, CleanupService, TestBehaviors, the remaining client modules, and all arena and lobby geometry (the arena baseline matched after every reset).
+- Studio parity: 21/21 scripts hash-identical to `src/`.
+
+### Design decisions for review
+1. **Placeholder parts built in code.** The ServerStorage templates in the architecture doc wait for approved artwork (ForgeGUI needs owner approval). Drones are neon spheres and the crate is an amber box; both are easy to swap for templates later.
+2. **Tuning stays in each server module.** `Config` is replicated and must not hold server-only tuning. Each module exports a read-only `Tuning` table for tests.
+3. **SUPPLY_DROP reward is a one-hit drone shield.** It is the only reward possible without Phase 5 systems (data fragments and score). It has 2 items per crate, one per player.
+4. **DECAY collapse means falling.** Collapsed tiles are non-solid with nothing below, so a player who stays on a warned tile falls out of bounds and respawns under the existing Phase 2 rule. This is offset by the 2.5 s warning on every tile, at most 8 of 64 tiles unsafe, and ~10-stud tiles (one step to safety).
+5. **ZERO_G uses multiply 0.3.** Characters use `UseJumpPower=false` (JumpHeight mode), so Roblox keeps the jump apex constant under any gravity. Jumps become floatier (airtime 0.55 s → 0.98 s), not higher. Changing JumpHeight would be a separate, unrequested mechanic, so it is left out.
+6. **No pathfinding for drones** (catalog: "simple waypoint steering"). They patrol the waypoint links and chase in a straight line only with line of sight.
+7. **Exhausted resources fail activation cleanly.** No drone budget or no free landing point → `activation_failed`, full rollback and the slot is released.
+
+### Tests (all **solo** Studio, 2026-11-10)
+Live tests ran a Script injected into the play server that uses the game's own modules, with a real player, the real match loop and real remotes. Engine test D5 used cloned modules.
+
+| # | Test | Result | Evidence |
+|---|---|---|---|
+| Z1 | Gravity lowered only while active | PASS | Warning 196.20 → active 58.86 (expected 58.86) |
+| Z2 | Baseline restored after expiry | PASS | After `expired`: 196.2000 = baseline |
+| Z3 | Players keep control in low gravity | PASS | Real client: walk to a point 10 studs away reached (9.5 moved); jump airtime 0.55 s → 0.98 s; apex 7.3 → 7.4 studs (see decision 5) |
+| D1 | Only tagged tiles affected | PASS | 20 arena-baseline comparisons during DECAY: 0 differences outside `.DecayTiles.Tile_*` |
+| D2 | Every tile warned before it collapses | PASS | 16 collapses, 0 without a warning; shortest warning-to-collapse 2.52 s |
+| D3 | Bounded unsafe area | PASS | Max 8 unsafe tiles at once (limit 8 of 64) |
+| D4 | Tiles return to baseline | PASS | 64/64 tiles restored (Color, Material, Transparency, CanCollide); claims 0; arena baseline true; released 11, 0 errors |
+| D5 | Destroyed tile does not break cleanup | PASS | Engine run: a warned tile destroyed mid-patch → `expired`, 0 cleanup errors, other 63/63 restored, claims 0 |
+| DS1 | Drone count capped | PASS | 3 per patch. Three swarms at once: max 6 alive; third → `activation_failed` ("drone cap reached (6/6)"), slot freed |
+| DS2 | AI updates bounded | PASS | 8.5 position updates/s per drone (10 Hz step) |
+| DS3 | Server-controlled damage cadence | PASS | Real player: health 100 → 85 → 71 → 57 (15 per hit, regen between); gaps 1.58 s and 1.25 s |
+| DS4 | Non-Participants not targeted | PASS | Role set to Spectator: 0 locked drones after 1.6 s, 0 hits in the next 2 s |
+| DS5 | Dead players not targeted | PASS | After death: 0 locked drones, 0 hits |
+| DS6 | Shield blocks one hit | PASS | Blocked +1, health not reduced, shield consumed |
+| DS7 | Drones removed on expiry | PASS | `expired`, released 7, 0 errors, 0 drones, active count 0 |
+| S1 | Landing point from the server allowlist; overlapping drops use different points | PASS | SUP_SKY; two concurrent drops at SUP_ANNEX / SUP_YARD |
+| S2 | Beacon first, then crate | PASS | Crate landed 3.02 s after the beacon, with a prompt |
+| S3 | Real ProximityPrompt claim | PASS | Client `InputHoldBegin/End` → server granted a 45.0 s shield; crate "(1 left)"; HUD `SHIELD 0:45` |
+| S4 | Too far rejected | PASS | 87 studs → `too_far` |
+| S5 | Non-participant rejected | PASS | Spectator → `not_participant` |
+| S6 | Dead player rejected | PASS | `not_alive` (the character had fallen out of bounds during an earlier step) |
+| S7 | Claim cooldown | PASS | Immediate retry after the prompt claim → `cooldown` |
+| S8 | One claim per player per crate | PASS | Retry after 1.1 s → `already_claimed` |
+| S9 | Shielded player cannot take another item | PASS | Other crate → `already_shielded` |
+| S10 | Expired crate cannot be claimed | PASS | Kept reference after `expired` → `unavailable` |
+| S11 | Supply assets removed | PASS | 0 crates, 0 beacons, 0 claimed points, empty runtime folder; 0 cleanup errors |
+| S12 | Shield cleared on death and reset | PASS | Death → cleared. A shield granted before match end was cleared after RESET |
+| O1 | Unrelated patches together, 4th rejected | PASS | ZERO_G + DECAY + DRONE_SWARM all ACTIVE (gravity 58.86, 3 drones, 4 tiles claimed); SUPPLY_DROP → `capacity_full`; afterwards everything at baseline |
+| O2 | Same patch overlapping | PASS | 2 SUPPLY_DROPs on distinct points; 3 DRONE_SWARMs capped (DS1); shared DECAY claims (D3) |
+| M1 | Match end cancels running patches | PASS | ZERO_G, DECAY and DRONE_SWARM active at FINAL_PHASE end → all `match_end`, 0 errors. After RESET: gravity at baseline, 0 drones/claims/points, empty folder, arena baseline, shield cleared, `LastResetWorldAtBaseline` true |
+| M2 | Repeated matches via real Architect submissions | PASS | Matches 3–5 (scale 0.1): a client auto-submitter sent real `RequestPatchSubmission` remotes. 27 patches went ACTIVE (ZERO_G 7, DECAY 7, DRONE_SWARM 7, SUPPLY_DROP 6); 3 resets checked, 0 problems |
+| P1 | Source parity | PASS | 21/21 hash-identical |
+| P2 | Server Output | PASS | Only `[WORLD_EXE]` info lines and the intended "drone cap reached" rejection; no errors |
+| S13 | Second item claimed by a second player; empty crate | NOT TESTED | Needs two players (Clients and Servers) |
+| N1 | Multi-client run (replication, readability, two players) | NOT TESTED | Needs the owner to start Clients and Servers |
+| N2 | Player leaving mid-patch (drone target, claimer) | NOT TESTED | Leaving ends a solo session. In code: targets are re-checked every step (`player.Parent`), and per-player tables are weak-keyed |
+
+Totals: **36 PASS, 0 FAIL, 3 NOT TESTED.** After stopping play, the Edit place was verified clean: no test scripts or attributes, 64 DecayTiles intact, gravity 196.2.
+
+### Outstanding risks
+- **Multi-client is untested:**
+  - Drone movement is a server-side anchored CFrame at 10 Hz, which may look choppy on clients (no client interpolation yet).
+  - Warning readability at distance needs a real client check.
+- **Drones can briefly clip through geometry.** A chase stops only at the next 1 s retarget after line of sight breaks, and returning to the nearest waypoint is a straight line. Damage always needs line of sight.
+- **DECAY falls end in out-of-bounds elimination.** That may feel harsh; tune the group size and timings in playtests.
+- **ZERO_G changes airtime, not jump height** (decision 5). Confirm this is the intended feel.
+- **SUPPLY_DROP's reward only matters during DRONE_SWARM** until Phase 5 adds data fragments and score.
 
 ## Phase 3 final review (2026-11-10)
 ChatGPT approved Phase 3 at `d22939f` with no blocking code issues. It confirmed:

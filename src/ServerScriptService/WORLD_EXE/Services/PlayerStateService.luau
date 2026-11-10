@@ -65,6 +65,33 @@ function PlayerStateService.GetPlayersWithRole(role: string): { Player }
 	return result
 end
 
+---------------------------------------------------------------------------------------------------
+-- Shield (Phase 4, SUPPLY_DROP reward): blocks the next drone hit until it expires. Match-scoped:
+-- cleared on death and on every role change (so RESET, recovery and departures clear it).
+-- Stored as a replicated server-time expiry so the HUD can show it; clients only read it.
+
+local SHIELD_ATTR = Config.PlayerAttributes.Shield
+
+local function clearShield(player: Player)
+	player:SetAttribute(SHIELD_ATTR, nil)
+end
+
+function PlayerStateService.GrantShield(player: Player, seconds: number)
+	player:SetAttribute(SHIELD_ATTR, workspace:GetServerTimeNow() + seconds)
+end
+
+function PlayerStateService.HasShield(player: Player): boolean
+	local untilTime = player:GetAttribute(SHIELD_ATTR)
+	return typeof(untilTime) == "number" and untilTime > workspace:GetServerTimeNow()
+end
+
+-- Uses the shield if one is active. Returns true when it blocked something.
+function PlayerStateService.ConsumeShield(player: Player): boolean
+	local active = PlayerStateService.HasShield(player)
+	clearShield(player)
+	return active
+end
+
 local function insideArena(position: Vector3): boolean
 	local lo, hi = Config.ArenaBoundsMin, Config.ArenaBoundsMax
 	return position.X >= lo.X and position.X <= hi.X and position.Y >= lo.Y and position.Y <= hi.Y and position.Z >= lo.Z and position.Z <= hi.Z
@@ -165,6 +192,7 @@ end
 function PlayerStateService.SetRole(player: Player, role: string)
 	assert(role == Roles.Lobby or role == Roles.Participant or role == Roles.Spectator, "invalid role " .. tostring(role))
 	bumpSpawnGeneration(player)
+	clearShield(player)
 	player:SetAttribute(ROLE_ATTR, role)
 	PlayerStateService.RefreshRespawnLocation(player)
 end
@@ -238,6 +266,7 @@ local function onCharacterAdded(player: Player, character: Model)
 			return -- stale character
 		end
 		player:SetAttribute(ALIVE_ATTR, false)
+		clearShield(player)
 		PlayerStateService.RefreshRespawnLocation(player)
 		for _, callback in diedCallbacks do
 			task.spawn(callback, player)
