@@ -3,7 +3,7 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 3 IMPLEMENTED — awaiting ChatGPT technical review; not merged. Phase 4 not started and requires separate owner approval
+- Overall status: PHASE 3 IMPLEMENTED — review round 1 corrected, awaiting ChatGPT re-review; not merged. Phase 4 not started and requires separate owner approval
 - Current phase: Phase 3 — Patch engine foundation (in review)
 - Current branch: `phase-03-patch-engine` (from `main` `40a1d39`)
 - Current PR: Phase 3 PR targeting `main` (open, not merged). Phase 2 merged via [jackambrosia-ai/World.EXE#2](https://github.com/jackambrosia-ai/World.EXE/pull/2)
@@ -20,7 +20,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 - Studio save: Studio MCP cannot save the place — the owner must press Ctrl+S after each change set. Latest save 2026-11-10 03:21:24 (post-Phase-2, backed up).
 - StreamingEnabled: unchanged (enabled), per Phase 0 review
 - Multi-client testing: Phase 2 run with Studio Clients and Servers (1 server + 2 clients) on 2026-11-10 — see the matrix in "Phase 2 review round 2 correction". Phase 1 tests remain solo.
-- Latest technical review: Phase 2 final review (ChatGPT, `9c6de7a`) — no remaining code blockers; two-client acceptance run recorded; merged with owner approval. Phase 3 review pending.
+- Latest technical review: Phase 2 final review (ChatGPT, `9c6de7a`) — no remaining code blockers; two-client acceptance run recorded; merged with owner approval. Phase 3 review round 1 (ChatGPT, `04b734a`): hook yield-safety and non-finite modifiers — corrected; re-review pending.
 - Known Phase 2 gaps carried forward (not counted as passed): real mid-match join → Spectator; multiplayer spawn-protection window; > 12 players; streaming at distance; pending-respawn invalidation on departure. Hardening note for Phase 10: server→client remotes have no `OnServerEvent` handler (client spam is queued with warnings).
 - Last updated: 2026-11-10
 
@@ -30,7 +30,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 0 | Audit and setup | Complete (owner decisions recorded) | — | Read-only audit; ForgeGUI read-only audit |
 | 1 | Foundation and arena | **Complete — merged** (solo-tested; multi-client tests outstanding) | [PR #1](https://github.com/jackambrosia-ai/World.EXE/pull/1) → `9b9cbd0` | Solo playtests: see reports below |
 | 2 | Match and Architect | **Complete — merged** (solo + two-client Studio tests; gaps listed above) | [PR #2](https://github.com/jackambrosia-ai/World.EXE/pull/2) → `09d9c2a` | Two-client matrix: 19 PASS, 1 split, 1 NOT TESTED |
-| 3 | Patch engine | **Implemented — in review, not merged** (solo Studio tests) | branch `phase-03-patch-engine` | Solo matrix: 25 PASS, 0 FAIL, 3 NOT TESTED (see Phase 3 report) |
+| 3 | Patch engine | **Implemented — review round 1 corrected, not merged** (solo Studio tests) | [PR #3](https://github.com/jackambrosia-ai/World.EXE/pull/3), branch `phase-03-patch-engine` | Original: 25 PASS, 0 FAIL, 3 NOT TESTED. Round 1: 18 PASS, 0 FAIL, 1 NOT TESTED |
 | 4 | Four prototype patches | Not started | — | — |
 | 5 | Stability/objectives/scoring | Not started | — | — |
 | 6 | Initial abilities | Not started | — | — |
@@ -38,6 +38,87 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 8 | UI and visual polish | Not started | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 3 review round 1 correction (2026-11-10)
+
+ChatGPT reviewed PR #3 at `04b734a` and asked for one lifecycle-safety correction, plus hardening of the modifier math.
+
+### Findings and resolutions
+1. **Behavior hooks ran inside the shared match tick.** A yielding `Activate` could stall the whole match.
+   - Fixed with an **enforced non-yielding contract**. `PatchService` runs `Activate` and `Deactivate` through `runHook`: each hook gets its own coroutine, resumed once.
+   - If the hook has not finished when that resume returns (it yielded on `task.wait`, `WaitForChild`, a web call and so on), the coroutine is cancelled with `task.cancel`, so its remaining code can never run.
+   - A yielded `Activate` is treated as a failed activation: full rollback, reason `activation_yielded`. A yielded `Deactivate` is logged, and ending continues normally.
+   - Errors are handled as before (`activation_failed`).
+   - This is simpler than async isolation: the tick never waits on behavior code, so no generation or cancellation bookkeeping is needed for hooks.
+2. **Tracked tasks for long-running work.** The patch context gains two functions:
+   - `ctx.Spawn(fn, ...)`, built on `task.defer`, so it never runs inside the tick.
+   - `ctx.Delay(seconds, fn, ...)`, built on `task.delay`.
+
+   Both threads go into the patch's cleanup bag, so they are cancelled when the patch ends for any reason: expiry, cancel, match end, reset, recovery or shutdown.
+
+   Once a patch is cleaned up, its context does nothing:
+   - `ctx.Spawn`, `ctx.Delay` and `ctx.AddModifier` return nil without acting.
+   - `ctx.Add` releases the item immediately.
+   - `ctx.IsLive()` is false.
+3. **Non-finite modifier results.** Finite tokens can still combine into a non-finite value, for example two ×1e200 multipliers. `WorldModifierService.resolve` now:
+   - clamps +infinity to Max and −infinity to Min;
+   - falls back to the baseline on NaN (for example an overflowed product × 0, or +inf and −inf offsets), with a warning.
+
+   Non-finite token inputs were already rejected. The world never receives a non-finite value.
+4. **Wording correction.** The Phase 3 report said the modifier result "does not depend on the order tokens were added". More precisely: multipliers and offsets are applied in token-creation order, so the result is deterministic for a given set of tokens and independent of removal order. Floating-point rounding, or overflow at extreme values, could in principle differ if the same tokens were created in another order.
+
+### Changed files
+- `src/ServerScriptService/WORLD_EXE/Services/PatchService.luau`: hook contract in the header, `runHook`, `ctx.Spawn` / `ctx.Delay`, post-cleanup guards, `activation_yielded`.
+- `src/ServerScriptService/WORLD_EXE/Services/WorldModifierService.luau`: non-finite guard.
+- `src/ServerScriptService/WORLD_EXE/Patches/TestBehaviors.luau`: three Studio-only test behaviors.
+  - `TEST_YIELD_ACTIVATE`: creates a marker and ×0.5 gravity, yields 2 s, then would write `workspace.Gravity = 1` and a probe.
+  - `TEST_YIELD_DEACTIVATE`: yields 2 s in Deactivate, then would do the same writes.
+  - `TEST_TRACKED_TASKS`: a `ctx.Spawn` loop that never checks `IsLive`, a 4 s slow `ctx.Spawn`, and a 3 s `ctx.Delay`, all writing to the world.
+  - Late writes are recorded as `TestProbe*` attributes on `Workspace.WORLD_EXE`.
+- `docs/PROJECT_STATUS.md`.
+- Unchanged: the 3-patch limit, the lifecycle, Architect security checks, MatchService, the HUD, and all geometry. The 4 catalog patches are still placeholders.
+- Studio parity: all 18 scripts hash-identical. The 3 changed scripts:
+
+  | Script | Bytes | Hash |
+  |---|---|---|
+  | PatchService | 14017 | 206455472 |
+  | WorldModifierService | 5600 | 2125428737 |
+  | TestBehaviors | 4429 | 2005119348 |
+
+### Tests (all **solo** Studio, 2026-11-10)
+**Live (Y).** A Script injected at runtime into the play server requires the **game's own** PatchService (verified: its requests appear in the live snapshot and Output), so these run through the real `MatchService.tick` loop. Time scale 0.05, tick 0.25 s.
+
+**Engine (R).** Cloned modules in the play server. `PatchService.Update` is driven every frame.
+
+| # | Test | Result | Evidence |
+|---|---|---|---|
+| Y1 | Match deadlines keep progressing with a yielding Activate in the live tick | PASS | `TEST_YIELD_ACTIVATE`, `TEST_YIELD_DEACTIVATE` and `TEST_TRACKED_TASKS` were requested 1.2 s before the ACTIVE deadline, and the yielding Activate ran ~0.7 s before it. Transition lateness vs. `StateEndsAt`: ACTIVE→FINAL_PHASE 0.14 s, FINAL_PHASE→RESULTS 0.22 s, RESULTS→RESET 0.20 s, RESET→LOBBY 0.13 s; all within one 0.25 s tick. A stalled tick would have been ≈1.3 s late |
+| Y2 | Yielded Activate rolled back live | PASS | `P1-1 … activation failed: hook yielded …` → `ended: activation_yielded (released 2)` |
+| Y3 | Yielded Deactivate live | PASS | `P1-2 Deactivate failed: hook yielded` → `ended: expired (released 1)` with no delay |
+| Y4 | Cancelled work cannot mutate the next match | PASS | `P1-4 TEST_TRACKED_TASKS` was activated 0.7 s before RESULTS and cancelled `match_end` (released 4). Its 3 s Delay and 4 s Spawn were due in match 2. Checked 6 s later, with match 2 ACTIVE: probe ticks 21 → 21 (stopped), `TestProbeLate` nil, gravity 196.2 (never 1) |
+| Y5 | No leftovers after the live run | PASS | Tracked resources 0, tokens 0, markers 0, running patches 0 |
+| R1 | Yielding Activate does not stall `Update` | PASS | Slowest `Update()` call 0.0004 s; reason `activation_yielded`, released 2 |
+| R1b | Rollback | PASS | Marker gone, gravity at baseline, 0 tokens, slot free |
+| R2 | Yielding Deactivate does not delay ending | PASS | `Cancel` took 0.0003 s; released 1; marker gone |
+| R3 | Tracked tasks run while active | PASS | 9 probe ticks |
+| R3b | Tracked tasks stopped by reset / recovery / shutdown | PASS | 3 patches, one per reason, each released 4; 0 tracked; 0 markers |
+| R4 | Context inert after cleanup | PASS | `Add(part)` destroyed the part; `Spawn`, `Delay` and `AddModifier` returned nil; gravity unchanged; `IsLive` false |
+| R5 | Non-finite modifier combinations (6 cases) | PASS | ×1e200 ×1e200 → 1000 (Max); + ×0 → baseline; set 0 × overflow → baseline; +1e308 +1e308 → 1000; −1e308 −1e308 → 0 (Min); overflowed product + −inf offset → baseline. Every case removed cleanly back to baseline |
+| R5b | Non-finite inputs rejected | PASS | `add math.huge` and `multiply NaN` errored; 0 tokens |
+| R6 | Phase 3 regressions | PASS | Lifecycle expired (released 4); 3 slots fill and the 4th is `capacity_full`; composition = 25; failed activation rolled back (released 2); `NUKE` → `unknown_patch` |
+| R7 | No late work after every deadline | PASS | 4.6 s after the last cancel: `TestProbeLate` nil, ticks unchanged (9), gravity at baseline; tracked 0, tokens 0, markers 0, `IsAtBaseline` true |
+| L9 | Live Phase 2/3 regression with real remote submissions | PASS | Match 4 at scale 0.1: all states in order. 9 accepted submissions (ZERO_G, DECAY, SUPPLY_DROP, DRONE_SWARM) → P4-5…P4-13, each WARNING → ACTIVE → expired. Reset: world at baseline, gravity 196.2 |
+| P1 | Source parity | PASS | 18/18 hash-identical |
+| P2 | Server Output | PASS | Only `[WORLD_EXE]` info lines and intended warnings (yielded hooks, the injected activation failure, 3 non-finite fallbacks from R5). No unexpected errors |
+| N1 | Multi-client (Clients and Servers) | NOT TESTED | Needs the owner to start it; unchanged from the Phase 3 report |
+
+The Edit place was verified clean after the run: no test attributes, no injected scripts or clones, gravity 196.2.
+
+### Remaining risks
+- The contract catches **yielding**, not **non-yielding long work**. A hook that loops without yielding still blocks the server until Roblox's script timeout. Phase 4 reviews must keep hooks short.
+- Behaviors must still use `ctx.Add`, `ctx.AddModifier`, `ctx.Spawn` and `ctx.Delay`. A raw `task.spawn` or a direct property write bypasses cleanup. The engine cannot prevent this; code review must.
+- Finished `ctx.Spawn` threads stay in the bag (as dead threads) until the patch ends. That is fine for a few tasks per patch; a behavior should not spawn unbounded numbers of tasks.
+- If a tracked task itself ends its own patch, the cleanup cancels the running thread. That produces a logged cleanup error instead of a crash.
 
 ## Phase 3 report — Patch engine foundation (2026-11-10)
 

@@ -11,6 +11,12 @@
 -- * Cleanup is idempotent and runs on expiry, failed activation (full rollback), cancellation,
 --   match end, reset, recovery and shutdown. Ending a patch always releases its slot.
 -- * Behaviours never touch shared world properties directly; they use ctx.AddModifier.
+-- * Non-yielding hook contract: Activate and Deactivate run synchronously inside the match tick
+--   and must not yield. Each hook runs in its own coroutine; if it yields (task.wait, WaitForChild,
+--   a web call...) the coroutine is cancelled at once so it can never resume, the tick continues,
+--   and the hook counts as failed (Activate -> full rollback, reason "activation_yielded").
+--   Long-running or slow work goes in ctx.Spawn / ctx.Delay: tracked threads that are cancelled
+--   when the patch ends for any reason (expiry, cancel, match end, reset, recovery, shutdown).
 -- Phase 3 runs the four approved patches with a no-effect placeholder behaviour; Studio-only test
 -- patches (never in PatchCatalog) exercise resources, modifiers and failure paths.
 
@@ -29,6 +35,7 @@ local patchModules = services.Parent:WaitForChild("Patches")
 local States = Config.PatchStates
 local Settings = Config.Patches
 
+-- Activate / Deactivate must not yield (see the hook contract above).
 export type Behavior = {
 	Activate: (ctx: any) -> (),
 	Deactivate: ((ctx: any) -> ())?,
@@ -101,6 +108,24 @@ local function view(record: Record): PatchView
 end
 
 ---------------------------------------------------------------------------------------------------
+-- Hooks
+
+-- Runs a behaviour hook under the non-yielding contract. Returns (true) or (false, kind, message)
+-- where kind is "error" or "yielded". A yielded hook is cancelled and never resumes.
+local function runHook(hook: (any) -> (), ctx: any): (boolean, string?, string?)
+	local thread = coroutine.create(hook)
+	local ok, err = coroutine.resume(thread, ctx)
+	if not ok then
+		return false, "error", tostring(err)
+	end
+	if coroutine.status(thread) ~= "dead" then
+		task.cancel(thread)
+		return false, "yielded", "hook yielded; Activate/Deactivate must not yield (use ctx.Spawn / ctx.Delay)"
+	end
+	return true
+end
+
+---------------------------------------------------------------------------------------------------
 -- Ending
 
 -- Ends a patch exactly once: ENDING -> behaviour Deactivate -> bag cleanup -> ENDED, slot released.
@@ -109,10 +134,10 @@ local function finish(record: Record, reason: string)
 		return
 	end
 	record.State = States.Ending
-	if record.behavior.Deactivate then
-		local ok, err = pcall(record.behavior.Deactivate :: any, record.ctx)
+	if record.behavior.Deactivate and record.ctx then
+		local ok, _, message = runHook(record.behavior.Deactivate :: any, record.ctx)
 		if not ok then
-			warn(`[WORLD_EXE] Patch {record.RuntimeId} Deactivate failed: {err}`)
+			warn(`[WORLD_EXE] Patch {record.RuntimeId} Deactivate failed: {message}`)
 		end
 	end
 	local released, errors = record.bag:Cleanup()
@@ -152,12 +177,31 @@ local function newContext(record: Record): any
 		return record.bag:Add(item)
 	end
 	-- Adds a WorldModifierService token owned by this patch; removed automatically at cleanup.
-	function ctx.AddModifier(property: string, op: any, value: number, priority: number?): string
+	-- Returns nil (and changes nothing) once the patch has been cleaned up.
+	function ctx.AddModifier(property: string, op: any, value: number, priority: number?): string?
+		if record.bag:IsCleaned() then
+			return nil
+		end
 		local id = WorldModifierService.AddModifier(property, op, value, priority, record.RuntimeId)
 		record.bag:Add(function()
 			WorldModifierService.RemoveModifier(id)
 		end)
 		return id
+	end
+	-- Tracked task: runs fn(...) on the next resumption cycle (never inside the tick). The thread
+	-- may yield freely and is cancelled when the patch ends. Returns nil once cleaned up.
+	function ctx.Spawn(fn: (...any) -> (), ...: any): thread?
+		if record.bag:IsCleaned() then
+			return nil
+		end
+		return record.bag:Add(task.defer(fn, ...))
+	end
+	-- Tracked delayed call: cancelled if the patch ends before it fires.
+	function ctx.Delay(seconds: number, fn: (...any) -> (), ...: any): thread?
+		if record.bag:IsCleaned() then
+			return nil
+		end
+		return record.bag:Add(task.delay(seconds, fn, ...))
 	end
 	-- True while the patch is ACTIVE in a live match; loops in behaviours must check this.
 	function ctx.IsLive(): boolean
@@ -244,10 +288,10 @@ function PatchService.Update()
 			record.StartedAt = t
 			record.ExpiresAt = t + record.Duration
 			record.ctx = newContext(record)
-			local ok, err = pcall(record.behavior.Activate, record.ctx)
+			local ok, kind, message = runHook(record.behavior.Activate, record.ctx)
 			if not ok then
-				warn(`[WORLD_EXE] Patch {record.RuntimeId} {record.PatchId} activation failed: {err}`)
-				finish(record, "activation_failed")
+				warn(`[WORLD_EXE] Patch {record.RuntimeId} {record.PatchId} activation failed: {message}`)
+				finish(record, if kind == "yielded" then "activation_yielded" else "activation_failed")
 				continue
 			end
 			print(`[WORLD_EXE] Patch {record.RuntimeId} {record.PatchId} active`)

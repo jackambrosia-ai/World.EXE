@@ -9,7 +9,9 @@
 --      if there is none, start from the baseline captured at Init.
 --   2. Multiply by every "multiply" token.
 --   3. Add every "add" token.
---   4. Clamp to Config.WorldModifiers[property].Min/Max.
+--   4. Clamp to Config.WorldModifiers[property].Min/Max. Finite tokens can still combine into a
+--      non-finite value: +/-infinity clamps to Max/Min, NaN falls back to the baseline. The world
+--      never receives a non-finite value.
 -- Removing the last token restores the exact baseline value.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -82,7 +84,18 @@ local function resolve(property: string): number
 	end
 	local start = if chosen then chosen.value else baseline[property]
 	local limits = Config.WorldModifiers[property]
-	return math.clamp(start * multiplier + offset, limits.Min, limits.Max)
+	local value = start * multiplier + offset
+	if value ~= value then
+		-- NaN from finite tokens (e.g. overflowed multiplier x 0, or +inf and -inf offsets):
+		-- fail safe to the baseline instead of writing NaN into the world.
+		warn(`[WORLD_EXE] WorldModifier {property}: non-finite result, using baseline`)
+		value = baseline[property]
+	elseif value == math.huge then
+		value = limits.Max
+	elseif value == -math.huge then
+		value = limits.Min
+	end
+	return math.clamp(value, limits.Min, limits.Max)
 end
 
 local function apply(property: string)

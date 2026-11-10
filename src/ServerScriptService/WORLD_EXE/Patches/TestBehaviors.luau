@@ -2,6 +2,8 @@
 -- Studio-only test patches for the Phase 3 patch engine. They are never in PatchCatalog, so player
 -- input cannot reach them; PatchService registers them only when RunService:IsStudio() and only
 -- accepts them through Request(..., { Test = true }).
+-- The TEST_YIELD_* behaviours deliberately break the non-yielding hook contract and write directly
+-- to workspace.Gravity after the yield, to prove that code never runs.
 
 local function marker(ctx: any, name: string): Part
 	local part = Instance.new("Part")
@@ -61,6 +63,65 @@ TestBehaviors.TEST_FAIL_ACTIVATE = {
 		ctx.Add(marker(ctx, "TestFailMarker"))
 		ctx.AddModifier("Gravity", "multiply", 0.25)
 		error("injected activation failure")
+	end,
+}
+
+-- Late writes from work that should have been stopped are recorded as attributes on the
+-- Workspace.WORLD_EXE root (TestProbe*), so a test can prove they never happen.
+local function probe(ctx: any, name: string, delta: number)
+	local root = ctx.Folder and ctx.Folder.Parent
+	if root then
+		root:SetAttribute(name, (root:GetAttribute(name) or 0) + delta)
+	end
+end
+
+-- Violates the non-yielding contract in Activate: creates resources, yields, then would mutate the
+-- world. The engine must cancel it at the yield, roll back, and keep ticking.
+TestBehaviors.TEST_YIELD_ACTIVATE = {
+	Definition = { DisplayName = "Test Yielding Activate", WarningSeconds = 0.5, DurationSeconds = 3 },
+	Activate = function(ctx: any)
+		ctx.Add(marker(ctx, "TestYieldMarker"))
+		ctx.AddModifier("Gravity", "multiply", 0.5)
+		task.wait(2)
+		probe(ctx, "TestProbeLate", 1)
+		workspace.Gravity = 1
+	end,
+}
+
+-- Violates the contract in Deactivate: the yield must not delay ending, and the rest never runs.
+TestBehaviors.TEST_YIELD_DEACTIVATE = {
+	Definition = { DisplayName = "Test Yielding Deactivate", WarningSeconds = 0.5, DurationSeconds = 1 },
+	Activate = function(ctx: any)
+		ctx.Add(marker(ctx, "TestYieldDeactivateMarker"))
+	end,
+	Deactivate = function(ctx: any)
+		task.wait(2)
+		probe(ctx, "TestProbeLate", 1)
+		workspace.Gravity = 1
+	end,
+}
+
+-- Correct long-running work through tracked tasks: a loop that never checks IsLive, slow work, and
+-- a delayed call that fires after expiry. All must stop when the patch ends.
+TestBehaviors.TEST_TRACKED_TASKS = {
+	Definition = { DisplayName = "Test Tracked Tasks", WarningSeconds = 0.5, DurationSeconds = 1.5 },
+	Activate = function(ctx: any)
+		ctx.Add(marker(ctx, "TestTasksMarker"))
+		ctx.Spawn(function()
+			while true do
+				probe(ctx, "TestProbeTicks", 1)
+				task.wait(0.1)
+			end
+		end)
+		ctx.Spawn(function()
+			task.wait(4) -- slow work outlasting the patch
+			probe(ctx, "TestProbeLate", 1)
+			workspace.Gravity = 1
+		end)
+		ctx.Delay(3, function()
+			probe(ctx, "TestProbeLate", 1)
+			workspace.Gravity = 1
+		end)
 	end,
 }
 
