@@ -3,7 +3,7 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 2 — code review passed; two-client acceptance run done (18 PASS, 1 split, 1 NOT TESTED, cleanup pending save + backup); PR #2 open, not merged; Phase 3 not started and requires separate owner approval
+- Overall status: PHASE 2 — code review passed; two-client acceptance run done (19 PASS, 1 split, 1 NOT TESTED); place saved and post-Phase-2 backup verified; PR #2 open, not merged; Phase 3 not started and requires separate owner approval
 - Current phase: Phase 2 — Match lifecycle and Architect selection
 - Current branch: `phase-02-match`
 - Current PR: [jackambrosia-ai/World.EXE#2](https://github.com/jackambrosia-ai/World.EXE/pull/2) (do not merge without owner approval)
@@ -14,7 +14,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
   - `WorldEXE_baseline_2026-11-09.rbxl` — pre-Phase-1 place (byte-identical copy)
   - `WorldEXE_post-phase1_2026-11-10.rbxl` — post-Phase-1 place incl. both review rounds (byte-identical copy of the saved `Place1.rbxl`)
   - `WorldEXE_pre-phase2_2026-11-10.rbxl` — verified pre-Phase-2 copy (identical content to post-Phase-1); current rollback point for Phase 2
-- Studio save: Studio MCP cannot save the place — the owner must press Ctrl+S after each change set
+- Studio save: Studio MCP cannot save the place — the owner must press Ctrl+S after each change set. Latest save 2026-11-10 03:21:24 (post-Phase-2, backed up).
 - StreamingEnabled: unchanged (enabled), per Phase 0 review
 - Multi-client testing: Phase 2 run with Studio Clients and Servers (1 server + 2 clients) on 2026-11-10 — see the matrix in "Phase 2 review round 2 correction". Phase 1 tests remain solo.
 - Latest technical review: Phase 2 review round 1 (ChatGPT, relayed by the owner 2026-11-10) — 5 findings addressed; design decisions approved. See "Phase 2 review round 1 corrections".
@@ -93,11 +93,11 @@ ChatGPT accepted `9c6de7a` (no remaining code blockers) and confirmed this plan.
 | 18 | All participants leave | Abort to RESULTS (`no participants`) | **PASS** | BEFORE: v88 match 4 ACTIVE, participants 1, players 1. Player1 kicked. RESULTS at 7.6 s: reason "no participants", outcome `aborted`, participants []. Then RESET → LOBBY; 3 s later still LOBBY with 0 players. Log `Match 4: ACTIVE -> RESULTS (no participants)`. |
 | 19 | Player joins mid-match | Spectator, kept in lobby, joins next match | **NOT TESTED** | Studio cannot add a player to a running Clients and Servers session. The spectator role path was exercised by setting the role (#8). |
 | 20 | Output — Server / Client 1 / Client 2 | No unexpected warnings or errors | **PASS** | Server (both sessions): only `[WORLD_EXE]` info lines (bootstrap, transitions, turns, outcomes). Clients: only `[WORLD_EXE] Client ready v0.2.1-phase2 (PlayerN)`, captured before each disconnect. No warnings or errors anywhere. |
-| 21 | Cleanup | Test attributes removed; scripts match GitHub; post-Phase-2 backup | **PARTIAL** | `StudioMinPlayers` removed from the Edit place (no attributes remain on `ServerScriptService.WORLD_EXE`). All 13 Studio scripts byte-identical to GitHub `phase-02-match` (`8711fa8`). **Pending:** owner stops the test session and saves (Ctrl+S); then the post-Phase-2 `.rbxl` backup is made and verified. |
+| 21 | Cleanup | Test attributes removed; scripts match GitHub; post-Phase-2 backup | **PASS** | `StudioMinPlayers` removed from the Edit place (no attributes remain on `ServerScriptService.WORLD_EXE`). All 13 Studio scripts byte-identical to GitHub `phase-02-match` (the `src/` tree is unchanged from `8711fa8` through `cfd6cfd`). Test session stopped; the owner saved `Place1.rbxl` at 2026-11-10 03:21:24, after the cleanup (03:17) and the last code change (`9c6de7a`, 02:07). Backup `OneDrive\Documents\RobloxBackups\WorldEXE_post-phase2_2026-11-10.rbxl`: 121,000 bytes, SHA-256 `0F402A70A592516BC281390A491E301F9B70D1EF3FD4775E1194A76442B7B204`, identical to the saved place. |
 
 Investigated during the run (not defects): a client read once showed the Spectator inside the arena; a 250 ms server trace showed the watchdog moving them within 0.5 s (the read had landed before the tick). Early cross-instance tests missed their turn windows because Studio MCP calls between instances take several seconds; they were repeated with the waits inside the client scripts.
 
-**Summary:** 18 PASS (#2 as a threshold-change test, #3 indirect, #8 role set by server), 1 PASS/NOT TESTED split (#4: ForceField unobserved), 1 NOT TESTED (#19), 1 PARTIAL (#21, save + backup pending). No defects found; no gameplay code changed.
+**Summary:** 19 PASS (#2 as a threshold-change test, #3 indirect, #8 role set by server), 1 PASS/NOT TESTED split (#4: ForceField unobserved), 1 NOT TESTED (#19). No defects found; no gameplay code changed.
 
 ## Phase 2 review round 1 corrections (2026-11-10)
 
@@ -149,7 +149,7 @@ Respawn in ACTIVE and FINAL_PHASE; lobby auto-ready; no new Architect turns in F
 | Output | Only the two **intended** injected-failure warnings; no other errors or warnings |
 
 ### Unverified — multi-client Studio testing is not available through Studio MCP
-Not run and **not claimed**: Architect authorization with two players (`not_architect`, `stale_turn`); a player leaving during a turn or mid-match; abort when all participants leave; mid-match join → Spectator; > 12 players; concurrent spawning; multi-client replication of the snapshot/HUD; streaming at distance; spawn-generation invalidation on **departure** (code path present, not exercised); real UI clicks. These need Studio **Test → Clients and Servers** with 2+ clients, run by the owner.
+*(Superseded: most of these were run in the two-client acceptance test above; see its matrix for current results.)* Not run at that time: Architect authorization with two players (`not_architect`, `stale_turn`); a player leaving during a turn or mid-match; abort when all participants leave; mid-match join → Spectator; > 12 players; concurrent spawning; multi-client replication of the snapshot/HUD; streaming at distance; spawn-generation invalidation on **departure** (code path present, not exercised); real UI clicks. These need Studio **Test → Clients and Servers** with 2+ clients, run by the owner.
 
 ## Phase 2 report — Match lifecycle and Architect selection (2026-11-10)
 
@@ -166,7 +166,7 @@ Approved by the owner 2026-11-10. Pre-phase checks: `Place1.rbxl` saved and unch
 - **Architect** (`ArchitectService`): roster shuffled at match start, then round-robin; the chosen player moves to the back, so nobody goes twice in a row when another eligible (alive participant) player exists. First turn 15 s into ACTIVE, 12 s submission window (never time-scaled), 45 s between turns, 4 cards offered. Timeout / Architect leaving / phase change → turn skipped, nothing activates. No new turns in FINAL_PHASE (an open turn is cancelled).
 - **Submission validation** (server): rate limit (burst 4, 1/s refill) → payload must be a table with exactly one key `patchId` → string, 1–32 chars of `[A-Za-z0-9 _-]` → an open turn exists → sender is the current Architect → turn belongs to the current match → window not expired → id/alias resolves through `PatchCatalog` → id is one of the offered cards. Each rejection returns a reason code via `SubmissionResult`. Accepted submissions are recorded and announced; **no patch behaviour runs** (Phase 3).
 - **Patch catalog** (`Shared/PatchCatalog`): finite list of the four prototype patches with display names, warnings, effect text and aliases (case/punctuation-insensitive).
-- **Replication**: `ReplicatedStorage.WORLD_EXE.MatchState` attributes (State, MatchId, StateStartedAt, StateEndsAt, ParticipantCount, MinPlayers, Reason, ArchitectUserId/Name, TurnNumber, TurnEndsAt, OfferedPatches, NextTurnAt, LastResult JSON, LastReset*) plus `MatchStateChanged` / `PatchAnnouncement` / `SubmissionResult` RemoteEvents created by `NetService`.
+- **Replication** *(superseded by the versioned `Snapshot` attribute in review round 1)*: `ReplicatedStorage.WORLD_EXE.MatchState` attributes (State, MatchId, StateStartedAt, StateEndsAt, ParticipantCount, MinPlayers, Reason, ArchitectUserId/Name, TurnNumber, TurnEndsAt, OfferedPatches, NextTurnAt, LastResult JSON, LastReset*) plus `MatchStateChanged` / `PatchAnnouncement` / `SubmissionResult` RemoteEvents created by `NetService`.
 - **Placeholder UI** (built-in Roblox UI only, palette from the reference board): HUD status panel (phase + timer, role, players needed / participants, Architect line or next-turn timer, results summary) and amber announcement banner; Architect panel on the right side, shown only to the current Architect, with 4 cards, keyword box (resolved locally to a card, never broadcast), confirm button, timer and feedback text.
 - **Studio-only test controls**: `StudioTimeScale`, `StudioMinPlayers` attributes on `ServerScriptService.WORLD_EXE` (ignored on live servers; see `src/README.md`).
 
@@ -199,7 +199,7 @@ Approved by the owner 2026-11-10. Pre-phase checks: `Place1.rbxl` saved and unch
 | Edit DataModel after stopping play: no Remotes/MatchState/runtime folders/test attributes saved | PASS |
 | Output | Only `[WORLD_EXE]` info lines (bootstrap, client ready, transitions, turns); **no errors or warnings** |
 
-### Not tested (requires multi-client or cannot be done solo) — outstanding
+### Not tested at the time (requires multi-client) — superseded by the two-client acceptance test above
 - `not_architect` and `stale_turn` rejections (need a second player); fair rotation with real players (covered only by the unit simulation).
 - Player leaving during an Architect turn / during a match; abort to RESULTS when all participants leave.
 - Mid-match join → Spectator; lobby overflow beyond 12 participants.
