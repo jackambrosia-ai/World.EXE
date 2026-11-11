@@ -3,7 +3,7 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 7B IN REVIEW — implemented on branch `phase-07b-catalog-expansion`; PR open for ChatGPT technical review. Completes the initial catalog (10 patches, 5 combinations). Phase 8 not started. D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
+- Overall status: PHASE 7B IN REVIEW — review round 1 correction (safe MAGNETIC crate restore) pushed to PR #10 for focused final review. Completes the initial catalog (10 patches, 5 combinations). Phase 8 not started. D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
 - Current phase: Phase 7B — MAGNETIC, CORRUPTION, FLOOD and the remaining combinations (in review)
 - Current branch: `phase-07b-catalog-expansion`
 - Current PR: Phase 7B in review: [jackambrosia-ai/World.EXE#10](https://github.com/jackambrosia-ai/World.EXE/pull/10). Phase 7A merged via [jackambrosia-ai/World.EXE#9](https://github.com/jackambrosia-ai/World.EXE/pull/9). Phase 6 merged via [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
@@ -48,7 +48,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 - Testing policy (owner, 2026-11-10): automated and targeted solo tests routinely, chosen by the risk a change introduces; multiplayer batched across phases; owner interaction only when genuinely necessary; full regression suite at milestones and release candidates.
 - Known Phase 2 gaps carried forward (not counted as passed): real mid-match join → Spectator; multiplayer spawn-protection window; > 12 players; streaming at distance; pending-respawn invalidation on departure. Hardening note for Phase 10: server→client remotes have no `OnServerEvent` handler (client spam is queued with warnings).
 - Known Phase 7A gaps (not counted as passed): a real failing combination activation (shared RunHook path covered by E1/E2); combination cap 5 unreachable with 2 combinations; departure/recovery during a combination (code paths only); BLACKOUT on a real client; all multiplayer behaviour — deferred to the multiplayer integration milestone.
-- Known Phase 7B gaps (not counted as passed): recovery, shutdown or departure while a 7B patch runs (code paths only); MAGNETIC restore with a player on a crate's resting spot; all multiplayer behaviour (crate replication, several players pausing crates, flood slow and corruption damage on several players) — deferred to the multiplayer integration milestone.
+- Known Phase 7B gaps (not counted as passed): recovery, shutdown or departure while a 7B patch runs (code paths only); all multiplayer behaviour (crate replication, several players pausing crates, flood slow and corruption damage on several players) — deferred to the multiplayer integration milestone.
 - Last updated: 2026-11-10
 
 ## Phase tracker
@@ -62,10 +62,51 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 5 | Stability/objectives/scoring | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #6](https://github.com/jackambrosia-ai/World.EXE/pull/6) → `66374fe` | Targeted solo: 36 PASS, 0 FAIL; round 1: 10 PASS (targeted); multiplayer deferred |
 | 6 | Initial abilities | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #8](https://github.com/jackambrosia-ai/World.EXE/pull/8) → `16cef23` | Targeted solo: 27 PASS, 0 FAIL; multiplayer deferred (see Phase 6 report) |
 | 7A | Interactions + BOUNCY/SLIPPERY/BLACKOUT | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #9](https://github.com/jackambrosia-ai/World.EXE/pull/9) → `059f191` | Targeted solo: 35 PASS, 0 FAIL; round 1: 9 PASS (targeted live Architect runs) |
-| 7B | MAGNETIC/CORRUPTION/FLOOD + 3 combinations | **In review** (solo Studio tests; multiplayer deferred) | [PR #10](https://github.com/jackambrosia-ai/World.EXE/pull/10) (`2b8b3f0`) | Targeted solo: 30 PASS, 0 FAIL; see Phase 7B report |
+| 7B | MAGNETIC/CORRUPTION/FLOOD + 3 combinations | **In review** (solo Studio tests; multiplayer deferred) | [PR #10](https://github.com/jackambrosia-ai/World.EXE/pull/10) (`2b8b3f0`) | Targeted solo: 30 PASS, 0 FAIL; round 1: 7 PASS (safe crate restore) |
 | 8 | UI and visual polish | Not started | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 7B review round 1 correction (2026-11-10)
+
+ChatGPT reviewed PR #10 at `425b503` and returned CHANGES REQUESTED, with one safety blocker. Everything else was accepted.
+
+### Finding
+**MAGNETIC crate restoration.** At cleanup, each anchored, collidable crate was put back at its resting spot at once, even if a player stood there. The crate could intersect or push the character.
+
+### Fix: "ghost" restore
+- **Exact position at once.** At cleanup, every crate goes back to its exact original CFrame, and its Colour is restored.
+- **Collision off first if the spot is occupied.** If any character part overlaps the crate's resting volume (crate size + 0.2 studs), the crate is first made non-colliding and 60% transparent, and only then moved. Both changes happen in the same server step, so it can never push, trap or fling anyone.
+- **Settle loop.** One module-level task in `Magnetic` runs only while ghost crates exist:
+  - every 0.1 s it makes a ghost solid again, with its original CanCollide and Transparency, once no character overlaps it;
+  - it ends itself when none are left;
+  - there are no connections and no timers in the patch's cleanup bag.
+- **Applies to every end reason.** The restore is in the patch's cleanup, so it covers expiry, cancel, match end, RESET, recovery and shutdown. A ghost crate taken over by a new MAGNETIC patch keeps its exact origin and becomes solid when clear.
+- **RESET diagnostic.** RESET compares the arena with its baseline before players respawn in the lobby, which happens asynchronously. A difference found at RESET is now compared again at LOBBY and only reported (`warn` and `LastResetBaselineMatches`) if it is still there. A ghost crate is solid again by then because the players have left the spot.
+- **Unchanged:** crate lanes, movement, the never-strike rule, and the other patches.
+
+### Targeted tests (solo Studio, 2026-11-10)
+
+| # | Test | Result | Evidence |
+|---|---|---|---|
+| G1 | Player on a crate's resting spot at expiry | PASS | Crate 1 had moved 6.6 studs away; the player then stood on its spot. At expiry: crate at its exact resting CFrame, CanCollide false, Transparency 0.6, 1 ghost. The other 7 crates were exact. Player displaced 0.00 studs over 1 s, speed 0.00 (no push) |
+| G2 | Exact restore after the player leaves | PASS | Player stepped away: the crate was solid again after 0.10 s. 8/8 crates exactly restored (CFrame, Colour, CanCollide, Transparency); 0 ghosts; 0 patch objects; arena baseline matches |
+| G3 | Player on a resting spot at match end | PASS | Crate had moved 6.1 studs away; the player stood on its spot through RESULTS. At RESULTS: 0 patches, crate at its exact CFrame as a ghost; player displaced 0.00 studs. At LOBBY: 0 ghosts, 8/8 exact, `LastResetBaselineMatches=true`, arena baseline matches |
+| G4 | RESET re-check path | PASS | Same case with sampling: during RESET 1 ghost and `LastResetBaselineMatches=false`; at LOBBY 0 ghosts, `true`, crate exact and solid. No warning printed |
+| G5 | No stranded crates or resources | PASS | After every case: 0 ghosts, 0 patch objects, crates at their build state (anchored, solid, opaque, original colour); the settle loop ended |
+| G6 | Output | PASS | Three matches: only `[WORLD_EXE]` info lines; no errors or warnings |
+| G7 | Parity and Edit place | PASS | 42/42 hash-identical; Edit place clean |
+
+Totals: **7 PASS, 0 FAIL.** The 30-test suite was not repeated, per the review.
+
+Notes:
+- A first attempt at G1/G3 put the player on the spot before the crate had moved, so the player stood on the crate itself. Turning it into a ghost then let the player drop 3 studs onto the floor. The tests were rerun the intended way (the player steps onto the empty spot after the crate has left); the results above are from those reruns.
+- Recovery and shutdown with an occupied spot were not triggered live. They use the same cleanup function.
+
+### Changed files
+- `Patches/Magnetic.luau` (ghost restore and settle loop)
+- `Services/MatchService.luau` (the RESET baseline re-check at LOBBY)
+- This document
 
 ## Phase 7B report — Remaining patches and combinations (2026-11-10)
 
@@ -191,7 +232,7 @@ Not tested:
 - **"Loose physics props" are kinematic.** The crates are anchored and moved by the server instead of being unanchored physics parts. This meets "server-controlled, no ownership exploits, no uncontrolled collisions": nothing can be flung, and no client owns them.
 - **MAGNETIC polarity flip.** Pull for 8 s, then push for 8 s. Without it, crates finish within about 4 s and FLOATING_DEBRIS and SLIDE_FIELD would show nothing when their second source arrives later. The crates stay on validated lanes.
 - **SUPPLY_DROP shield and CORRUPTION.** The shield blocks one drone hit and is used up by it. It does **not** block corruption damage over time, which would use it up within half a second. Spawn protection (ForceField) does block corruption damage.
-- **Crate restore** puts a crate back at its resting spot at once, even if a player stands there. Roblox pushes the character out of the overlap. This was not tested with a player on the spot.
+- **Crate restore** (superseded by review round 1): crates now return as non-colliding ghosts when their spot is occupied and become solid once it is clear.
 
 ### Balancing considerations (carried forward)
 - **Combination length:** about 6–10 s, as in 7A. FLOATING_DEBRIS crates rise in under a second, so the effect is visible within that window.

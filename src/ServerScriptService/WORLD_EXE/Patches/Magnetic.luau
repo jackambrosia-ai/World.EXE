@@ -16,6 +16,11 @@
 --     AddSlide  (SLIDE_FIELD)      crates slide faster and are held at the point end (no push back)
 --     AddFloat  (FLOATING_DEBRIS)  a function(pos) -> water surface Y or nil; crates float on it
 -- * Restore: every crate's original CFrame and Color come back when the patch ends for any reason.
+--   Safe restore (review round 1): if a character occupies a crate's resting spot at that moment,
+--   the crate is first made non-colliding and see-through (a "ghost") and only then put back, so
+--   it can never push or trap anyone. A settle loop (module-level, running only while ghosts
+--   exist) makes each ghost solid again, with its original CanCollide and Transparency, as soon as
+--   no character overlaps it. Position is exact at once; collision returns when the spot is clear.
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -32,6 +37,9 @@ local STOP_DISTANCE = 3.5
 local PHASE_SECONDS = 8 -- pull for this long, then push back for this long
 local PLAYER_CLEARANCE = 4 -- horizontal studs between a character and a crate's next position
 local FLOAT_SINK = 1 -- a floating crate's bottom sits this far below the water surface
+local GHOST_TRANSPARENCY = 0.6
+local SETTLE_SECONDS = 0.1
+local OCCUPANCY_MARGIN = 0.2 -- studs added around a crate when checking for characters
 local PULL_COLOR = Color3.fromRGB(90, 170, 255)
 local PUSH_COLOR = Color3.fromRGB(255, 150, 60)
 
@@ -47,7 +55,11 @@ type Entry = {
 local slideBoosts: { [string]: number } = {}
 local floatProviders: { [string]: (Vector3) -> number? } = {}
 local owners: { [BasePart]: string } = {} -- crate -> RuntimeId of the MAGNETIC patch moving it
-local stats = { Steps = 0, Paused = 0, Floating = 0, Flips = 0 }
+type Ghost = { collide: boolean, transparency: number }
+
+local ghosts: { [BasePart]: Ghost } = {} -- restored crates waiting for their spot to clear
+local settler: thread? = nil
+local stats = { Steps = 0, Paused = 0, Floating = 0, Flips = 0, Deferred = 0, Settled = 0 }
 
 local function tagged(tag: string): { BasePart }
 	local root = workspace:FindFirstChild(Config.RootName)
@@ -101,6 +113,61 @@ local function characterPositions(): { Vector3 }
 	return list
 end
 
+-- True if any character part overlaps a crate-sized box at `cframe`.
+local function occupied(cframe: CFrame, size: Vector3): boolean
+	local characters = {}
+	for _, player in Players:GetPlayers() do
+		if player.Character then
+			table.insert(characters, player.Character)
+		end
+	end
+	if #characters == 0 then
+		return false
+	end
+	local params = OverlapParams.new()
+	params.FilterType = Enum.RaycastFilterType.Include
+	params.FilterDescendantsInstances = characters
+	params.RespectCanCollide = false
+	return #workspace:GetPartBoundsInBox(cframe, size + Vector3.one * OCCUPANCY_MARGIN, params) > 0
+end
+
+-- Makes ghosts solid again once nothing overlaps them; stops by itself when none are left.
+local function ensureSettler()
+	if settler ~= nil or next(ghosts) == nil then
+		return
+	end
+	settler = task.spawn(function()
+		while next(ghosts) ~= nil do
+			task.wait(SETTLE_SECONDS)
+			for part, ghost in table.clone(ghosts) do
+				if part.Parent == nil then
+					ghosts[part] = nil
+				elseif not occupied(part.CFrame, part.Size) then
+					ghosts[part] = nil
+					part.CanCollide = ghost.collide
+					part.Transparency = ghost.transparency
+					stats.Settled += 1
+				end
+			end
+		end
+		settler = nil
+	end)
+end
+
+-- Puts a crate back exactly; ghosts it first if a character is on the spot.
+local function restoreCrate(prop: BasePart, origin: CFrame, color: Color3)
+	if occupied(origin, prop.Size) then
+		if ghosts[prop] == nil then
+			ghosts[prop] = { collide = prop.CanCollide, transparency = prop.Transparency }
+		end
+		prop.CanCollide = false
+		prop.Transparency = GHOST_TRANSPARENCY
+		stats.Deferred += 1
+	end
+	prop.CFrame = origin
+	prop.Color = color
+end
+
 local Magnetic = {}
 
 function Magnetic.Activate(ctx: any)
@@ -116,11 +183,9 @@ function Magnetic.Activate(ctx: any)
 			if owners[entry.prop] == ctx.RuntimeId then
 				owners[entry.prop] = nil
 			end
-			pcall(function()
-				entry.prop.CFrame = entry.origin
-				entry.prop.Color = entry.color
-			end)
+			pcall(restoreCrate, entry.prop, entry.origin, entry.color)
 		end
+		ensureSettler()
 	end)
 	for _, prop in props do
 		if #entries >= MAX_PROPS then
@@ -257,7 +322,16 @@ function Magnetic.GetPoints(): { BasePart }
 	return tagged(Config.Tags.MagneticPoint)
 end
 
-function Magnetic.GetStats(): { Steps: number, Paused: number, Floating: number, Flips: number }
+-- Restored crates still waiting for their spot to clear (tests).
+function Magnetic.GetGhostCount(): number
+	local n = 0
+	for _ in ghosts do
+		n += 1
+	end
+	return n
+end
+
+function Magnetic.GetStats(): { Steps: number, Paused: number, Floating: number, Flips: number, Deferred: number, Settled: number }
 	return table.clone(stats)
 end
 

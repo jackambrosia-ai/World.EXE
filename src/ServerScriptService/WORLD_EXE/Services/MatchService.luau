@@ -66,6 +66,7 @@ local lastReason = ""
 local lastResult: { [string]: any }? = nil
 local lastResetRemoved = 0
 local lastResetBaselineMatches = true
+local recheckBaseline = false -- RESET found a difference: compare again at LOBBY before warning
 local lastResetPatchesCancelled = 0
 local lastResetModifiersCleared = 0
 local lastResetWorldAtBaseline = true
@@ -296,6 +297,14 @@ enter[S.Lobby] = function()
 	participants = {}
 	outcome, outcomeReason = "", ""
 	activeStartedAt = 0
+	if recheckBaseline then
+		recheckBaseline = false
+		local baseline = ArenaService.CompareToBaseline()
+		lastResetBaselineMatches = baseline.matches
+		if not baseline.matches then
+			warn(`[WORLD_EXE] Reset: arena differs from baseline ({baseline.total} differences): {baseline.differences[1]}`)
+		end
+	end
 end
 
 enter[S.Countdown] = function()
@@ -379,10 +388,11 @@ enter[S.Reset] = function()
 	for _, problem in problems do
 		warn(`[WORLD_EXE] Reset: {problem}`)
 	end
+	-- A difference here may still be settling (Phase 7B: a MAGNETIC crate restored as a non-colliding
+	-- ghost because a player stands on its resting spot becomes solid once players are in the lobby),
+	-- so it is compared again at LOBBY and only reported if it is still there.
 	local baseline = ArenaService.CompareToBaseline()
-	if not baseline.matches then
-		warn(`[WORLD_EXE] Reset: arena differs from baseline ({baseline.total} differences): {baseline.differences[1]}`)
-	end
+	recheckBaseline = not baseline.matches
 	lastResetRemoved = removed
 	lastResetBaselineMatches = baseline.matches
 	participants = {}
