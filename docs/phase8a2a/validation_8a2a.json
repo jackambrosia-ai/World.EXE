@@ -1,0 +1,27 @@
+{
+  "builder": "tools/studio/phase8a2a/0_lib..5_validate (Edit mode, Studio MCP); final validation re-run after the roof addition and before the rib-3 relocation",
+  "result": "PASS: finalized (ArenaVersion 3). Rollback store kept at ServerStorage.WORLD_EXE_Rollback8A2A.",
+  "errors": [],
+  "first_attempt": "FAIL -> automatic full restore verified (ArenaVersion 2, 522 parts, original reactor parts, Lighting and Wall_N restored). Causes: colonnade columns at N/S ±40 blocked drone links WP_C1..C4 -> WP_SN/SS (removed); Coil1 windings 6x4.5 neon (reduced to 4 wide); AC2 strict spawn-eye failures for 5 spawns (see deviation).",
+  "notes": ["C7 checked 12 prop-to-point lanes", "C8 checked 40 waypoint links",
+    "AC2 deviation for review: Spawn_RES_1 readable after 20 studs", "AC2 deviation for review: Spawn_ARCH_2 readable after 16 studs",
+    "AC2 deviation for review: Spawn_ARCH_1 readable after 4 studs", "AC2 deviation for review: Spawn_RES_2 readable after 20 studs",
+    "AC2 deviation for review: Spawn_ARCH_3 readable after 16 studs"],
+  "areas": ["LobbyBay parts=14 collide=0 lights=2 shadows=0", "Megastructure parts=394 collide=0 lights=8 shadows=0", "CoreTotal parts=299 collide=24 lights=11 shadows=1"],
+  "totals": "map parts=1223 collidable=285 lights=21 shadowLights=1 beams=1",
+  "visibility": ["Spawn_RES_1 25% (crown 0, column 6) -> DEVIATION: blocked at the spawn eye by the 8A-1 Outer Ring deck overhead; readable after walking 20 studs toward the core",
+    "Spawn_RES_3 60% (crown 3, column 12)", "Spawn_ARCH_2 13% (crown 0, column 3) -> DEVIATION: readable after walking 16 studs",
+    "Spawn_YARD_3 70% (crown 7, column 12)", "Spawn_SKY_1 90% (crown 12, column 13)", "Spawn_CORE_4 60% (crown 12, column 4)",
+    "Spawn_ARCH_1 38% (crown 0, column 8) -> DEVIATION: readable after walking 4 studs", "Spawn_SKY_3 65% (crown 6, column 11)",
+    "Spawn_CORE_3 60% (crown 12, column 4)", "Spawn_CORE_2 60% (crown 12, column 4)", "Spawn_RES_2 25% (crown 0, column 6) -> DEVIATION: readable after walking 20 studs",
+    "Spawn_YARD_1 60% (crown 7, column 9)", "Spawn_CORE_1 60% (crown 12, column 4)", "Spawn_SKY_2 90% (crown 12, column 13)",
+    "Spawn_YARD_2 63% (crown 6, column 12)", "Spawn_ARCH_3 13% (crown 0, column 3) -> DEVIATION: readable after walking 16 studs", "LobbyCentre 63% (crown 8, column 9)"],
+  "occlusionTests": 485660,
+  "post_validation_change": "South rib (rib 3) moved to spring at r 330 under the roof (it crossed the lobby window); part count unchanged (394). This rib is decorative, above Y 184, outside every gameplay volume.",
+  "play_regression": {
+    "ArenaService.Validate": "ok, 0 errors; Bootstrap marker counts unchanged (ArenaSpawn 16, BounceSurface 8, CorruptionNode 18, DecayTile 100, DroneWaypoint 30, FloodZone 3, FragmentSpawn 24, MagneticPoint 4, MagneticProp 8, SlipSurface 8, Stabilizer 3, SupplyLandingPoint 8)",
+    "BLACKOUT": "applied Brightness 0.5 / Exposure -1.2 while ACTIVE; restored exactly to 1.8 / 0 after expiry",
+    "match_cycle": "LOBBY->COUNTDOWN->INITIALIZING->ACTIVE->FINAL_PHASE->RESULTS->RESET->LOBBY, then match 2 initialized; ArenaService.CompareToBaseline().matches = true after RESET; 0 warnings/errors in the console",
+    "client_streaming": "StreamingEnabled true, radius 1024 (unchanged); client had all 1223 map parts, Megastructure.Silhouette 181 (Persistent), ReactorSilhouette 73 (Persistent), LobbyBay 14"
+  }
+}
