@@ -1,0 +1,20 @@
+{
+  "run": "Post-8A-2b foreground benchmark (ArenaVersion 3, Phase8A2B, 1,805 map parts), same method as Stage 0",
+  "date": "2026-11-11",
+  "scripts": "tools/studio/phase8a2_fps_benchmark_client.luau and _server.luau, unchanged (server Source hash 7029:1166573979)",
+  "note": "A first attempt timed out at arming (no owner click within 300 s) and produced no measurement; this is the second, valid run.",
+  "client": {"DryRun": false, "Viewport": "1914, 761", "QualityLevel": "Enum.SavedQualitySetting.Automatic", "FocusLostEvents": 0, "CameraResets": 0, "StreamedMapParts": 1805,
+    "MemoryStartMb": 1959.203125, "MemoryAfterAMb": 1964.0703125, "MemoryEndMb": 1967.40234375,
+    "PassAValid": true, "PassA": {"Frames": 3306, "AvgFps": 59.99948753431008, "OnePercentLowFps": 54.941880505471477, "MedianFrameMs": 16.909800469875337, "P99FrameMs": 18.087100237607957, "MaxFrameMs": 18.68090033531189},
+    "PassBValid": true, "SawServerSampling": true, "PassB": {"Frames": 1802, "AvgFps": 60.00274350306113, "OnePercentLowFps": 54.80152682937311, "MedianFrameMs": 16.91420003771782, "P99FrameMs": 18.119800835847856, "MaxFrameMs": 18.690699711441995}},
+  "server": {"Valid": true, "Requests": "ZERO_G=P1-1,CORRUPTION=P1-2,FLOOD=P1-3", "ActiveAtStart": 3, "MinOurActiveDuringSampling": 3, "ActiveAtEnd": 3, "MatchStateAtEnd": "ACTIVE",
+    "HeartbeatSamples": 1801, "HeartbeatAvgMs": 16.666178311790645, "HeartbeatP99Ms": 18.049482256174088, "HeartbeatMaxMs": 19.436433911323547, "ServerFps": 60.00175812906914},
+  "vs_stage0": {
+    "PassA_AvgFps": "60.00 -> 60.00 (100% of baseline; target >= 85%)",
+    "PassA_OnePercentLow": "53.86 -> 54.94 (target >= 45)",
+    "PassB_AvgFps": "60.00 -> 60.00",
+    "PassB_OnePercentLow": "54.38 -> 54.80",
+    "HeartbeatP99Ms": "18.10 -> 18.05 (within 10%)",
+    "caveat": "Studio caps rendering at 60 FPS; headroom above the cap is not measurable, and no improvement is claimed from these small differences."
+  }
+}

@@ -1,0 +1,39 @@
+Phase 8A-2b regression, run 2 (corrected harness with explicit PASS/FAIL), 2026-11-11.
+Build: final corrected 8A-2b state (Archive readability correction applied), solo Play.
+Harness: tools/studio/phase8a2b/8_regression_server.luau, injected as ServerScriptService.ZZ_Regress8A2B.
+Read through Studio MCP from the Script's attributes at the end of the run (verbatim).
+
+Result = PASS
+Done = true
+Failures = (empty)
+
+Log:
+PASS match 1 reached ACTIVE | ACTIVE
+PASS Validate at start | errors=0
+PASS baseline at start
+PASS ZERO_G | P1-1 active=true ended=true
+PASS DECAY | P1-2 active=true ended=true
+PASS DRONE_SWARM | P1-3 active=true ended=true
+PASS SUPPLY_DROP | P1-4 active=true ended=true
+PASS BOUNCY | P1-5 active=true ended=true
+PASS SLIPPERY | P1-6 active=true ended=true
+PASS BLACKOUT | P1-7 active=true ended=true
+PASS MAGNETIC | P1-8 active=true ended=true
+PASS CORRUPTION | P1-9 active=true ended=true
+PASS FLOOD | P1-10 active=true ended=true
+PASS SUPER_BOUNCE | ZERO_G + BOUNCY: requests true/true, combination started=true, all ended=true, history +1
+PASS HUNTER_SCAN | BLACKOUT + DRONE_SWARM: requests true/true, combination started=true, all ended=true, history +1
+PASS FLOATING_DEBRIS | FLOOD + MAGNETIC: requests true/true, combination started=true, all ended=true, history +1
+PASS RAPID_DECAY | DECAY + CORRUPTION: requests true/true, combination started=true, all ended=true, history +1
+PASS SLIDE_FIELD | SLIPPERY + MAGNETIC: requests true/true, combination started=true, all ended=true, history +1
+PASS baseline after patches
+PASS no patches tracked after the tests | tracked=0
+PASS match 1 reached RESULTS | RESULTS
+PASS RESET -> LOBBY | LOBBY
+PASS baseline at LOBBY | differences 0
+PASS second match reached ACTIVE | match 2
+PASS Validate in the second match
+
+Studio console for the session: only [WORLD_EXE] info lines (patch/combination lifecycle, Architect
+turns timing out because nobody picks cards in an unattended solo run, match transitions through
+match 2 ACTIVE). 0 warnings, 0 errors.
