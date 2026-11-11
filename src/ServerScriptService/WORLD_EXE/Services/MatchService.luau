@@ -3,6 +3,7 @@
 -- Phase 5: also drives StabilityService, ScoreService, ObjectiveService and CollectibleService from
 -- its enter hooks and its single tick (no second match loop).
 -- Phase 6: opens, stops and resets AbilityService with the match.
+-- Phase 7A: severity-based stability costs and PatchInteractionService (combinations).
 --
 -- LOBBY -> COUNTDOWN -> INITIALIZING -> ACTIVE -> FINAL_PHASE -> RESULTS -> RESET -> LOBBY
 -- Also: COUNTDOWN -> LOBBY (not enough players), INITIALIZING/ACTIVE/FINAL_PHASE -> RESULTS
@@ -34,6 +35,7 @@ local ScoreService = require(services:WaitForChild("ScoreService"))
 local CollectibleService = require(services:WaitForChild("CollectibleService"))
 local ObjectiveService = require(services:WaitForChild("ObjectiveService"))
 local AbilityService = require(services:WaitForChild("AbilityService"))
+local PatchInteractionService = require(services:WaitForChild("PatchInteractionService"))
 
 local S = Config.MatchStates
 local Roles = Config.Roles
@@ -127,6 +129,7 @@ local function snapshot(): { [string]: any }
 		LastResetWorldAtBaseline = lastResetWorldAtBaseline,
 		Patches = PatchService.GetSnapshot(),
 		PatchCapacity = Config.Patches.MaxActiveMajor,
+		Interactions = PatchInteractionService.GetSnapshot(),
 		Stability = StabilityService.Get(),
 		StabilityMax = Config.Stability.Max,
 		Objectives = ObjectiveService.GetSnapshot(),
@@ -202,6 +205,9 @@ local function recover(failedState: string, err: any)
 		end,
 		function()
 			PatchService.CancelAll("recovery")
+		end,
+		function()
+			PatchInteractionService.Reset("recovery")
 		end,
 		function()
 			WorldModifierService.ClearAll()
@@ -336,6 +342,7 @@ enter[S.Results] = function()
 	ArchitectService.StopMatch("cancelled")
 	-- Patches never outlive their match.
 	PatchService.CancelAll("match_end")
+	PatchInteractionService.StopAll("match_end")
 	WorldModifierService.ClearAll()
 	PlayerStateService.SetSpawnProtection(false)
 	PlayerStateService.SetArenaPhase(false)
@@ -356,6 +363,7 @@ enter[S.Reset] = function()
 	-- Patch resources first (idempotent; normally already ended at RESULTS), then shared world
 	-- properties, then any leftover runtime objects.
 	lastResetPatchesCancelled = PatchService.CancelAll("reset")
+	PatchInteractionService.Reset("reset")
 	lastResetModifiersCleared = WorldModifierService.ClearAll()
 	lastResetWorldAtBaseline = WorldModifierService.IsAtBaseline()
 	PatchService.ResetMatchKeys()
@@ -489,11 +497,21 @@ function MatchService.Init(controlFolder: Instance)
 			return id == matchId and (state == S.Active or state == S.FinalPhase)
 		end,
 		onChanged = publish,
-		onActivated = function(patchId: string, id: number)
+		onActivated = function(patchId: string, id: number, runtimeId: string)
 			if id == matchId then
-				StabilityService.Adjust(StabilityService.Tuning.PatchActivationCost, `patch:{patchId}`)
+				StabilityService.Adjust(StabilityService.CostFor(patchId), `patch:{patchId}`)
+				PatchInteractionService.OnPatchActivated(patchId, id, runtimeId)
 			end
 		end,
+		onEnded = function(patchId: string, runtimeId: string, id: number, reason: string)
+			PatchInteractionService.OnPatchEnded(patchId, runtimeId, id, reason)
+		end,
+	})
+	PatchInteractionService.Init({
+		isMatchLive = function(id: number): boolean
+			return id == matchId and (state == S.Active or state == S.FinalPhase)
+		end,
+		onChanged = publish,
 	})
 	ArchitectService.Init(publish)
 	StabilityService.Init(publish)
@@ -537,6 +555,7 @@ function MatchService.Shutdown()
 	running = false
 	ArchitectService.StopMatch("cancelled")
 	PatchService.CancelAll("shutdown")
+	PatchInteractionService.Reset("shutdown")
 	WorldModifierService.ClearAll()
 	AbilityService.Reset()
 	ObjectiveService.Reset()

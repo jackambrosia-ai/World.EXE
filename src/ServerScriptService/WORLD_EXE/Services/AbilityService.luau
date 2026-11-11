@@ -10,7 +10,10 @@
 --   inside geometry, a character-sized blockcast sweep stops before obstacles, and the landing is
 --   inside the arena bounds, has collidable floor below it and is not inside geometry. Otherwise it
 --   steps back toward the start; under DASH_MIN it is rejected without using the cooldown.
--- * ANCHOR: a VectorForce in world coordinates at the assembly's centre of mass cancels reduced
+-- * ANCHOR (approved A1 + P5): counters movement disturbances only — reduced gravity, BOUNCY
+--   launches (Bouncy skips anchored players) and SLIPPERY pads (horizontal damping force while on
+--   an active pad). Never a shield.
+--   A VectorForce in world coordinates at the assembly's centre of mass cancels reduced
 --   gravity for that character only (force = mass x (baseline - current gravity), downward). It
 --   never touches Workspace.Gravity. Updated when gravity or the character's parts change.
 -- * SCANNER: the server picks up to SCAN_MAX nearby fragments, drones, supply crates and unsafe
@@ -20,6 +23,7 @@
 --   recovery and shutdown. Each effect owns a CleanupService bag; an early end tells the client.
 
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local shared = ReplicatedStorage:WaitForChild("WORLD_EXE"):WaitForChild("Shared")
@@ -31,7 +35,10 @@ local PlayerStateService = require(services:WaitForChild("PlayerStateService"))
 local CleanupService = require(services:WaitForChild("CleanupService"))
 local WorldModifierService = require(services:WaitForChild("WorldModifierService"))
 local CollectibleService = require(services:WaitForChild("CollectibleService"))
-local Decay = require(services.Parent:WaitForChild("Patches"):WaitForChild("Decay"))
+local patchModules = services.Parent:WaitForChild("Patches")
+local Decay = require(patchModules:WaitForChild("Decay"))
+local Bouncy = require(patchModules:WaitForChild("Bouncy"))
+local Slippery = require(patchModules:WaitForChild("Slippery"))
 
 -- Server-only tuning (provisional).
 local RATE_BURST = 4
@@ -45,6 +52,8 @@ local DASH_FLOOR_RAY = 12 -- floor must be within this distance below the root p
 local BODY_SIZE = Vector3.new(2, 4, 2) -- check box centred on the root part (clears the floor)
 local SCAN_RANGE = 60
 local SCAN_MAX = 20
+local ANCHOR_SLIP_DAMPING = 8 -- 1/s; sliding on an active SLIPPERY pad decays fast while anchored
+local ANCHOR_FLOOR_RAY = 6
 
 type Effect = { seq: number, bag: CleanupService.Bag, endsAt: number }
 type State = {
@@ -252,6 +261,31 @@ local function anchor(player: Player, character: Model, root: BasePart, humanoid
 	force.Parent = root
 	bag:Add(force)
 	bag:Add(attachment)
+	-- Approved P5: on an active SLIPPERY pad, a second world-space force at the centre of mass damps
+	-- horizontal sliding (F = -mass x ANCHOR_SLIP_DAMPING x horizontal velocity). Zero elsewhere.
+	local grip = Instance.new("VectorForce")
+	grip.Name = "WORLD_EXE_AnchorGrip"
+	grip.Attachment0 = attachment
+	grip.RelativeTo = Enum.ActuatorRelativeTo.World
+	grip.ApplyAtCenterOfMass = true
+	grip.Force = Vector3.zero
+	grip.Parent = root
+	bag:Add(grip)
+	local floorParams = RaycastParams.new()
+	floorParams.FilterType = Enum.RaycastFilterType.Exclude
+	floorParams.FilterDescendantsInstances = { character }
+	bag:Add(RunService.Heartbeat:Connect(function()
+		if grip.Parent == nil or root.Parent == nil then
+			return
+		end
+		local floor = workspace:Raycast(root.Position, Vector3.new(0, -ANCHOR_FLOOR_RAY, 0), floorParams)
+		if floor and Slippery.IsActive(floor.Instance) then
+			local v = root.AssemblyLinearVelocity
+			grip.Force = Vector3.new(-v.X, 0, -v.Z) * root.AssemblyMass * ANCHOR_SLIP_DAMPING
+		elseif grip.Force ~= Vector3.zero then
+			grip.Force = Vector3.zero
+		end
+	end))
 	local function update()
 		if force.Parent == nil or root.Parent == nil then
 			return
@@ -301,6 +335,12 @@ local function scan(root: BasePart): { { Target: BasePart, Kind: string } }
 	end
 	for _, tile in Decay.GetClaimedTiles() do
 		consider(tile, "decay")
+	end
+	for _, pad in Bouncy.GetActivePads() do
+		consider(pad, "bounce")
+	end
+	for _, pad in Slippery.GetActivePads() do
+		consider(pad, "slip")
 	end
 	table.sort(found, function(a, b)
 		return a.Distance < b.Distance

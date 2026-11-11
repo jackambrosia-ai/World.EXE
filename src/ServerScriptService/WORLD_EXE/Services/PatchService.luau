@@ -19,6 +19,8 @@
 --   when the patch ends for any reason (expiry, cancel, match end, reset, recovery, shutdown).
 -- Phase 4: each approved patch runs its behaviour module (BEHAVIOR_MODULES); Studio-only test
 -- patches (never in PatchCatalog) exercise resources, modifiers and failure paths.
+-- Phase 7A: the hook runner and behaviour context live in BehaviorRuntime (shared with
+-- PatchInteractionService); onActivated / onEnded notify listeners (stability, combinations).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -29,7 +31,7 @@ local Config = require(shared:WaitForChild("Config"))
 local PatchCatalog = require(shared:WaitForChild("PatchCatalog"))
 local services = script.Parent
 local CleanupService = require(services:WaitForChild("CleanupService"))
-local WorldModifierService = require(services:WaitForChild("WorldModifierService"))
+local BehaviorRuntime = require(services:WaitForChild("BehaviorRuntime"))
 local patchModules = services.Parent:WaitForChild("Patches")
 
 -- Approved PatchId -> behaviour module under ServerScriptService.WORLD_EXE.Patches.
@@ -38,6 +40,9 @@ local BEHAVIOR_MODULES: { [string]: string } = {
 	DECAY = "Decay",
 	DRONE_SWARM = "DroneSwarm",
 	SUPPLY_DROP = "SupplyDrop",
+	BOUNCY = "Bouncy",
+	SLIPPERY = "Slippery",
+	BLACKOUT = "Blackout",
 }
 
 local States = Config.PatchStates
@@ -93,15 +98,11 @@ local isMatchLive: (number) -> boolean = function()
 	return false
 end
 local onChanged: () -> () = function() end
-local onActivated: (patchId: string, matchId: number) -> () = function() end
+local onActivated: (patchId: string, matchId: number, runtimeId: string) -> () = function() end
+local onEnded: (patchId: string, runtimeId: string, matchId: number, reason: string) -> () = function() end
 
 local function now(): number
 	return workspace:GetServerTimeNow()
-end
-
-local function runtimeFolder(): Instance?
-	local root = workspace:FindFirstChild(Config.RootName)
-	return root and root:FindFirstChild("ActivePatchInstances")
 end
 
 local function view(record: Record): PatchView
@@ -119,20 +120,8 @@ end
 ---------------------------------------------------------------------------------------------------
 -- Hooks
 
--- Runs a behaviour hook under the non-yielding contract. Returns (true) or (false, kind, message)
--- where kind is "error" or "yielded". A yielded hook is cancelled and never resumes.
-local function runHook(hook: (any) -> (), ctx: any): (boolean, string?, string?)
-	local thread = coroutine.create(hook)
-	local ok, err = coroutine.resume(thread, ctx)
-	if not ok then
-		return false, "error", tostring(err)
-	end
-	if coroutine.status(thread) ~= "dead" then
-		task.cancel(thread)
-		return false, "yielded", "hook yielded; Activate/Deactivate must not yield (use ctx.Spawn / ctx.Delay)"
-	end
-	return true
-end
+-- Non-yielding hook runner (BehaviorRuntime): a yielded hook is cancelled and never resumes.
+local runHook = BehaviorRuntime.RunHook
 
 ---------------------------------------------------------------------------------------------------
 -- Ending
@@ -167,56 +156,29 @@ local function finish(record: Record, reason: string)
 		table.remove(history, 1)
 	end
 	print(`[WORLD_EXE] Patch {record.RuntimeId} {record.PatchId} ended: {reason} (released {released})`)
+	local cbOk, cbErr = pcall(onEnded, record.PatchId, record.RuntimeId, record.MatchId, reason)
+	if not cbOk then
+		warn(`[WORLD_EXE] Patch {record.RuntimeId} onEnded failed: {cbErr}`)
+	end
 	onChanged()
 end
 
 ---------------------------------------------------------------------------------------------------
 -- Requests
 
+-- The behaviour context (BehaviorRuntime): Add / AddModifier / Spawn / Delay tracked in the patch's
+-- bag; IsLive is true while the patch is ACTIVE in a live match.
 local function newContext(record: Record): any
-	local ctx = {
+	return BehaviorRuntime.NewContext({
 		RuntimeId = record.RuntimeId,
 		PatchId = record.PatchId,
 		MatchId = record.MatchId,
 		CreatorUserId = record.CreatorUserId,
-		Folder = runtimeFolder(),
-	}
-	-- Tracks an instance / connection / thread / callback for cleanup; returns it.
-	function ctx.Add(item: any): any
-		return record.bag:Add(item)
-	end
-	-- Adds a WorldModifierService token owned by this patch; removed automatically at cleanup.
-	-- Returns nil (and changes nothing) once the patch has been cleaned up.
-	function ctx.AddModifier(property: string, op: any, value: number, priority: number?): string?
-		if record.bag:IsCleaned() then
-			return nil
-		end
-		local id = WorldModifierService.AddModifier(property, op, value, priority, record.RuntimeId)
-		record.bag:Add(function()
-			WorldModifierService.RemoveModifier(id)
-		end)
-		return id
-	end
-	-- Tracked task: runs fn(...) on the next resumption cycle (never inside the tick). The thread
-	-- may yield freely and is cancelled when the patch ends. Returns nil once cleaned up.
-	function ctx.Spawn(fn: (...any) -> (), ...: any): thread?
-		if record.bag:IsCleaned() then
-			return nil
-		end
-		return record.bag:Add(task.defer(fn, ...))
-	end
-	-- Tracked delayed call: cancelled if the patch ends before it fires.
-	function ctx.Delay(seconds: number, fn: (...any) -> (), ...: any): thread?
-		if record.bag:IsCleaned() then
-			return nil
-		end
-		return record.bag:Add(task.delay(seconds, fn, ...))
-	end
-	-- True while the patch is ACTIVE in a live match; loops in behaviours must check this.
-	function ctx.IsLive(): boolean
-		return record.State == States.Active and isMatchLive(record.MatchId)
-	end
-	return ctx
+		Bag = record.bag,
+		IsLive = function(): boolean
+			return record.State == States.Active and isMatchLive(record.MatchId)
+		end,
+	})
 end
 
 -- Reserves a slot and starts the WARNING period. Returns (true, runtimeId) or (false, reason).
@@ -304,7 +266,7 @@ function PatchService.Update()
 				continue
 			end
 			print(`[WORLD_EXE] Patch {record.RuntimeId} {record.PatchId} active`)
-			local cbOk, cbErr = pcall(onActivated, record.PatchId, record.MatchId)
+			local cbOk, cbErr = pcall(onActivated, record.PatchId, record.MatchId, record.RuntimeId)
 			if not cbOk then
 				warn(`[WORLD_EXE] Patch {record.RuntimeId} onActivated failed: {cbErr}`)
 			end
@@ -385,13 +347,18 @@ end
 
 -- deps.isMatchLive(matchId): true while that match is ACTIVE or FINAL_PHASE.
 -- deps.onChanged(): called after any lifecycle change (MatchService republishes its snapshot).
--- deps.onActivated(patchId, matchId): optional; called once when a patch becomes ACTIVE (Phase 5:
--- stability cost). Errors in it are caught and never affect the patch.
-function PatchService.Init(deps: { isMatchLive: (number) -> boolean, onChanged: () -> (), onActivated: ((string, number) -> ())? })
+-- deps.onActivated(patchId, matchId, runtimeId): optional; called once when a patch becomes ACTIVE
+-- (stability cost, combinations). deps.onEnded(patchId, runtimeId, matchId, reason): optional;
+-- called once when a patch ends for any reason. Errors in either are caught and never affect the
+-- patch.
+function PatchService.Init(deps: { isMatchLive: (number) -> boolean, onChanged: () -> (), onActivated: ((string, number, string) -> ())?, onEnded: ((string, string, number, string) -> ())? })
 	isMatchLive = deps.isMatchLive
 	onChanged = deps.onChanged
 	if deps.onActivated then
 		onActivated = deps.onActivated
+	end
+	if deps.onEnded then
+		onEnded = deps.onEnded
 	end
 	for _, id in PatchCatalog.Ids() do
 		local moduleName = BEHAVIOR_MODULES[id]

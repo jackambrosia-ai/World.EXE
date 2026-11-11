@@ -13,7 +13,10 @@
 --      non-finite value: +/-infinity clamps to Max/Min, NaN falls back to the baseline. The world
 --      never receives a non-finite value.
 -- Removing the last token restores the exact baseline value.
+-- Properties: Workspace.Gravity (Phase 3); Lighting.Brightness and Lighting.ExposureCompensation
+-- (Phase 7A, BLACKOUT).
 
+local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage:WaitForChild("WORLD_EXE"):WaitForChild("Shared"):WaitForChild("Config"))
@@ -42,6 +45,22 @@ local PROPERTIES: { [string]: Property } = {
 		end,
 		set = function(value: number)
 			workspace.Gravity = value
+		end,
+	},
+	Brightness = {
+		get = function()
+			return Lighting.Brightness
+		end,
+		set = function(value: number)
+			Lighting.Brightness = value
+		end,
+	},
+	ExposureCompensation = {
+		get = function()
+			return Lighting.ExposureCompensation
+		end,
+		set = function(value: number)
+			Lighting.ExposureCompensation = value
 		end,
 	},
 }

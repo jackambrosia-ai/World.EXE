@@ -18,6 +18,10 @@
 --   and is used up; otherwise the player takes damage.
 -- * Drones are placeholder neon spheres built in code (anchored, no collision, ignored by
 --   raycasts) until drone artwork is approved. Everything is in the patch's cleanup bag.
+-- * HUNTER_SCAN (Phase 7A combination, BLACKOUT + DRONE_SWARM) adds a hunter token while it runs:
+--   drones show a scan cone (cyan idle, amber when focusing), acquire from HUNTER_AGGRO_MULTIPLIER
+--   farther, and every new lock first shows an amber pre-lock warning for PRELOCK_SECONDS. Damage
+--   rules are unchanged.
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -43,6 +47,9 @@ local KEEP_DISTANCE = 2.5
 local ARRIVE_DISTANCE = 1
 local IDLE_COLOR = Color3.fromRGB(255, 70, 70)
 local LOCKED_COLOR = Config.Palette.AmberWarning
+local HUNTER_AGGRO_MULTIPLIER = 1.2
+local PRELOCK_SECONDS = 1.5
+local SCAN_COLOR = Config.Palette.NeonCyan
 
 type Waypoint = { id: string, position: Vector3, links: { string } }
 type Drone = {
@@ -50,11 +57,19 @@ type Drone = {
 	waypoint: string,
 	target: Player?,
 	nextHit: number,
+	pending: Player?, -- HUNTER_SCAN pre-lock candidate
+	pendingAt: number,
+	cone: BasePart?,
 }
 
 local activeDrones = 0
 local playerNextHit: { [Player]: number } = setmetatable({}, { __mode = "k" }) :: any
-local stats = { Hits = 0, Blocked = 0, Protected = 0, Disengaged = 0 }
+local stats = { Hits = 0, Blocked = 0, Protected = 0, Disengaged = 0, PreLockWarnings = 0 }
+local hunters: { [string]: boolean } = {}
+
+local function hunting(): boolean
+	return next(hunters) ~= nil
+end
 
 local function now(): number
 	return workspace:GetServerTimeNow()
@@ -148,7 +163,7 @@ function DroneSwarm.Activate(ctx: any)
 		ctx.Add(function()
 			activeDrones -= 1
 		end)
-		table.insert(drones, { part = part, waypoint = id, target = nil, nextHit = 0 })
+		table.insert(drones, { part = part, waypoint = id, target = nil, nextHit = 0, pending = nil, pendingAt = 0, cone = nil })
 	end
 
 	local function nearestWaypoint(position: Vector3): string
@@ -164,7 +179,7 @@ function DroneSwarm.Activate(ctx: any)
 
 	local function pickTarget(drone: Drone): Player?
 		local position = drone.part.Position
-		local best, bestDistance = nil, AGGRO_RANGE
+		local best, bestDistance = nil, AGGRO_RANGE * (if hunting() then HUNTER_AGGRO_MULTIPLIER else 1)
 		for _, player in Players:GetPlayers() do
 			local rootPart = rootPartOf(player)
 			if rootPart and isEligible(player) then
@@ -213,6 +228,42 @@ function DroneSwarm.Activate(ctx: any)
 		end
 	end
 
+	-- HUNTER_SCAN scan cone: points at the focused player (amber) or straight down (cyan).
+	local function updateCone(drone: Drone)
+		if not hunting() then
+			if drone.cone then
+				drone.cone:Destroy()
+				drone.cone = nil
+			end
+			drone.pending = nil
+			return
+		end
+		local cone = drone.cone
+		if cone == nil or cone.Parent == nil then
+			local newCone = Instance.new("Part")
+			newCone.Name = "ScanCone"
+			newCone.Anchored = true
+			newCone.CanCollide = false
+			newCone.CanQuery = false
+			newCone.CanTouch = false
+			newCone.CastShadow = false
+			newCone.Material = Enum.Material.Neon
+			newCone.Transparency = 0.6
+			newCone.Parent = drone.part
+			drone.cone = newCone
+			cone = newCone
+		end
+		local focus = drone.target or drone.pending
+		local focusRoot = focus and rootPartOf(focus)
+		local from = drone.part.Position
+		local to = if focusRoot then focusRoot.Position else from + Vector3.new(0, -10, 0)
+		local length = math.clamp((to - from).Magnitude, 1, AGGRO_RANGE * HUNTER_AGGRO_MULTIPLIER)
+		local beam = cone :: BasePart
+		beam.Size = Vector3.new(1.2, 1.2, length)
+		beam.CFrame = CFrame.lookAt(from, to) * CFrame.new(0, 0, -length / 2)
+		beam.Color = if focus then LOCKED_COLOR else SCAN_COLOR
+	end
+
 	local function step(drone: Drone, dt: number, retarget: boolean)
 		if drone.part.Parent == nil then
 			return
@@ -233,7 +284,22 @@ function DroneSwarm.Activate(ctx: any)
 		if retarget then
 			local rootPart = target and rootPartOf(target)
 			if target == nil or rootPart == nil or not lineOfSight(drone.part.Position, rootPart.Position) then
-				setTarget(drone, pickTarget(drone))
+				local candidate = pickTarget(drone)
+				local lock = candidate
+				if candidate and candidate ~= target and hunting() then
+					-- HUNTER_SCAN: a visible amber pre-lock warning precedes every new lock.
+					if drone.pending ~= candidate then
+						drone.pending, drone.pendingAt = candidate, now()
+						stats.PreLockWarnings += 1
+					end
+					if now() - drone.pendingAt < PRELOCK_SECONDS then
+						lock = nil
+					end
+				end
+				if candidate == nil or lock ~= nil then
+					drone.pending = nil
+				end
+				setTarget(drone, lock)
 				target = drone.target
 			end
 		end
@@ -270,6 +336,7 @@ function DroneSwarm.Activate(ctx: any)
 				hit(drone, target)
 			end
 		end
+		updateCone(drone)
 	end
 
 	ctx.Spawn(function()
@@ -298,13 +365,26 @@ function DroneSwarm.Activate(ctx: any)
 	end)
 end
 
+-- HUNTER_SCAN tokens (Phase 7A combination).
+function DroneSwarm.AddHunter(token: string)
+	hunters[token] = true
+end
+
+function DroneSwarm.RemoveHunter(token: string)
+	hunters[token] = nil
+end
+
+function DroneSwarm.IsHunting(): boolean
+	return hunting()
+end
+
 -- Drones alive across every DRONE_SWARM patch (for tests and diagnostics).
 function DroneSwarm.GetActiveCount(): number
 	return activeDrones
 end
 
 -- Server-side hit counters since server start (for tests).
-function DroneSwarm.GetStats(): { Hits: number, Blocked: number, Protected: number, Disengaged: number }
+function DroneSwarm.GetStats(): { Hits: number, Blocked: number, Protected: number, Disengaged: number, PreLockWarnings: number }
 	return table.clone(stats)
 end
 

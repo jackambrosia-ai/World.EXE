@@ -29,6 +29,7 @@ local POINTS = table.freeze({
 	Assist = 25,
 	Survival = 5, -- per SURVIVAL_INTERVAL seconds alive as a participant
 	Architect = 5, -- per accepted Architect patch (kept modest per docs/01_GAME_DESIGN.md §6)
+	Discovery = 10, -- Phase 7A: once per combination per participant per match (approved P7)
 })
 local SURVIVAL_INTERVAL = 60
 local REWARDS = table.freeze({

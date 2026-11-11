@@ -6,6 +6,10 @@
 -- reserves a slot and runs the patch lifecycle. A timed-out, abandoned, cancelled or
 -- capacity-rejected turn is skipped (nothing activates). No new turn starts while every patch
 -- slot is taken (turns are deferred, not wasted).
+-- Phase 7A rotation (approved P6): cards are drawn by catalog Weight without replacement,
+-- excluding patches already running, patches accepted in the latest NoRepeatTurns turns of the
+-- match, and any "severe" card beyond MaxSevereCards. A short pool offers fewer cards; an empty
+-- pool defers the turn (no Architect is used up).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -136,17 +140,61 @@ local function isEligible(player: Player): boolean
 		and PlayerStateService.IsAlive(player)
 end
 
-local function chooseCards(): { string }
-	local pool = table.clone(PatchCatalog.Ids())
-	for i = #pool, 2, -1 do
-		local j = rng:NextInteger(1, i)
-		pool[i], pool[j] = pool[j], pool[i]
+-- Weighted draw without replacement (pure; exported for tests). `excluded` ids are never offered;
+-- at most `maxSevere` cards have Severity "severe". Returns 0..count cards.
+function ArchitectService.ChooseCards(ids: { string }, excluded: { [string]: boolean }, count: number, maxSevere: number, random: Random): { string }
+	local pool = {}
+	for _, id in ids do
+		local def = PatchCatalog.Get(id)
+		if def and not excluded[id] and def.Weight > 0 then
+			table.insert(pool, def)
+		end
 	end
-	local cards = {}
-	for i = 1, math.min(Settings.CardsOffered, #pool) do
-		table.insert(cards, pool[i])
+	local cards: { string } = {}
+	local severe = 0
+	while #cards < count and #pool > 0 do
+		local total = 0
+		for _, def in pool do
+			total += def.Weight
+		end
+		local roll = random:NextNumber() * total
+		local pick = #pool
+		for i, def in pool do
+			roll -= def.Weight
+			if roll <= 0 then
+				pick = i
+				break
+			end
+		end
+		local def = table.remove(pool, pick) :: PatchCatalog.PatchDefinition
+		if def.Severity == "severe" then
+			if severe >= maxSevere then
+				continue
+			end
+			severe += 1
+		end
+		table.insert(cards, def.Id)
 	end
 	return cards
+end
+
+local function chooseCards(): { string }
+	local excluded: { [string]: boolean } = {}
+	for _, view in PatchService.GetSnapshot() do
+		excluded[view.PatchId] = true
+	end
+	local seen = 0
+	for i = #history, 1, -1 do
+		local result = history[i]
+		if result.MatchId ~= matchId or seen >= Settings.NoRepeatTurns then
+			break
+		end
+		seen += 1
+		if result.Outcome == "accepted" and result.PatchId then
+			excluded[result.PatchId] = true
+		end
+	end
+	return ArchitectService.ChooseCards(PatchCatalog.Ids(), excluded, Settings.CardsOffered, Settings.MaxSevereCards, rng)
 end
 
 local function resolveTurn(outcome: string, patchId: string?, scale: number, runtimeId: string?)
@@ -194,6 +242,13 @@ local function startTurn(t: number, scale: number)
 		publishTurn()
 		return
 	end
+	local cards = chooseCards()
+	if #cards == 0 then
+		-- Nothing eligible to offer (all running or recently used): defer, keep the rotation.
+		nextTurnAt = t + Settings.NoEligibleRetrySeconds * scale
+		publishTurn()
+		return
+	end
 	local architect = ArchitectService.PickNext(order, isEligible, lastArchitect)
 	if architect == nil then
 		nextTurnAt = t + Settings.NoEligibleRetrySeconds * scale
@@ -202,7 +257,6 @@ local function startTurn(t: number, scale: number)
 	end
 	lastArchitect = architect
 	turnCount += 1
-	local cards = chooseCards()
 	local set = {}
 	for _, id in cards do
 		set[id] = true
