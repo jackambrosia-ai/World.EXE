@@ -47,7 +47,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
   - `WorldEXE_post-phase8a2a-corrections-r2_2026-11-11.rbxl` — final Phase 8A-2a place (SHA-256 `CF21106D…ADF7C0FD`, identical to the round-2 save)
   - `WorldEXE_pre-phase8a2b_2026-11-11.rbxl` — verified pre-Phase-8A-2b copy (SHA-256 `F8E0C7B1…2C851708`, identical to the saved `Place1.rbxl`; content-identical to round 2 except the editor camera)
   - `WorldEXE_post-phase8a2b_2026-11-11.rbxl` — post-Phase-8A-2b place (SHA-256 `A7500044…CC8A2C8F`, identical to the 08:34:46 save); kept
-  - `WorldEXE_post-phase8a2b-corrections_2026-11-11.rbxl` — after the 8A-2b review corrections (SHA-256 `7BD0B331…8464BAC0D`, identical to the saved `Place1.rbxl`); current rollback point
+  - `WorldEXE_post-phase8a2b-corrections_2026-11-11.rbxl` — after the 8A-2b review corrections (SHA-256 `7BD0B331…464BAC0D`, identical to the saved `Place1.rbxl`); current rollback point
 - Studio place (Phase 8A-2a corrections): saved by the owner 2026-11-11 03:09:04 (`Place1.rbxl`, 200,214 bytes, SHA-256 `C69A4704D04D46219FFF45F19F708E902D4925E2ACE1A1796428681E4E927C5E`). Verified from the file: 42/42 sources identical to `src/`; corrected reactor present; no `ZZ_` leftovers. 1,141 map parts / 285 collidable / 21 lights.
 - Studio place (Phase 8A-2a): saved by the owner 2026-11-11 02:27:09 (`Place1.rbxl`, 198,201 bytes, SHA-256 `36776D238C25A1E671CBC6531F842B259F0EDE1F6BAB553C40105E40F9969DEE`). Verified from the file: 42/42 script sources identical to `src/`; Map.Architecture, Map.Megastructure, ReactorSilhouette, roof, LobbyBay present; `ServerStorage.WORLD_EXE_Rollback8A2A` and `WORLD_EXE_RollbackArena_v1` present; no `ZZ_` leftovers. ArenaVersion 3, 1,223 map parts.
 - Studio place (Phase 8A-1): saved by the owner 2026-11-10 23:58:16 (`Place1.rbxl`, 174,847 bytes, SHA-256 `E0B955F4A30672F5FFE2D0E508D31E068E27E749B45B4FE8F081D02314714745`). Verified from the file itself: all 42 decoded script sources are byte-identical (length + hash) to `src/` at `e614194`; the new arena is present (CorePlaza, ReactorDrum, OuterRing, DataArchive racks, reservoir basin, SkyDeck and islands, 100-tile grid, all marker names) together with `ServerStorage.WORLD_EXE_RollbackArena_v1`; no `ZZ_` test leftovers. Immediately before the save, Studio showed ArenaVersion 2, 522 map parts, all 12 marker counts as expected, 8/8 crates at build state, no test scripts or attributes, gravity 196.2 and Lighting 3.00/0.00.
@@ -104,7 +104,7 @@ ChatGPT review of PR #15 at `89e0d29`. One focused pass; no district rebuilds, n
 - Regression run 2: Result=PASS, 25/25, Failures empty; console 0 warnings, 0 errors.
 - BLACKOUT restored exactly to Brightness 1.80 / Exposure 0.30; Edit state clean (no `ZZ_`, StudioTimeScale cleared, camera Custom).
 - FPS not rerun: +22 small decorative parts and +1 light (1,805 → 1,827, 47 → 48) is not a material rendering change; the valid post-8A-2b benchmark stands.
-- Save: owner save 2026-11-11 14:30:14, SHA-256 `7BD0B331…8464BAC0D`, 42/42 parity; backup `WorldEXE_post-phase8a2b-corrections_2026-11-11.rbxl` identical. The previous backup (`A7500044…`) is kept.
+- Save: owner save 2026-11-11 14:30:14, SHA-256 `7BD0B331…464BAC0D`, 42/42 parity; backup `WorldEXE_post-phase8a2b-corrections_2026-11-11.rbxl` identical. The previous backup (`A7500044…`) is kept.
 
 ### Remaining shortcomings
 - Under BLACKOUT the open Archive atrium floor between the outlined edges stays a dark, featureless plane, and the north foreground under the ring has no new cue.
