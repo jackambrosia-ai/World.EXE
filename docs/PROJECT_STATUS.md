@@ -3,10 +3,10 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 8A-1 COMPLETE — merged to `main`. Next: Phase 8A-2 architectural design proposal (design review first; no implementation without approval). D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
-- Current phase: Phase 8A-1 complete; Phase 8A-2 (architectural identity) in planning — design proposal only
-- Current branch: `main`
-- Current PR: no WORLD.EXE implementation PR open. Phase 8A-1 merged via [jackambrosia-ai/World.EXE#12](https://github.com/jackambrosia-ai/World.EXE/pull/12); Phase 8A design PR #11 (draft, separate). Phase 7B merged via [jackambrosia-ai/World.EXE#10](https://github.com/jackambrosia-ai/World.EXE/pull/10). Phase 7A merged via [jackambrosia-ai/World.EXE#9](https://github.com/jackambrosia-ai/World.EXE/pull/9). Phase 6 merged via [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
+- Overall status: PHASE 8A-2a IN REVIEW — Containment Hall, Central Reactor, Central Core and Lobby Observation Bay built (draft PR #14); Stage 0 and post-build foreground FPS runs valid. Awaiting ChatGPT technical and creative review. 8A-2b/2c/2d not started. D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
+- Current phase: Phase 8A-2a — in review (implementation PR #14); design approved in draft PR #13 at `f623a4e`
+- Current branch: `phase-08a2a-hall`
+- Current PR: Phase 8A-2a in review: [jackambrosia-ai/World.EXE#14](https://github.com/jackambrosia-ai/World.EXE/pull/14) (draft); Phase 8A-2 design [jackambrosia-ai/World.EXE#13](https://github.com/jackambrosia-ai/World.EXE/pull/13) (draft). Phase 8A-1 merged via [jackambrosia-ai/World.EXE#12](https://github.com/jackambrosia-ai/World.EXE/pull/12); Phase 8A design PR #11 (draft, separate). Phase 7B merged via [jackambrosia-ai/World.EXE#10](https://github.com/jackambrosia-ai/World.EXE/pull/10). Phase 7A merged via [jackambrosia-ai/World.EXE#9](https://github.com/jackambrosia-ai/World.EXE/pull/9). Phase 6 merged via [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
 - Studio place: saved by the owner 2026-11-10 17:35:27 (`Place1.rbxl`, 135,464 bytes, SHA-256 `F4DF639AB773961792E97BF2FB305751D64ABAFCF6B11BD0F598C86368FE90FF`). The save is verified from the file itself: all 21 `Source` strings decoded from the saved `.rbxl` are byte-identical (length + hash) to `src/` at `c7f5186` (unchanged in `main` `8d244b9`), and the file has no other scripts. Before the save, the Edit place was checked clean: no test scripts or attributes, 64 DecayTiles, gravity 196.2.
 - Phase 1 merge: squash-merged 2026-11-10 by owner approval as `9b9cbd0` (from PR head `ddc784c`; merged tree identical to that head). The `phase-01-arena` branch still exists on GitHub and can be deleted.
 - Phase 2 merge: squash-merged 2026-11-10 by owner approval as `09d9c2a` (from PR head `2e99b13`; merged tree identical to that head; final gameplay code `9c6de7a`). The `phase-02-match` branch still exists on GitHub and can be deleted.
@@ -38,7 +38,10 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
   - `WorldEXE_pre-phase7b_2026-11-10.rbxl` — verified pre-Phase-7B copy (SHA-256 `3198C186…93625552`, identical to the saved place)
   - `WorldEXE_post-phase7b_2026-11-10.rbxl` — post-Phase-7B place (SHA-256 `7EB1F809…D6EEA7ED`, identical to the saved `Place1.rbxl`)
   - `WorldEXE_pre-phase8a1_2026-11-10.rbxl` — verified pre-Phase-8A-1 copy (SHA-256 `7EB1F809…D6EEA7ED`, identical to the saved place). The prototype arena is also kept inside the place as `ServerStorage.WORLD_EXE_RollbackArena_v1` (isolated; the external backup is authoritative)
-  - `WorldEXE_post-phase8a1_2026-11-10.rbxl` — post-Phase-8A-1 place (SHA-256 `E0B955F4…14714745`, identical to the saved `Place1.rbxl`); current rollback point
+  - `WorldEXE_post-phase8a1_2026-11-10.rbxl` — post-Phase-8A-1 place (SHA-256 `E0B955F4…14714745`, identical to the saved `Place1.rbxl`)
+  - `WorldEXE_pre-phase8a2a_2026-11-11.rbxl` — pre-Phase-8A-2a place (SHA-256 `E0B955F4…14714745`, same as post-8A-1)
+  - `WorldEXE_post-phase8a2a_2026-11-11.rbxl` — post-Phase-8A-2a place (SHA-256 `36776D23…F9969DEE`, identical to the saved `Place1.rbxl`); current rollback point
+- Studio place (Phase 8A-2a): saved by the owner 2026-11-11 02:27:09 (`Place1.rbxl`, 198,201 bytes, SHA-256 `36776D238C25A1E671CBC6531F842B259F0EDE1F6BAB553C40105E40F9969DEE`). Verified from the file: 42/42 script sources identical to `src/`; Map.Architecture, Map.Megastructure, ReactorSilhouette, roof, LobbyBay present; `ServerStorage.WORLD_EXE_Rollback8A2A` and `WORLD_EXE_RollbackArena_v1` present; no `ZZ_` leftovers. ArenaVersion 3, 1,223 map parts.
 - Studio place (Phase 8A-1): saved by the owner 2026-11-10 23:58:16 (`Place1.rbxl`, 174,847 bytes, SHA-256 `E0B955F4A30672F5FFE2D0E508D31E068E27E749B45B4FE8F081D02314714745`). Verified from the file itself: all 42 decoded script sources are byte-identical (length + hash) to `src/` at `e614194`; the new arena is present (CorePlaza, ReactorDrum, OuterRing, DataArchive racks, reservoir basin, SkyDeck and islands, 100-tile grid, all marker names) together with `ServerStorage.WORLD_EXE_RollbackArena_v1`; no `ZZ_` test leftovers. Immediately before the save, Studio showed ArenaVersion 2, 522 map parts, all 12 marker counts as expected, 8/8 crates at build state, no test scripts or attributes, gravity 196.2 and Lighting 3.00/0.00.
 - Studio place (Phase 7B): saved by the owner 2026-11-10 22:25:42 (`Place1.rbxl`, 167,930 bytes, SHA-256 `7EB1F809B3BE42D3A5948C4FC97F989692986E581E1C790DC2A4D2DCD6EEA7ED`). Verified from the file itself: all 42 decoded script sources are byte-identical (length + hash) to `src/` at `2fca9c5`, the 26 `Map.PatchMarkers` parts are present, and there are no `ZZ_` test leftovers. The Edit place was checked clean before the save: no test scripts or attributes, 8/8 crates at build state, 64/64 DecayTiles solid, Lighting 3.00/0.00, gravity 196.2.
 - Studio place (Phase 7A): `Place1.rbxl` last written 2026-11-10 20:41:38 (158,802 bytes, SHA-256 `3198C186DEEFA561873DB5C00672EB5AD0C4EB7AEE0A085D40A07EF393625552`). Verified from the file itself: all 36 decoded script sources are byte-identical (length + hash) to `src/` at `0ecbfa4`, the 8 Phase 7A pads (`Map.PatchSurfaces`, BounceSurface/SlipSurface tags) are present, and there are no `ZZ_` test leftovers. The Edit place was checked clean: no test scripts or attributes, pads at build state, 64/64 DecayTiles solid, 12 FragmentSpawn, Lighting 3.00/0.00, gravity 196.2.
@@ -72,10 +75,148 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 7A | Interactions + BOUNCY/SLIPPERY/BLACKOUT | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #9](https://github.com/jackambrosia-ai/World.EXE/pull/9) → `059f191` | Targeted solo: 35 PASS, 0 FAIL; round 1: 9 PASS (targeted live Architect runs) |
 | 7B | MAGNETIC/CORRUPTION/FLOOD + 3 combinations | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #10](https://github.com/jackambrosia-ai/World.EXE/pull/10) → `f9e4707` | Targeted solo: 30 PASS, 0 FAIL; round 1: 7 PASS (safe crate restore) |
 | 8A-1 | Arena greybox and gameplay migration | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #12](https://github.com/jackambrosia-ai/World.EXE/pull/12) → `44e8f1d` | Targeted solo: 40 PASS, 0 FAIL; finding fixed in round 1 (4 PASS) |
-| 8A-2 | Architectural identity | Planning — design proposal (implementation requires approval) | — | — |
+| 8A-2 | Architectural identity | 8A-2a in review (hall, reactor, core, lobby bay); 8A-2b/2c not started | [PR #14](https://github.com/jackambrosia-ai/World.EXE/pull/14) | Builder validation PASS; solo Play regression PASS; FPS valid (no measurable change) |
 | 8B | Visual polish | Not started (requires approval) | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 8A-2a report (2026-11-11)
+
+WORLD.EXE — Phase 8A-2a report: Containment Hall, Central Reactor, Central Core, Lobby Observation Bay
+
+- PR: https://github.com/jackambrosia-ai/World.EXE/pull/14 (draft, not merged). Branch phase-08a2a-hall from main 3ed5425.
+- Design PR #13 is untouched (approved design head f623a4e). PR #11 and PR #4 are untouched.
+- No src/ changes: Studio↔GitHub parity is 42/42, unchanged from main.
+- Scope was Stage 0 + 8A-2a only. 8A-2b/2c/2d and 8B were not started.
+- No ForgeGUI use, no generation, no uploads, no publishing, no persistence.
+
+1. PRECONSTRUCTION
+- Studio↔main parity 42/42 and a clean Edit place at the start.
+- Pre-8A-2a backup: WorldEXE_pre-phase8a2a_2026-11-11.rbxl, SHA-256 E0B955F4…14714745, matching the saved place.
+
+2. STAGE 0 — BENCHMARK HARDENING AND BASELINE
+Server side:
+- Requests ZERO_G, CORRUPTION and FLOOD at scale 2 (70 s each).
+- Every 0.1 s it checks that those three specific runtime ids are all ACTIVE through the whole 30 s Heartbeat window. Any break makes the run INVALID, with a reason.
+Client side:
+- Arms only on a real owner click (proof of focus) and match ACTIVE.
+- Re-asserts the scripted camera every frame.
+- INVALID if: dry run, focus lost, camera reset, too few frames, or an average within ±1 of 15 FPS.
+Dry runs: two, both invalid by design. They found and fixed two issues: the MCP tool reset the client camera, and the camera guard miscounted on its first frame.
+Baseline (VALID, owner-focused):
+- Pass A: average 60.00 FPS, 1% low 53.86, p99 18.39 ms, max 20.07 ms.
+- Pass B (3 patches verified ACTIVE throughout): average 60.00, 1% low 54.38, p99 18.19 ms.
+- Server Heartbeat p99 18.10 ms.
+
+3. BUILD
+Reproducible builder: tools/studio/phase8a2a/ 0_lib → 5_validate, plus the standalone rollback 9_restore.
+- Analytic clearance checks are used instead of raycasts, because decor has CanQuery off.
+- Budget caps; automatic full rollback on any failure.
+- The first attempt failed validation and rolled back exactly (verified). Causes:
+  - four colonnade columns blocked drone links WP_C1–4 → SN/SS (removed);
+  - coil neon windings were too large (reduced);
+  - the reactor-visibility (AC2) deviation below.
+
+Containment Hall (Map.Megastructure):
+- Terraced plinth ±320 to Y 60, terrace deck, and 12 machinery towers (tops ≤ Y 150).
+- Upper walls ±400 to Y 180, with pilasters, sparse cyan seams, a violet band and 8 deep windows.
+- Chamfered corner towers.
+- Eight box-truss ceiling ribs to a hub at Y 240 with an emitter.
+- A hip ROOF with an oculus (see deviations).
+- 8 far silhouettes, and a slate shaft floor at Y −90 with a faint grid.
+- Streaming: Silhouette = Persistent; Detail = Default; towers Atomic.
+
+Central Reactor:
+- The gameplay drum is kept. The 8A-1 thin shaft, shell, rings and cap moved to the rollback store.
+- Cradle and collars on the drum.
+- Glass containment column Ø18 with a cyan core Ø6 (Y 15–172).
+- Three tapering coil rings (Y 50/95/140), violet windings on the inner face, support arms.
+- Four lattice buttresses from collidable plinths on the mezzanine inner corners.
+- Two galleries; crown to Y 190; a beam to the ceiling hub.
+
+Central Core:
+- Containment vessel under the plaza edge (walls to Y −90, fins, two outer galleries, fascia).
+- Spoke girders and columns.
+- Mezzanine: clad pillars, capitals, knee braces, deep edge girders.
+- Collidable glass rails on the mezzanine inner edge (with a middle drop gap) and on both gantry bridges.
+- Gantry trusses, ramp stringers, hanger rods.
+- Plaza-edge colonnade: 8 collidable columns outside the flood volume, with a ring canopy at Y 60, fins and 4 pool lights.
+- Plaza inlays.
+
+Lobby: observation notch, pod underside, cheeks, canopy, shrouds, mullions, brackets, "OBSERVATION 01" signage and 2 soft lights. The only lobby change is Wall_N → Glass (Material, Transparency and Color only). Floor, spawns and behaviour are unchanged.
+
+Lighting baseline (tunable PRESET in 4_lobby_lighting):
+- ClockTime 13, latitude 20, Brightness 1.8.
+- Ambient 46,52,84; OutdoorAmbient 76,84,124.
+- Atmosphere density 0.3, haze 1.6, navy.
+- ColorCorrection contrast 0.2; Bloom threshold 1.0, intensity 0.9.
+- Sun/moon hidden, stars 0, SunRays and DepthOfField off.
+
+4. ACTUAL COUNTS
+- Map: 1,223 parts (522 → 1,223; 6 reactor parts removed), 285 collidable (ceiling 900), 21 lights (ceiling 80), 1 shadow-casting light (ceiling 12), 1 beam.
+- Hall: 394 parts (cap 420), 0 collidable, 8 lights.
+- Central Core + reactor: 299 parts (cap 320), 24 collidable (cap 28), 11 lights, 1 shadow.
+- Lobby bay: 14 parts (cap 30), 2 lights.
+- New collidable parts: 4 buttress plinths, 8 mezzanine rails, 4 bridge rails, 8 colonnade columns.
+
+5. VALIDATION
+Builder checks, final run PASS:
+- flood volumes; bounce apex columns to Y 40; 8 supply columns to Y 160; spawn pads; stabilizer radius;
+- walkable headroom (rails only at edges; structures clear of spoke corridors and ≥ 2 studs from markers);
+- 12 crate lanes; 40 drone links; collidables limited to the core region; neon-panel rule; budget caps.
+Play regression (solo):
+- ArenaService.Validate: 0 errors; all 12 marker counts unchanged.
+- BLACKOUT applied 0.5 / −1.2 and restored EXACTLY to 1.8 / 0.
+- Full match LOBBY→…→RESET→LOBBY, then match 2 initialized.
+- Arena baseline matches after RESET; 0 warnings or errors.
+Streaming:
+- StreamingEnabled and radius 1024 unchanged.
+- The client received all 1,223 parts, including Silhouette (181) and ReactorSilhouette (73), both Persistent.
+Reactor visibility (AC2, analytic segment-vs-box against ALL parts including decor; 485k tests):
+- Readable from 11/16 spawns and the lobby centre (63%).
+- DEVIATION FOR REVIEW: RES_1, RES_2, ARCH_1, ARCH_2 and ARCH_3 are blocked at the spawn eye by the pre-existing 8A-1 Outer Ring deck overhead. The reactor reads after walking 20 / 20 / 4 / 16 / 16 studs toward the core. Fixing this would mean moving gameplay geometry, which was not authorized.
+
+6. FPS — POST-8A-2a (VALID, owner-focused; same method)
+- Pass A: 60.00 → 60.00 average; 1% low 53.86 → 54.27; p99 18.39 → 18.25 ms; max 20.07 → 19.26.
+- Pass B: 60.00 → 60.00; 1% low 54.38 → 53.72; p99 18.19 → 18.37 ms.
+- Server Heartbeat p99 18.10 → 18.05 ms.
+- Studio memory +18 to +33 MB.
+- Targets PASS: average 100% of baseline; 1% low ≥ 45; Heartbeat within 10%.
+- Caveat: the 60 FPS cap masks headroom. Differences are within noise. Desktop only.
+
+7. DEVIATIONS FROM THE DESIGN (for review)
+- (a) Lighting: the approved night preset (ClockTime 0.5) rendered almost black, and dusk left the enclosed hall in shadow. Replaced with a high sun plus navy atmosphere (screenshot of the rejected preset included).
+- (b) Roof added: haze dense enough to hide the default sky also faded the reactor at about 300 studs. A non-shadow-casting hip roof (16 parts) removes the sky while keeping long sightlines. The design said "no ceiling panels".
+- (c) South rib relocated: it landed on the lobby bay and blocked the window. It now springs at r 330 under the roof.
+- (d) Containment "pit": the plaza is a solid 200×200 slab, so the pit became a containment vessel under the plaza edge, visible from the routes, not from the plaza.
+- (e) Colonnade reduced from 12 to 8 columns (drone links).
+- (f) AC2 spawn deviations, as in section 5.
+
+8. VISUAL SHORTCOMINGS (honest)
+- The outer districts and Skybridge stepping blocks are still unsupported greybox slabs (8A-2b scope).
+- Palette is very navy-monochrome; the deep windows show pale haze.
+- Coil rings look visibly faceted (segment blocks); the F1 mesh option would fix this.
+- Violet windings are weak.
+- The reactor is slim relative to an 800-stud hall.
+- From head height in the lobby the reactor reads small and the roof underside is dark; the third-person view frames it well.
+- The Reservoir basin and some floors are dark, though cyan edges read.
+- BLACKOUT is very dark; walkable neon edges and the reactor stay readable.
+
+9. EVIDENCE (docs/phase8a2a/ on PR #14)
+- Before: docs/phase8a2/g1–g6.
+- After, the same six cameras: after_g1 … after_g6.
+- Core close-ups: after_core_closeup_mezz_pillar, after_core_closeup_reactor.
+- Lobby: after_lobby_thirdperson, after_lobby_headheight.
+- Overhead: after_overhead_exterior, after_interior_high.
+- after_blackout_g1; rejected_night_preset_g1.
+- fps_baseline_stage0.json, fps_post_8a2a.json, validation_8a2a.json.
+
+10. SAVE AND BACKUP
+- The owner saved Place1.rbxl at 2026-11-11 02:27:09 (198,201 bytes), SHA-256 36776D238C25A1E671CBC6531F842B259F0EDE1F6BAB553C40105E40F9969DEE.
+- Verified from the file: 42/42 script sources identical to src/; Architecture, Megastructure, ReactorSilhouette, EnergyCore, RoofPlate, LobbyBay and signage present; rollback stores present; 0 ZZ_ leftovers.
+- Backup: WorldEXE_post-phase8a2a_2026-11-11.rbxl, SHA-256 identical (36776D23…F9969DEE). This is the current rollback point.
+
+Stopped for ChatGPT's technical and creative review. Not merged; 8A-2b not started.
 
 ## Phase 8A-1 final review (2026-11-10)
 ChatGPT approved PR #12 at `e614194`: no remaining merge blockers. The `MatchStateChanged` correction is accepted. No additional regression testing was required.
