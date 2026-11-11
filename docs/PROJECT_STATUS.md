@@ -3,10 +3,10 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 5 IMPLEMENTED — review round 1 corrected (aborted-match results); awaiting ChatGPT final review; not merged. Multiplayer validation deferred to the batched integration milestone (required before public release). Open owner decision: D3 (stability affecting match flow) not implemented. Phase 6 requires separate approval Phase 5 not started and requires separate owner approval
-- Current phase: Phase 5 — Stability, objectives, collectibles, scoring (round 1 corrected, final review pending)
+- Overall status: PHASE 5 APPROVED BY CHATGPT (final review at `6e7ed2e`) — saved and backed up; awaiting the owner's merge approval. Multiplayer validation deferred to the batched integration milestone (required before public release). Open owner decision: D3 (stability affecting match flow) not implemented. Phase 6 requires separate approval Phase 5 not started and requires separate owner approval
+- Current phase: Phase 5 — Stability, objectives, collectibles, scoring (approved, not merged)
 - Current branch: `phase-05-objectives-scoring` (from `main` `9f760c6`)
-- Current PR: [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6) targeting `main` (open, not merged). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
+- Current PR: [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6) targeting `main` (open, approved, not merged). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
 - Studio place: saved by the owner 2026-11-10 17:35:27 (`Place1.rbxl`, 135,464 bytes, SHA-256 `F4DF639AB773961792E97BF2FB305751D64ABAFCF6B11BD0F598C86368FE90FF`). The save is verified from the file itself: all 21 `Source` strings decoded from the saved `.rbxl` are byte-identical (length + hash) to `src/` at `c7f5186` (unchanged in `main` `8d244b9`), and the file has no other scripts. Before the save, the Edit place was checked clean: no test scripts or attributes, 64 DecayTiles, gravity 196.2.
 - Phase 1 merge: squash-merged 2026-11-10 by owner approval as `9b9cbd0` (from PR head `ddc784c`; merged tree identical to that head). The `phase-01-arena` branch still exists on GitHub and can be deleted.
 - Phase 2 merge: squash-merged 2026-11-10 by owner approval as `09d9c2a` (from PR head `2e99b13`; merged tree identical to that head; final gameplay code `9c6de7a`). The `phase-02-match` branch still exists on GitHub and can be deleted.
@@ -23,8 +23,9 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
   - `WorldEXE_post-phase3_2026-11-10.rbxl` — post-Phase-3 place (SHA-256 `2663A50D…F11FBB98`, identical to the saved `Place1.rbxl`)
   - `WorldEXE_pre-phase4_2026-11-10.rbxl` — verified pre-Phase-4 copy (SHA-256 `2663A50D…F11FBB98`, identical to the saved place)
   - `WorldEXE_post-phase4_2026-11-10.rbxl` — post-Phase-4 place (SHA-256 `F4DF639A…68FE90FF`, identical to the saved `Place1.rbxl`)
-  - `WorldEXE_pre-phase5_2026-11-10.rbxl` — verified pre-Phase-5 copy (SHA-256 `F4DF639A…68FE90FF`, identical to the saved place); current rollback point
-- Studio place (Phase 5): the open session has the 25 Phase 5 scripts (hash-identical to the branch) plus the 12 FragmentSpawn markers, and no test leftovers. **It must be saved (Ctrl+S) and a post-Phase-5 backup taken before merge.** The last saved file is the post-Phase-4 place.
+  - `WorldEXE_pre-phase5_2026-11-10.rbxl` — verified pre-Phase-5 copy (SHA-256 `F4DF639A…68FE90FF`, identical to the saved place)
+  - `WorldEXE_post-phase5_2026-11-10.rbxl` — post-Phase-5 place (SHA-256 `13CDA584…FEC74635`, identical to the saved `Place1.rbxl`); current rollback point
+- Studio place (Phase 5): saved by the owner 2026-11-10 18:16:45 (`Place1.rbxl`, 144,480 bytes, SHA-256 `13CDA584FCF8C65F22044D67DF9CFCD45043F2669F21F8456304ADCCFEC74635`). Verified from the file itself: all 25 decoded script sources are byte-identical (length + hash) to `src/` at `6e7ed2e`, the file has no other scripts, and the 12 FragmentSpawn marker ids are present. Before the save, the Edit place was checked clean: no test scripts or attributes, stabilizer rings at their original colour, 64 DecayTiles, gravity 196.2.
 - Studio save: Studio MCP cannot save the place — the owner must press Ctrl+S after each change set. Latest save 2026-11-10 16:35:24 (post-Phase-3 incl. review round 1, backed up).
 - StreamingEnabled: unchanged (enabled), per Phase 0 review
 - Multi-client testing: Phase 2 run with Studio Clients and Servers (1 server + 2 clients) on 2026-11-10 — see the matrix in "Phase 2 review round 2 correction". Phase 1 tests remain solo.
@@ -44,12 +45,26 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 2 | Match and Architect | **Complete — merged** (solo + two-client Studio tests; gaps listed above) | [PR #2](https://github.com/jackambrosia-ai/World.EXE/pull/2) → `09d9c2a` | Two-client matrix: 19 PASS, 1 split, 1 NOT TESTED |
 | 3 | Patch engine | **Complete — merged** (solo Studio tests; multi-client outstanding) | [PR #3](https://github.com/jackambrosia-ai/World.EXE/pull/3) → `c2ab456` | Original: 25 PASS, 0 FAIL, 3 NOT TESTED. Round 1: 18 PASS, 0 FAIL, 1 NOT TESTED |
 | 4 | Four prototype patches | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #5](https://github.com/jackambrosia-ai/World.EXE/pull/5) → `8d244b9` | Solo: 36 PASS, 0 FAIL, 3 NOT TESTED; round 1: 6 PASS (targeted); multiplayer deferred |
-| 5 | Stability/objectives/scoring | **Round 1 corrected — final review pending, not merged** (solo Studio tests) | [PR #6](https://github.com/jackambrosia-ai/World.EXE/pull/6), branch `phase-05-objectives-scoring` | Targeted solo: 36 PASS, 0 FAIL; round 1: 10 PASS (targeted); multiplayer deferred |
+| 5 | Stability/objectives/scoring | **Approved (final review `6e7ed2e`) — awaiting owner merge** (solo Studio tests; multiplayer deferred) | [PR #6](https://github.com/jackambrosia-ai/World.EXE/pull/6), branch `phase-05-objectives-scoring` | Targeted solo: 36 PASS, 0 FAIL; round 1: 10 PASS (targeted); multiplayer deferred |
 | 6 | Initial abilities | Not started | — | — |
 | 7 | Interactions and expansion | Not started | — | — |
 | 8 | UI and visual polish | Not started | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 5 final review (2026-11-10)
+ChatGPT approved Phase 5 at `6e7ed2e`: no remaining blocking code issues. It accepted the aborted-match outcome correction, the reward policy, the departed-player award protection, results compatibility, and the targeted regressions.
+
+Closeout (completed; no full re-test and no multiplayer session, per review):
+1. Studio ↔ GitHub parity: 25/25 scripts hash-identical to `6e7ed2e`.
+2. Edit place clean: no test scripts, attributes or runtime objects; rings at their original colour; 12 FragmentSpawn markers and 64 DecayTiles; gravity 196.2.
+3. The owner saved `Place1.rbxl` (2026-11-10 18:16:45). Verified from the file: 25 decoded script sources match `src/`, and 12/12 FragmentSpawn ids are present.
+4. Backup `WorldEXE_post-phase5_2026-11-10.rbxl` created. Its SHA-256 matches the saved place: `13CDA584FCF8C65F22044D67DF9CFCD45043F2669F21F8456304ADCCFEC74635`.
+5. This document and the PR #6 description were updated.
+
+Still open, by design:
+- D3 (stability changing match flow) stays unimplemented, pending a separate design decision.
+- The Phase 5 multiplayer scenarios stay NOT TESTED and are assigned to the multiplayer integration milestone before public release.
 
 ## Phase 5 review round 1 correction (2026-11-10)
 
