@@ -50,6 +50,10 @@
       <line x1="200" y1="200" x2="480" y2="20"/><line x1="760" y1="200" x2="480" y2="20"/>
     </g>
     <ellipse cx="480" cy="22" rx="60" ry="10" fill="none" stroke="#26345e" stroke-width="8"/>
+    <!-- rev 2: terrace plinth (Y 60) in front of the set-back upper wall -->
+    <rect x="0" y="336" width="960" height="44" fill="#1a2348"/>
+    <rect x="0" y="333" width="960" height="4" fill="#26345e"/>
+    <g fill="#141c3c"><rect x="60" y="300" width="30" height="33"/><rect x="860" y="296" width="34" height="37"/></g>
     <rect x="0" y="230" width="960" height="150" fill="url(#haze)"/>
 
     <!-- reactor complex -->
@@ -96,8 +100,9 @@
       <text x="560" y="80">reactor crown Y 190, beam to rib hub Y 240</text>
       <text x="590" y="120">3 coil rings (violet inner face only)</text>
       <text x="610" y="160">glass column + cyan energy core</text>
-      <text x="40" y="190">ceiling ribs (Y 200–240)</text>
-      <text x="20" y="225">hall wall ±300, deep windows</text>
+      <text x="40" y="190">ceiling ribs (Y 180–240)</text>
+      <text x="20" y="225">upper hall wall ±400 (Y 180), deep windows</text>
+      <text x="20" y="352" fill="#9aa6c8">terrace plinth ±320 (Y 60)</text>
       <text x="700" y="296">canopy ring + colonnade (open over pads)</text>
       <text x="20" y="490">plaza = lid of containment pit; radial inlays</text>
     </g>
