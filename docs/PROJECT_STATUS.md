@@ -3,7 +3,7 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 8A-2b IN RE-REVIEW (district architecture built; targeted review corrections applied, validated and saved; draft PR open). Phase 8A-2a merged as `1773f13` with the owner-approved five-spawn strict-AC2 waiver and roof/lighting A′. D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
+- Overall status: PHASE 8A-2b APPROVED, AWAITING OWNER MERGE DECISION (ChatGPT final review of PR #15 at `b250d00`, 2026-11-11: technical and creative review approved; no further 8A-2b changes required). PR #15 stays draft and unmerged until the owner authorizes the merge. Phase 8A-2a merged as `1773f13` with the owner-approved five-spawn strict-AC2 waiver and roof/lighting A′. D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
 - Current phase: Phase 8A-2b — district architecture (Research Yard, Skybridge, Data Archive, Coolant Reservoir, Outer Ring, shared supports); design approved in draft PR #13 at `f623a4e`, with the 8A-2a decisions taking precedence
 - Current branch: `phase-08a2b-districts` (from `main` `1773f13`)
 - Current PR: Phase 8A-2b in review: draft PR on `phase-08a2b-districts`; Phase 8A-2 design [jackambrosia-ai/World.EXE#13](https://github.com/jackambrosia-ai/World.EXE/pull/13) (draft). Phase 8A-2a merged via [jackambrosia-ai/World.EXE#14](https://github.com/jackambrosia-ai/World.EXE/pull/14). Phase 8A-1 merged via [jackambrosia-ai/World.EXE#12](https://github.com/jackambrosia-ai/World.EXE/pull/12); Phase 8A design PR #11 (draft, separate). Phase 7B merged via [jackambrosia-ai/World.EXE#10](https://github.com/jackambrosia-ai/World.EXE/pull/10). Phase 7A merged via [jackambrosia-ai/World.EXE#9](https://github.com/jackambrosia-ai/World.EXE/pull/9). Phase 6 merged via [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
@@ -68,7 +68,8 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 - Known Phase 7A gaps (not counted as passed): a real failing combination activation (shared RunHook path covered by E1/E2); combination cap 5 unreachable with 2 combinations; departure/recovery during a combination (code paths only); BLACKOUT on a real client; all multiplayer behaviour — deferred to the multiplayer integration milestone.
 - Known Phase 7B gaps (not counted as passed): recovery, shutdown or departure while a 7B patch runs (code paths only); all multiplayer behaviour (crate replication, several players pausing crates, flood slow and corruption damage on several players) — deferred to the multiplayer integration milestone.
 - Known Phase 8A-1 gaps (not counted as passed): multiplayer behaviour on the larger map; device performance (mobile FPS/memory); a meaningful foreground desktop client FPS measurement (requested before Phase 8A-2 approval). The `MatchStateChanged` warning was fixed in review round 1.
-- Last updated: 2026-11-10
+- Carry-forward polish (nonblocking, recorded at 8A-2b approval; not to be implemented until planned in a later phase): Archive BLACKOUT atrium floor and north-foreground readability; modest visual improvements to the dominant Skybridge pylons and other district silhouettes; mobile accessibility and performance testing.
+- Last updated: 2026-11-11
 
 ## Phase tracker
 | Phase | Scope | Status | PR/Commit | Studio test evidence |
@@ -83,12 +84,14 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 7A | Interactions + BOUNCY/SLIPPERY/BLACKOUT | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #9](https://github.com/jackambrosia-ai/World.EXE/pull/9) → `059f191` | Targeted solo: 35 PASS, 0 FAIL; round 1: 9 PASS (targeted live Architect runs) |
 | 7B | MAGNETIC/CORRUPTION/FLOOD + 3 combinations | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #10](https://github.com/jackambrosia-ai/World.EXE/pull/10) → `f9e4707` | Targeted solo: 30 PASS, 0 FAIL; round 1: 7 PASS (safe crate restore) |
 | 8A-1 | Arena greybox and gameplay migration | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #12](https://github.com/jackambrosia-ai/World.EXE/pull/12) → `44e8f1d` | Targeted solo: 40 PASS, 0 FAIL; finding fixed in round 1 (4 PASS) |
-| 8A-2 | Architectural identity | 8A-2a merged (`1773f13`); 8A-2b in re-review (districts, corrections applied); 8A-2c not started | [PR #14](https://github.com/jackambrosia-ai/World.EXE/pull/14) (8A-2a); [PR #15](https://github.com/jackambrosia-ai/World.EXE/pull/15) (8A-2b, draft) | 8A-2b: combined acceptance PASS (C1–C13, AC6, strict AC2 non-waived; 5 waived spawns reported separately), regression run 2 Result=PASS (25/25), FPS valid (targets met) |
+| 8A-2 | Architectural identity | 8A-2a merged (`1773f13`); 8A-2b approved at `b250d00`, awaiting owner merge; 8A-2c not started | [PR #14](https://github.com/jackambrosia-ai/World.EXE/pull/14) (8A-2a); [PR #15](https://github.com/jackambrosia-ai/World.EXE/pull/15) (8A-2b, draft) | 8A-2b: combined acceptance PASS (C1–C13, AC6, strict AC2 non-waived; 5 waived spawns reported separately), regression run 2 Result=PASS (25/25), FPS valid (targets met) |
 | 8B | Visual polish | Not started (requires approval) | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
 
 ## Phase 8A-2b targeted review corrections (2026-11-11)
+
+**Final review (ChatGPT, `b250d00`): APPROVED.** The corrections resolve the review blockers; no further 8A-2b changes, construction cycles or regression runs are required. Nonblocking polish carried forward (see Current state). Awaiting the owner's merge decision.
 
 ChatGPT review of PR #15 at `89e0d29`. One focused pass; no district rebuilds, no new architecture, no gameplay geometry change, A′ preserved.
 
