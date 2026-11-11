@@ -82,6 +82,132 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
 
+## Phase 8A-2a final technical corrections (round 2, 2026-11-11)
+
+PR #14 is still DRAFT and not merged. PR #13, #11 and #4 are untouched. No new phase was started. No ForgeGUI, meshes, generated assets, publishing, persistence or paid services. No `src/` changes.
+
+### 1. Reactor geometry (Priority 1): `tools/studio/phase8a2a/8_hollow_rings.luau`
+The solid cylinders were removed to the rollback store (`…Rollback8A2A.CorrectionRemoved`): CoilBand1–3, CoilViolet1–3, GalleryRing60 and GalleryRing120. Replacements are parts only:
+
+- **Hollow coils:** three annular rings built from tangential segments.
+  - y50: r 32, 18 segments, 8 tall.
+  - y95: r 27, 16 segments, 7 tall.
+  - y140: r 22, 14 segments, 6 tall.
+  - Each ring is 6 deep with alternating gunmetal tones. The interiors stay open, so the cyan column and core show through every coil.
+- **Violet identity:** narrow Neon trims, 1.0 × 0.3 studs, on the outer face of every other segment (dashed windings). No large neon surfaces; the C11 neon rule passes on 95 Neon parts. The three violet coil lights are re-hosted on trims, so the light count is unchanged.
+- **Ties:** 4 radial arms per coil connect each ring to the column. They sit 22.5° off the diagonals. On the diagonals they blocked the CORE spawns' column samples; the audit caught it and they were moved.
+- **Galleries:** each level (Y 60 and Y 120) is 8 open DiamondPlate deck segments between r 14 and r 19. They read as structural rings, and the column stays visible above and below.
+- **Scope:** decorative only (no collide, query, touch or shadow). Silhouette size, cyan column/core and crown are unchanged.
+- **Counts:** removed 8 parts, added 100. Central Core 309/320 parts, 24/28 collidable (unchanged), 11/11 lights.
+
+Screenshots in `docs/phase8a2a/round2/`:
+- `before_G1` / `after_G1`
+- `before_G6` / `after_G6`
+- `before_lobby_head` / `after_lobby_head`
+- `player_CORE_1` (actual Play client, HUD visible)
+
+What they show:
+- **G1:** the lower coil reads as a hollow ring with the cyan core visible through it. The upper coils show segment facets and dashed violet trims.
+- **G6:** the open galleries and coils read against the column.
+- **Lobby:** still small at 420 studs; the lobby top trim still crosses it.
+- **CORE_1:** the coils and core fill the frame, but the HUD panel still covers the upper reactor (8B UI).
+
+### 2. Audit fidelity (Priority 2): `6_audit.luau` revision 2, read-only
+- **C1–C11** are now identical to `5_validate`, including the full C6 block: rail-edge test, sloped floors, spoke corridors and the 2-stud marker clearance. It checked 12 rails and 12 structures.
+- **Strict AC2 benchmark:** unchanged (same samples, occluders and thresholds). Walk-out is reported as mitigation only.
+- **SELF self-occlusion (new, informational):** uses the actual corrected reactor geometry as occluders; everything except the EnergyCore and parts with Transparency ≥ 0.4 blocks. It samples 16 core-surface points facing the viewer and 8 crown-fin outer-face points.
+- **AC1 split** into:
+  - geometry intersection: any part with Transparency < 0.95;
+  - sky seen only through translucent surfaces.
+- **State recorded:** ArenaVersion 3, Correction8A2A and Correction8A2A_R2 set, 717 new parts.
+- `5_validate.luau` C11 tightened: any Neon part whose second-largest dimension exceeds 4 fails, except EnergyCore, HubEmitter and CrownEmitter.
+
+### 3. Final read-only audit: one run after all geometry changes
+Saved as `docs/phase8a2a/audit_round2_final.json`.
+
+**Gameplay checks:** C1–C11 all PASS.
+- Flood, bounce, 8 supply columns, spawns and stabilizers are clear.
+- Headroom, rails and corridors pass (C6).
+- 12 crate lanes and 40 drone links pass.
+- Collidables are in the core only.
+- Neon rule and budgets pass.
+- Marker counts are unchanged.
+
+**Budgets:**
+- Map: 1,233 parts, 285 collidable (unchanged), 21 lights, 1 shadow.
+- Megastructure: 394/420 parts, 0 collidable, 8 lights.
+- LobbyBay: 14/30 parts, 0 collidable, 2 lights.
+- CoreTotal: 309/320 parts, 24/28 collidable, 11/11 lights.
+
+**Streaming:** Silhouette, ReactorSilhouette and LobbyBay are Persistent; assemblies are Atomic; Detail and Dressing are Default.
+
+**Strict AC2:** FAIL at the same 5 spawns. These are not changed and await the owner decision.
+
+| Spawn | Visible | Crown | Column | Blockers | Walk-out (mitigation only) |
+|---|---|---|---|---|---|
+| RES_1 | 23% | 0 | 5 | RingRamp_W 14, Ring_S 13 | 20 studs |
+| RES_2 | 23% | 0 | 5 | RingRamp_E 14, Ring_S 13 | 20 studs |
+| ARCH_1 | 40% | 0 | 9 | Ring_N 14, ArchiveWalk_S 4 | 4 studs |
+| ARCH_2 | 13% | 0 | 3 | Ring_N 14, RackDeck_NW 7, Rack_-66B 7 | 16 studs |
+| ARCH_3 | 13% | 0 | 3 | Ring_N 14, RackDeck_NE 7, Rack_66B 7 | 16 studs |
+
+The other 11 spawns pass:
+- CORE_1–4: 63–65%, column 4, crown 11–12.
+- SKY: 63–88%. YARD: 60–68%. RES_3: 63%.
+
+Lobby:
+- centre at head height: PASS 60%, down from 63%, because one Coil3Arm blocks one sample;
+- third-person: 83%;
+- at the glass: 93%.
+
+**SELF self-occlusion (informational), core / crown visible:**
+- CORE_1–4: 2/16 and 2/8. Close to the column, the coils and buttresses frame the core.
+- SKY_1–3: 8/16 and 5–6/8.
+- YARD: 7–8/16 and 0–6/8.
+- RES_1/2: 4/16 and 0/8. RES_3: 7/16 and 4/8.
+- ARCH_1: 7/16 and 0/8. ARCH_2/3: 2/16 and 0/8.
+- Lobby: head 8/16 and 2/8, third-person 11/16 and 4/8, at the glass 12/16 and 4/8.
+
+**AC1:**
+- Geometry intersection: 0/45 rays clear all geometry from each of G1–G6.
+- Sky seen only through translucent surfaces (A′ glass roof): G1 8, G2 11, G3 0, G4 0, G5 6, G6 7 of 45.
+
+**AC3:** the tallest element is CrownFin_1 at Y 192; the tallest non-reactor element is a terrace cap at Y 150; the strongest light is the EnergyCore. **AC6:** 0 reserved hues; core spans are supported within 0–5 studs.
+
+### 4. Performance
+No new benchmark was run. The change adds 92 decorative parts (1,141 → 1,233): no collision, no shadows, no new lights, no lighting change. The part count is within 10 of the 1,223-part state already benchmarked as VALID (1% low 53.86 / 54.38, 60 FPS cap). Not a material change to the render workload.
+
+### 5. Pending owner decisions (not resolved, not claimed)
+- **Strict AC2 at 5 spawns:** needs a waiver or a scoped gameplay change. Ring_N, Ring_S, ring ramps, rack decks and spawns were not modified. ChatGPT's five-spawn waiver is a recommendation only.
+- **Roof A′ (tinted glass + daytime sun):** still provisional. ChatGPT's recommendation to accept it is not owner authorization.
+
+### 6. Save, parity, backups
+- The owner saved Place1.rbxl at 2026-11-11 03:28:25 (201,873 bytes), SHA-256 `CF21106DB9D5180076EA79CD6DC7945EDB713475F02CB8D8C6E0271FADF7C0FD`.
+- Verified from the file:
+  - 42/42 script sources identical to GitHub `src/`;
+  - Coil segments, Gallery60 segments and the Correction8A2A_R2 marker present;
+  - CoilBand1 and GalleryRing60 present only once each, in the rollback store;
+  - 0 `ZZ_` leftovers.
+- New backup: `WorldEXE_post-phase8a2a-corrections-r2_2026-11-11.rbxl`, hash identical. This is now the rollback point.
+- Kept: `…corrections_2026-11-11.rbxl` (C69A4704…) and `…post-phase8a2a_2026-11-11.rbxl` (36776D23…).
+
+### 7. Changed files
+- Added: `tools/studio/phase8a2a/8_hollow_rings.luau`.
+- Changed: `tools/studio/phase8a2a/6_audit.luau`, `5_validate.luau`, `README.md` (step 8, C11 rule, audit description).
+- Evidence: `docs/phase8a2a/audit_round2_final.json` and `docs/phase8a2a/round2/*.jpg`.
+- Status: `docs/PROJECT_STATUS.md`.
+
+### Remaining shortcomings
+- The 5 strict-AC2 spawns.
+- The roof/daylight deviation.
+- The lobby view of the reactor is small and crossed by the lobby trim.
+- From the CORE spawns the reactor's own coils and buttresses hide much of the core (SELF 2/16).
+- The HUD covers the reactor in the Core player view (8B).
+- Archive is dark under BLACKOUT.
+- Outer districts still float (8A-2b).
+
+Stopped for ChatGPT re-review.
+
 ## Phase 8A-2a review-correction report (2026-11-11)
 
 WORLD.EXE — Phase 8A-2a review-correction report (stop for re-review)
