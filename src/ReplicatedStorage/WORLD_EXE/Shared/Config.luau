@@ -4,7 +4,7 @@
 
 local Config = {}
 
-Config.Version = "0.6.0-phase6"
+Config.Version = "0.7.0-phase7a"
 Config.RootName = "WORLD_EXE"
 
 -- CollectionService tags used by the Studio-owned arena.
@@ -15,6 +15,8 @@ Config.Tags = table.freeze({
 	SupplyLandingPoint = "SupplyLandingPoint",
 	DroneWaypoint = "DroneWaypoint",
 	FragmentSpawn = "FragmentSpawn", -- Phase 5: data-fragment spawn markers (Map.FragmentSpawns)
+	BounceSurface = "BounceSurface", -- Phase 7A: BOUNCY pads (Map.PatchSurfaces)
+	SlipSurface = "SlipSurface", -- Phase 7A: SLIPPERY pads (Map.PatchSurfaces)
 })
 
 -- Phase 1 arena baseline. Server validation reports any drift from these counts.
@@ -27,6 +29,8 @@ Config.ExpectedTagCounts = table.freeze({
 	SupplyLandingPoint = 5,
 	DroneWaypoint = 15,
 	FragmentSpawn = 12,
+	BounceSurface = 4,
+	SlipSurface = 4,
 })
 
 -- Instance class each tag must be applied to (checked with IsA).
@@ -37,6 +41,8 @@ Config.TagClasses = table.freeze({
 	SupplyLandingPoint = "BasePart",
 	DroneWaypoint = "BasePart",
 	FragmentSpawn = "BasePart",
+	BounceSurface = "BasePart",
+	SlipSurface = "BasePart",
 })
 
 export type AttributeKind = "id" | "zone" | "positive" | "links"
@@ -72,6 +78,14 @@ Config.AttributeSchema = table.freeze({
 	}),
 	FragmentSpawn = table.freeze({
 		table.freeze({ name = "FragmentSpawnId", kind = "id" }),
+		table.freeze({ name = "Zone", kind = "zone" }),
+	}),
+	BounceSurface = table.freeze({
+		table.freeze({ name = "SurfaceId", kind = "id" }),
+		table.freeze({ name = "Zone", kind = "zone" }),
+	}),
+	SlipSurface = table.freeze({
+		table.freeze({ name = "SurfaceId", kind = "id" }),
 		table.freeze({ name = "Zone", kind = "zone" }),
 	}),
 }) :: { [string]: { AttributeField } }
@@ -116,10 +130,14 @@ Config.Match = table.freeze({
 
 Config.Architect = table.freeze({
 	FirstTurnDelaySeconds = 15, -- after ACTIVE starts
-	TurnIntervalSeconds = 45, -- gap between the end of one turn and the start of the next
+	-- Gap between the end of one turn and the start of the next. Phase 7A review round 1: 45 -> 25 so
+	-- consecutive Architect patches (35 s) overlap and combinations can occur in normal play.
+	TurnIntervalSeconds = 25,
 	SubmissionWindowSeconds = 12,
 	CardsOffered = 4,
 	NoEligibleRetrySeconds = 3,
+	MaxSevereCards = 2, -- Phase 7A rotation: at most this many "severe" cards per offer
+	NoRepeatTurns = 2, -- Phase 7A rotation: patches accepted in this many latest turns are not offered
 	MaxInputLength = 32,
 	RateLimitBurst = 4,
 	RateLimitPerSecond = 1,
@@ -190,6 +208,9 @@ Config.Patches = table.freeze({
 -- Shared world properties owned by WorldModifierService (effective value is clamped to this range).
 Config.WorldModifiers = table.freeze({
 	Gravity = table.freeze({ Min = 0, Max = 1000 }),
+	-- Phase 7A (BLACKOUT): readable minimums so hazards and prompts stay visible.
+	Brightness = table.freeze({ Min = 0.5, Max = 10 }),
+	ExposureCompensation = table.freeze({ Min = -1.5, Max = 3 }),
 })
 
 ---------------------------------------------------------------------------------------------------

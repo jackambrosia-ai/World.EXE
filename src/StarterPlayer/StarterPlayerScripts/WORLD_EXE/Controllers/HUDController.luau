@@ -233,6 +233,8 @@ function HUDController.Start(remotes: Instance)
 		end
 		if data.Outcome == "accepted" and typeof(data.DisplayName) == "string" then
 			bannerText.Text = string.format("PATCH SUBMITTED: %s by %s\n%s", string.upper(data.DisplayName), tostring(data.ArchitectName), tostring(data.Warning))
+		elseif data.Outcome == "interaction" and typeof(data.DisplayName) == "string" then
+			bannerText.Text = string.format("COMBINATION DISCOVERED: %s\n%s\n+%s for everyone still in the match", string.upper(data.DisplayName), tostring(data.Warning), tostring(data.DiscoveryPoints))
 		else
 			bannerText.Text = string.format("Architect turn skipped (%s)", tostring(data.Outcome))
 		end

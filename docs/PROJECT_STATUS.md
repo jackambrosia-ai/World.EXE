@@ -3,10 +3,10 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 6 COMPLETE — merged to `main`. D3 (stability changing match flow) stays unimplemented pending a design decision. Multiplayer validation is deferred to the pre-release integration milestone. Phase 7 not started; it requires separate owner approval D3 still unimplemented pending a design decision. Multiplayer validation deferred to the integration milestone (required before public release). Phase 7 requires separate approval Multiplayer validation deferred to the batched integration milestone (required before public release). Open owner decision: D3 (stability affecting match flow) not implemented. Phase 6 requires separate approval Phase 5 not started and requires separate owner approval
-- Current phase: Phase 6 complete; next is Phase 7 — Interactions and catalog expansion (planning; awaiting approval)
-- Current branch: `main`
-- Current PR: no WORLD.EXE phase PR open. Phase 6 merged via [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
+- Overall status: PHASE 7A APPROVED — ChatGPT final review approved PR #9 at `0ecbfa4`; closeout done (parity, clean place, saved place verified, post-7A backup). Awaiting explicit owner approval to squash-merge. Phase 7B not started. D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
+- Current phase: Phase 7A — approved; awaiting owner merge decision
+- Current branch: `phase-07a-interactions`
+- Current PR: Phase 7A in review: [jackambrosia-ai/World.EXE#9](https://github.com/jackambrosia-ai/World.EXE/pull/9). Phase 6 merged via [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
 - Studio place: saved by the owner 2026-11-10 17:35:27 (`Place1.rbxl`, 135,464 bytes, SHA-256 `F4DF639AB773961792E97BF2FB305751D64ABAFCF6B11BD0F598C86368FE90FF`). The save is verified from the file itself: all 21 `Source` strings decoded from the saved `.rbxl` are byte-identical (length + hash) to `src/` at `c7f5186` (unchanged in `main` `8d244b9`), and the file has no other scripts. Before the save, the Edit place was checked clean: no test scripts or attributes, 64 DecayTiles, gravity 196.2.
 - Phase 1 merge: squash-merged 2026-11-10 by owner approval as `9b9cbd0` (from PR head `ddc784c`; merged tree identical to that head). The `phase-01-arena` branch still exists on GitHub and can be deleted.
 - Phase 2 merge: squash-merged 2026-11-10 by owner approval as `09d9c2a` (from PR head `2e99b13`; merged tree identical to that head; final gameplay code `9c6de7a`). The `phase-02-match` branch still exists on GitHub and can be deleted.
@@ -29,7 +29,10 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
   - `WorldEXE_pre-phase5_2026-11-10.rbxl` — verified pre-Phase-5 copy (SHA-256 `F4DF639A…68FE90FF`, identical to the saved place)
   - `WorldEXE_post-phase5_2026-11-10.rbxl` — post-Phase-5 place (SHA-256 `13CDA584…FEC74635`, identical to the saved `Place1.rbxl`)
   - `WorldEXE_pre-phase6_2026-11-10.rbxl` — verified pre-Phase-6 copy (SHA-256 `13CDA584…FEC74635`, identical to the saved place)
-  - `WorldEXE_post-phase6_2026-11-10.rbxl` — post-Phase-6 place (SHA-256 `B2252755…B397F3B2`, identical to the saved `Place1.rbxl`); current rollback point
+  - `WorldEXE_post-phase6_2026-11-10.rbxl` — post-Phase-6 place (SHA-256 `B2252755…B397F3B2`, identical to the saved `Place1.rbxl`)
+  - `WorldEXE_pre-phase7a_2026-11-10.rbxl` — verified pre-Phase-7A copy (SHA-256 `B2252755…B397F3B2`, identical to the saved place)
+  - `WorldEXE_post-phase7a_2026-11-10.rbxl` — post-Phase-7A place (SHA-256 `3198C186…93625552`, identical to the saved `Place1.rbxl`); current rollback point
+- Studio place (Phase 7A): `Place1.rbxl` last written 2026-11-10 20:41:38 (158,802 bytes, SHA-256 `3198C186DEEFA561873DB5C00672EB5AD0C4EB7AEE0A085D40A07EF393625552`). Verified from the file itself: all 36 decoded script sources are byte-identical (length + hash) to `src/` at `0ecbfa4`, the 8 Phase 7A pads (`Map.PatchSurfaces`, BounceSurface/SlipSurface tags) are present, and there are no `ZZ_` test leftovers. The Edit place was checked clean: no test scripts or attributes, pads at build state, 64/64 DecayTiles solid, 12 FragmentSpawn, Lighting 3.00/0.00, gravity 196.2.
 - Studio place (Phase 6): saved by the owner 2026-11-10 19:11:29 (`Place1.rbxl`, 150,191 bytes, SHA-256 `B2252755CFA1DA6FCE1BCC34D64BCEAEF49BAAB88B117A9E4E07A37BB397F3B2`). Verified from the file itself: all 28 decoded script sources are byte-identical (length + hash) to `src/` at `03f9cab` (unchanged in `main` `16cef23`), with no other scripts. Before the save, the Edit place was checked clean: no test scripts or attributes, 64/64 DecayTiles collidable, 12 FragmentSpawn markers, stabilizer rings at their original colour, gravity 196.2.
 - Studio place (Phase 5): saved by the owner 2026-11-10 18:16:45 (`Place1.rbxl`, 144,480 bytes, SHA-256 `13CDA584FCF8C65F22044D67DF9CFCD45043F2669F21F8456304ADCCFEC74635`). Verified from the file itself: all 25 decoded script sources are byte-identical (length + hash) to `src/` at `6e7ed2e` (unchanged in `main` `66374fe`), the file has no other scripts, and the 12 FragmentSpawn marker ids are present. Before the save, the Edit place was checked clean: no test scripts or attributes, stabilizer rings at their original colour, 64 DecayTiles, gravity 196.2.
 - Studio save: Studio MCP cannot save the place — the owner must press Ctrl+S after each change set. Latest save 2026-11-10 16:35:24 (post-Phase-3 incl. review round 1, backed up).
@@ -42,6 +45,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 - Known Phase 4 gaps (not counted as passed): all multiplayer scenarios, **deferred by owner decision (2026-11-10) to a batched multiplayer integration milestone; comprehensive multiplayer testing is required before public release.** See "Testing policy and deferred multiplayer validation".
 - Testing policy (owner, 2026-11-10): automated and targeted solo tests routinely, chosen by the risk a change introduces; multiplayer batched across phases; owner interaction only when genuinely necessary; full regression suite at milestones and release candidates.
 - Known Phase 2 gaps carried forward (not counted as passed): real mid-match join → Spectator; multiplayer spawn-protection window; > 12 players; streaming at distance; pending-respawn invalidation on departure. Hardening note for Phase 10: server→client remotes have no `OnServerEvent` handler (client spam is queued with warnings).
+- Known Phase 7A gaps (not counted as passed): a real failing combination activation (shared RunHook path covered by E1/E2); combination cap 5 unreachable with 2 combinations; departure/recovery during a combination (code paths only); BLACKOUT on a real client; all multiplayer behaviour — deferred to the multiplayer integration milestone.
 - Last updated: 2026-11-10
 
 ## Phase tracker
@@ -54,10 +58,263 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 4 | Four prototype patches | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #5](https://github.com/jackambrosia-ai/World.EXE/pull/5) → `8d244b9` | Solo: 36 PASS, 0 FAIL, 3 NOT TESTED; round 1: 6 PASS (targeted); multiplayer deferred |
 | 5 | Stability/objectives/scoring | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #6](https://github.com/jackambrosia-ai/World.EXE/pull/6) → `66374fe` | Targeted solo: 36 PASS, 0 FAIL; round 1: 10 PASS (targeted); multiplayer deferred |
 | 6 | Initial abilities | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #8](https://github.com/jackambrosia-ai/World.EXE/pull/8) → `16cef23` | Targeted solo: 27 PASS, 0 FAIL; multiplayer deferred (see Phase 6 report) |
-| 7 | Interactions and expansion | Not started | — | — |
+| 7A | Interactions + BOUNCY/SLIPPERY/BLACKOUT | **Approved — awaiting owner merge** (solo Studio tests; multiplayer deferred) | [PR #9](https://github.com/jackambrosia-ai/World.EXE/pull/9) (`e7a46cd`) | Targeted solo: 35 PASS, 0 FAIL; round 1: 9 PASS (targeted live Architect runs) |
+| 7B | FLOOD, CORRUPTION, remaining combinations | Not started (after 7A review) | — | — |
 | 8 | UI and visual polish | Not started | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 7A final review (2026-11-10)
+ChatGPT approved PR #9 at `0ecbfa4`: no remaining blocking issues. The Architect cadence correction is accepted. Both combinations were demonstrated through normal Architect turns. The 25 s interval, the 35 s BLACKOUT duration and the reduced severity costs are approved as provisional tuning. No additional test round was required.
+
+Closeout (completed):
+1. Studio ↔ GitHub parity: 36/36 hash-identical to `0ecbfa4`.
+2. Edit place clean (see "Current state").
+3. Saved place verified from the file: `Place1.rbxl` (2026-11-10 20:41:38) contains all 36 current script sources and the 8 pads, with no test leftovers.
+4. Backup `WorldEXE_post-phase7a_2026-11-10.rbxl` created. Its SHA-256 matches the saved place: `3198C186DEEFA561873DB5C00672EB5AD0C4EB7AEE0A085D40A07EF393625552`.
+5. This document and PR #9 were updated.
+
+Carried forward as balancing considerations (not blockers):
+- **Short combinations:** at the 25 s cadence a combination lasts about 6–10 s.
+- **Higher patch frequency:** 12–13 activations per match, above the design doc's first hypothesis of 5–7. Stability pressure was kept about equal through lower costs.
+
+Still open, by design:
+- D3 remains unimplemented.
+- Phase 7A multiplayer scenarios stay NOT TESTED and are assigned to the pre-release multiplayer integration milestone.
+- Phase 7B requires separate owner approval.
+
+## Phase 7A review round 1 correction (2026-11-10)
+
+ChatGPT reviewed PR #9 at `daab8ac` and returned CHANGES REQUESTED with one gameplay blocker. The rest of the architecture was accepted.
+
+### Finding
+**Natural combinations were not reachable.**
+- The Architect interval (45 s after each turn ends) was longer than the source patches' lifetimes (30–35 s).
+- So two consecutive Architect patches never overlapped.
+- In the original 7A tests, combinations were only reached by calling PatchService directly.
+
+### Timing decision
+Three provisional tuning values changed. The match timeline, the 3-patch cap, the warnings and submission validation are all unchanged.
+
+| Setting | Before | After | Why |
+|---|---|---|---|
+| `Config.Architect.TurnIntervalSeconds` | 45 | **25** | The main fix: a modest cadence change instead of changing every patch duration. The next patch now arrives 25 s + decision time after the previous one, which is less than the 35 s source lifetime, so consecutive patches overlap. |
+| BLACKOUT `DurationSeconds` | 30 | **35** | The same lifetime as the other combination sources, so HUNTER_SCAN works in both orders. (At 30 s, BLACKOUT → DRONE_SWARM needed a decision in under 5 s.) |
+| Stability cost per activation (mild / standard / severe) | −6 / −8 / −10 | **−4 / −5 / −6** | About 1.5× more activations now fit in ACTIVE, so per-activation costs were scaled down to keep total stability pressure per match about the same. The combination cost (−4, approved P4) is unchanged. |
+
+How the overlap works:
+- When the next patch becomes ACTIVE, the previous one has 35 − (25 + decision time) seconds left.
+- With a 4 s decision, that is about 6 s of combination. A 1 s decision gives about 9 s.
+- A combination still needs its two sources accepted in consecutive turns.
+
+Unchanged:
+- ACTIVE 420 s + FINAL_PHASE 90 s.
+- Architect turns only in ACTIVE.
+- The 12 s submission window.
+- The 4.5 s warnings.
+- `MaxActiveMajor = 3`.
+- Every server-side submission check.
+
+### Targeted regressions (solo Studio, 2026-11-10)
+Live matches at normal speed (time scale 1). The real client submitted through the real `RequestPatchSubmission` remote with full server validation. No test code called PatchService in T1–T5.
+
+| # | Test | Result | Evidence |
+|---|---|---|---|
+| T1 | Combinations through normal Architect turns | PASS | Match 1, a deliberate Architect (prefers partner cards, submits after 4 s): **SUPER_BOUNCE** started at 76 s (ZERO_G at 47 s, BOUNCY at 76 s) and **HUNTER_SCAN** at 134 s (BLACKOUT at 105 s, DRONE_SWARM at 134 s). Each ended `source_ended:expired` when its first source expired. Both happened once in the match and paid Discovery once. |
+| T2 | Ordinary (random) Architect | PASS (no excess) | Match 2, random cards after 3–10 s: 13 activations, 0 combinations. No consecutive partner pair was drawn, which is valid. Combinations need a deliberate choice. |
+| T3 | Activations and stability | PASS | Match 1: 14 turns, 12 activations, stability 100 → 37. Match 2: 14 turns, 13 activations, 100 → 42. No repairs in either (worst case). For comparison, the old cadence with a 4 s decision allows 9 turns in ACTIVE; at the old costs that is about −60 to −70 (an estimate, not measured). |
+| T4 | Slots and warnings | PASS | Max patch slots used: 2 of 3 in both matches. At least 2 patches were active for 56 s (match 1) and 43 s (match 2) of 420 s. A new patch is announced at most every ~29 s, with the 4.5 s warning intact. |
+| T5 | Match timeline | PASS | Match 2 state watcher: ACTIVE 420 s, FINAL_PHASE 90.2 s, then RESULTS. A turn still open at ACTIVE → FINAL_PHASE was `cancelled`. (The match 1 monitor's 496 s total is a measuring artefact of that script, which polled the snapshot; the transitions were unchanged.) |
+| T6 | Cap enforcement | PASS | Match 3: 3 patches requested → accepted; 4th → `capacity_full`. While all 3 slots were full, no Architect turn was offered (deferred). The next turn started only after the slots were freed. |
+| T7 | Match cleanup | PASS | After 2 matches, at LOBBY: pads restored, Lighting exact, gravity 196.2000, world at baseline, 0 scan cones, 0 patches, 0 interactions, arena baseline, 0 runtime objects |
+| T8 | Server Output | PASS | Only `[WORLD_EXE]` info lines; no errors or warnings |
+| T9 | Parity and Edit place | PASS | 36/36 hash-identical. Edit place clean: no test scripts or attributes, pads at build state, Lighting 3.00/0.00, gravity 196.2 |
+
+Totals: **9 PASS, 0 FAIL.** The full 35-test 7A suite was not repeated, per the review.
+
+Observed, not a code defect:
+- Match 1 turn 1 timed out although the test client sent a submission. The result listener was attached only later, so the server's reply reason was not captured.
+- Every later submission (27) was accepted or correctly refused: `no_open_turn` once after the Architect had died, and once after ACTIVE had ended.
+
+### Notes for review
+- **Short combinations.** At this cadence a combination lasts about 6–10 s. Discovery is paid at the start. If longer combinations are wanted, a 20 s interval gives about 11–14 s, at the cost of more activations. This is tuning for 7B or later.
+- **Activations exceed the design's first hypothesis.** 12–13 activations per match is above the "roughly 5–7" in `01_GAME_DESIGN.md`, which the old cadence also exceeded (about 9). Stability pressure was kept about equal through the lower costs. Revisit in playtests.
+- More accepted patches also mean more Architect score (+5 each). This is provisional.
+
+### Changed files
+- `Shared/Config.luau` (TurnIntervalSeconds)
+- `Shared/PatchCatalog.luau` (BLACKOUT duration)
+- `Services/StabilityService.luau` (severity costs)
+- this document
+
+## Phase 7A report — Patch interactions and the first catalog expansion (2026-11-10)
+
+Approved scope (Phase 7A execution approval, P1–P8):
+- PatchInteractionService and InteractionCatalog.
+- A shared BehaviorRuntime refactor.
+- Rotation and balancing.
+- Three new patches: BOUNCY, SLIPPERY, BLACKOUT.
+- Two combinations: SUPER_BOUNCE, HUNTER_SCAN.
+- Dedicated tagged arena content, ANCHOR integration, and match-scoped discovery scoring.
+
+Not included:
+- Phase 7B (FLOOD, CORRUPTION and the other combinations).
+- D3, persistence, ForgeGUI, publishing.
+
+The match timeline is unchanged.
+
+### Pre-checks (all passed)
+- Studio matched `main` `4708e48` on all 28 scripts.
+- `WorldEXE_pre-phase7a_2026-11-10.rbxl` was created. Its SHA-256 matches the saved place: `B2252755…B397F3B2`.
+- Branch `phase-07a-interactions` created.
+
+### Completed features
+- **BehaviorRuntime** (new, server): `RunHook` and `NewContext` were moved out of PatchService unchanged, so patches and combinations share one contract:
+  - hooks may not yield (a yielding hook is cancelled);
+  - resources are tracked in a CleanupService bag;
+  - the context stops working after cleanup.
+  - PatchService now delegates to it. Its behaviour is unchanged, and Phase 3 regressions E1–E9 pass.
+- **PatchService hooks:**
+  - `onActivated(patchId, matchId, runtimeId)`.
+  - New `onEnded(patchId, runtimeId, matchId, reason)`, called once per end for every reason: expiry, cancel, match end, reset, recovery, shutdown, failed or yielded activation, match not live. Both callbacks are pcalled.
+- **InteractionCatalog** (new, Shared): an allowlist of exactly two combinations:
+  - SUPER_BOUNCE = ZERO_G + BOUNCY;
+  - HUNTER_SCAN = BLACKOUT + DRONE_SWARM.
+  - Any other pair does nothing.
+- **PatchInteractionService** (new, server):
+  - A combination starts when both sources are ACTIVE in the same live match.
+  - It starts at most **once per match** (P4), even if a source runs again. The cap is 5 per match.
+  - It holds **no patch slot**, so the major-patch cap is unchanged.
+  - It ends as soon as either source ends, with reason `source_ended:<reason>`. It also ends at RESULTS (`match_end`) and on RESET, recovery and shutdown (`Reset`).
+  - A failed or yielding activation is rolled back and does not retry in that match.
+  - On a successful start (P4/P7):
+    - stability −4;
+    - +10 Discovery points to every living Participant, with score key `discovery:<match>:<combo>:<userId>`, so it is awarded once per player per match;
+    - an announcement to all clients.
+  - A bounded history of 50 entries is kept, and `Interactions` is added to the match snapshot.
+- **New patches** (P3: dedicated tagged pads only; no existing geometry was modified):
+
+  | Patch | Severity / weight | Duration | Effect | Counterplay | Restore |
+  |---|---|---|---|---|---|
+  | BOUNCY | mild / 3 | 35 s | The 4 `BounceSurface` pads glow and launch living Participants up at 55 studs/s (rise ≈15 studs) with a LinearVelocity held for 0.12 s; cooldown 1 s per character | Avoid the glowing pads; ANCHOR blocks launches (P5) | Pad colour and material restored; constraints destroyed |
+  | SLIPPERY | mild / 3 | 35 s | The 4 `SlipSurface` pads become ice: friction 0.02 with friction weight 100 | Walk slowly or go around; ANCHOR damps sliding on an active pad (P5) | CustomPhysicalProperties, colour and material restored |
+  | BLACKOUT | mild / 3 | 30 s (round 1: 35 s) | Lighting Brightness set to 0.5 and ExposureCompensation −1.2, through WorldModifierService tokens | Hazards glow (Neon); SCANNER | Exact baseline restored when the last token is removed |
+
+- **Combinations:**
+  - **SUPER_BOUNCE:** launch boost ×1.5. Every launch is clamped so the total rise (hold distance plus ballistic rise) stays at most 35 studs under the current gravity.
+  - **HUNTER_SCAN:**
+    - Drones get a visible scan cone, cyan while searching and amber before a lock, and aggro range ×1.2.
+    - Every new lock is preceded by at least 1.5 s of amber warning.
+    - Cones are removed when it ends.
+- **Movement precedence** (deterministic, highest first):
+  1. ANCHOR: no launch.
+  2. Combination boost: the strongest wins.
+  3. Base launch.
+  4. Apex clamp.
+- **ANCHOR integration (P5):**
+  - BOUNCY skips anchored players and counts them as `Suppressed`.
+  - On an active slip pad, ANCHOR adds a damping VectorForce, `−v_horizontal × mass × 8`. A downward raycast of up to 6 studs checks which pad is underfoot.
+  - Grip is not given through the character's own friction, because the Roblox character controller takes traction from the floor.
+  - There is no invulnerability.
+- **Rotation and balancing (P6, provisional tuning):**
+  - Every patch has a Severity and a Weight:
+
+    | Patch | Severity | Weight |
+    |---|---|---|
+    | ZERO_G | standard | 3 |
+    | DECAY | severe | 2 |
+    | DRONE_SWARM | severe | 2 |
+    | SUPPLY_DROP | mild | 3 |
+    | BOUNCY, SLIPPERY, BLACKOUT | mild | 3 |
+
+  - `ArchitectService.ChooseCards` is a weighted draw without replacement. It allows at most 2 severe cards per offer.
+  - It excludes running patches and patches accepted in the last 2 turns of the same match.
+  - On a shortage it offers fewer cards. With 0 eligible cards the turn is deferred.
+  - The stability cost depends on severity: mild −6, standard −8, severe −10. A combination costs −4. (Round 1: now −4 / −5 / −6; the combination cost is unchanged.)
+- **Arena content:** `Workspace.WORLD_EXE.Map.PatchSurfaces` holds the new pads, tagged with `SurfaceId` and `Zone` attributes. Floor and clearance were verified at every corner.
+  - 4 BounceSurface pads, 6×0.4×6: `BOUNCE_CORE_NW`, `BOUNCE_CORE_SE`, `BOUNCE_YARD_S`, `BOUNCE_YARD_N`.
+  - 4 SlipSurface pads: `SLIP_CORE_W`, `SLIP_ANNEX`, `SLIP_YARD_E`, `SLIP_YARD_W`.
+  - They are built by `tools/studio/phase7a_surfaces.luau`. Bootstrap validates the new tags (4/4).
+- **Client:**
+  - HUD banner: `COMBINATION DISCOVERED: <name>`, the warning, and "+10 for everyone still in the match".
+  - SCANNER highlights bounce and slip pads.
+
+### Changed / added files
+- Added:
+  - `Services/BehaviorRuntime.luau`
+  - `Services/PatchInteractionService.luau`
+  - `Shared/InteractionCatalog.luau`
+  - `Patches/Bouncy.luau`, `Slippery.luau`, `Blackout.luau`, `SuperBounce.luau`, `HunterScan.luau`
+  - `tools/studio/phase7a_surfaces.luau`
+- Changed:
+  - Shared: `Config`, `PatchCatalog`
+  - Services: `PatchService`, `WorldModifierService`, `StabilityService`, `ScoreService`, `ArchitectService`, `AbilityService`, `MatchService`
+  - Patches: `DroneSwarm`
+  - Controllers: `AbilityController`, `HUDController`
+  - `src/README.md`, this document
+- Studio parity: **36/36 scripts hash-identical**. Edit place: the 8 new pads exist at their build state.
+
+### Tests (solo Studio, targeted per the risk-based policy, 2026-11-10)
+Most tests used scripts injected into the play server, calling the real services with a real player. Engine and rotation tests ran on a cloned WORLD_EXE in the play server. Client checks ran in the real client.
+
+| # | Test | Result | Evidence |
+|---|---|---|---|
+| E1 | Phase 3: yielding Activate | PASS | Rolled back (released 2); worst Update 0.0004 s |
+| E2 | Phase 3: failed activation | PASS | Full rollback |
+| E3 | Phase 3: yielding Deactivate | PASS | Does not delay the end |
+| E4 | Phase 3: concurrency cap | PASS | 3 running; 4th rejected |
+| E5 | Phase 3: inert context | PASS | Context inert after cleanup |
+| E6 | Phase 3: match generation | PASS | Match ended during the warning → never activates |
+| E7 | Phase 3: tracked tasks | PASS | Stopped; ticks 9 → 9 |
+| E8 | `onEnded` once per end | PASS | activation_yielded, activation_failed, match_end, reset, recovery, shutdown, expired, match_not_live (8/8) |
+| E9 | Engine clean | PASS | No resources left |
+| R1 | Rotation (3000 simulated offers) | PASS | Excluded offered 0, duplicates 0, at most 2 severe, underfilled 0; all 7 patches offered (1422–1871 each) |
+| R2 | Card shortage | PASS | 2 eligible → 2 cards; 0 eligible → 0 cards |
+| R3 | Live offers | PASS | Live Architect turns offer the new patches. Match 4 turn 3 offered 3 cards (`BLACKOUT, SLIPPERY, DECAY`) because the other patches were running or recently accepted |
+| B1 | BOUNCY launch | PASS | 4 pads glowing; launches +3 at 55.0 studs/s; peak rise 15.3 studs (cap 35) |
+| B2 | ANCHOR blocks the launch | PASS | Anchored: launches +0, suppressed +1, rise 0.5 |
+| B3 | SUPER_BOUNCE apex clamp | PASS | Gravity 58.86: boosted 82.5 clamped to 57.5; measured rise 36.0 (cap 35, within simulation granularity). The first run measured 43.8 because the clamp ignored the hold distance; fixed and rerun |
+| B4 | BOUNCY restore | PASS | Colour and material restored; 0 constraints; 0 active pads |
+| C1 | SUPER_BOUNCE start | PASS | Stability 94 → 82 (ZERO_G −8, combination −4); Discovery 0 → 10 |
+| C2 | Ends with its source | PASS | ZERO_G cancelled → `source_ended:test`, released 1, errors 0; launch speed back to 55.0 |
+| C3 | Once per match | PASS | ZERO_G again with BOUNCY active: no restart; history and score unchanged |
+| C4 | Unsupported pair | PASS | DECAY + SUPPLY_DROP: 0 combinations |
+| C5 | Same tick; no slot | PASS | ZERO_G + BOUNCY activated together → SUPER_BOUNCE started; patch slots used 2 (the combination uses none). Both ended in one frame → one end record |
+| H0 | Control | PASS | Drone at 78 studs (aggro 70), no HUNTER_SCAN → no lock |
+| H1 | BLACKOUT lighting | PASS | Brightness 0.50 (baseline 3.00), ExposureCompensation −1.20 (baseline 0.00); HUNTER_SCAN running |
+| H2 | HUNTER_SCAN lock | PASS | Cones on 3/3 drones. At 78 studs (hunter range 84): pre-lock warning shown, then locked after 2.17 s (minimum 1.5) |
+| H3 | HUNTER_SCAN end and restore | PASS | BLACKOUT cancelled → combination ended; 0 cones; Lighting restored exactly |
+| S1 | SLIPPERY slide | PASS | After a 24 stud/s shove: normal floor 0.4 studs, slippery pad 4.8 studs |
+| S2 | ANCHOR on ice | PASS | Anchored on an active pad: 0.1 studs. The first approach, character friction, still gave 4.8 and was replaced by the damping force |
+| S3 | SLIPPERY restore | PASS | Physical properties, colour and material restored; 0 anchor forces after expiry |
+| L1 | Match end | PASS | SUPER_BOUNCE running with BLACKOUT, BOUNCY and ZERO_G (3 slots) → at RESULTS: ended `source_ended:match_end` |
+| L2 | Reset | PASS | Pads restored; Lighting exact; gravity 196.2000; world at baseline; 0 interactions in the snapshot; arena baseline; 0 runtime objects |
+| L3 | Next match | PASS | Match 4: SUPER_BOUNCE started again; Discovery 0 → 10 (new match key) |
+| U1 | Client | PASS | Two `COMBINATION DISCOVERED: SUPER BOUNCE` banners (matches 3 and 4) with warning and +10 line; SCANNER highlighted 2 fragments and 2 bounce pads |
+| P1 | Source parity | PASS | 36/36 hash-identical |
+| P2 | Server Output | PASS | Lifecycle session: only `[WORLD_EXE]` info lines, no errors |
+| P3 | Edit place clean | PASS | No test scripts or attributes; 4+4 pads at their build state; Lighting 3.00/0.00; gravity 196.2 |
+
+Totals: **35 PASS, 0 FAIL.**
+
+Not tested:
+- A **combination** activation that fails for real. The shared `RunHook` rollback path is covered by E1/E2; no catalog combination fails on demand.
+- MAX_PER_MATCH (5) reached. Only 2 combinations exist, so it cannot be reached in 7A.
+- Departure or recovery while a combination runs. The code path is `Reset` in recovery and shutdown, and PatchService's `onEnded` for every reason (E8).
+- BLACKOUT appearance on a real client. Server Lighting values were measured; Lighting replicates.
+- Multiplayer, deferred to the integration milestone: launches and ice on other clients; Discovery to several players; banners on several clients.
+
+Test-script notes (not code defects):
+- The first ANCHOR-on-BOUNCY run was blocked by the bounce cooldown and was rerun.
+- One client signal relied on client attributes, which do not replicate. It was switched to timed stages.
+- One lifecycle recorder waited on patches with a 4.5 s warning that never became active, and was rerun at a shorter time scale.
+
+### Outstanding risks / notes for review
+- **Standing on a bounce pad** relaunches about once per second (the cooldown). This is intended, but tunable.
+- **Natural combinations are rare** at the current Architect cadence: the source pair must be accepted within each other's 30–35 s lifetime. In tests they were forced. Revisit with Phase 7B tuning.
+- **Apex clamp:** the measured rise is 36.0 against the 35 cap. The physics step adds about 1 stud.
+- **ANCHOR lowers jumps:** the Phase 6 note still applies.
+- All rotation weights, severity costs, launch speed, ice friction and the hunter multiplier are **provisional tuning** (P6).
 
 ## Phase 6 final review (2026-11-10)
 ChatGPT approved PR #8 at `03f9cab`: no merge-blocking defects. No additional test round was required.
