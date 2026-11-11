@@ -3,10 +3,10 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 8A-1 COMPLETE — merged to `main`. Next: Phase 8A-2 architectural design proposal (design review first; no implementation without approval). D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
-- Current phase: Phase 8A-1 complete; Phase 8A-2 (architectural identity) in planning — design proposal only
-- Current branch: `main`
-- Current PR: no WORLD.EXE implementation PR open. Phase 8A-1 merged via [jackambrosia-ai/World.EXE#12](https://github.com/jackambrosia-ai/World.EXE/pull/12); Phase 8A design PR #11 (draft, separate). Phase 7B merged via [jackambrosia-ai/World.EXE#10](https://github.com/jackambrosia-ai/World.EXE/pull/10). Phase 7A merged via [jackambrosia-ai/World.EXE#9](https://github.com/jackambrosia-ai/World.EXE/pull/9). Phase 6 merged via [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
+- Overall status: PHASE 8A-2a TECHNICAL REVIEW COMPLETE (ChatGPT, PR #14 at 6fa695c). Owner decisions recorded 2026-11-11: limited strict-AC2 waiver for RES_1, RES_2, ARCH_1, ARCH_2, ARCH_3 APPROVED; roof/lighting A′ APPROVED. PR #14 stays draft; merge and Phase 8A-2b await separate authorization. D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
+- Current phase: Phase 8A-2a — in review (implementation PR #14); design approved in draft PR #13 at `f623a4e`
+- Current branch: `phase-08a2a-hall`
+- Current PR: Phase 8A-2a in review: [jackambrosia-ai/World.EXE#14](https://github.com/jackambrosia-ai/World.EXE/pull/14) (draft); Phase 8A-2 design [jackambrosia-ai/World.EXE#13](https://github.com/jackambrosia-ai/World.EXE/pull/13) (draft). Phase 8A-1 merged via [jackambrosia-ai/World.EXE#12](https://github.com/jackambrosia-ai/World.EXE/pull/12); Phase 8A design PR #11 (draft, separate). Phase 7B merged via [jackambrosia-ai/World.EXE#10](https://github.com/jackambrosia-ai/World.EXE/pull/10). Phase 7A merged via [jackambrosia-ai/World.EXE#9](https://github.com/jackambrosia-ai/World.EXE/pull/9). Phase 6 merged via [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
 - Studio place: saved by the owner 2026-11-10 17:35:27 (`Place1.rbxl`, 135,464 bytes, SHA-256 `F4DF639AB773961792E97BF2FB305751D64ABAFCF6B11BD0F598C86368FE90FF`). The save is verified from the file itself: all 21 `Source` strings decoded from the saved `.rbxl` are byte-identical (length + hash) to `src/` at `c7f5186` (unchanged in `main` `8d244b9`), and the file has no other scripts. Before the save, the Edit place was checked clean: no test scripts or attributes, 64 DecayTiles, gravity 196.2.
 - Phase 1 merge: squash-merged 2026-11-10 by owner approval as `9b9cbd0` (from PR head `ddc784c`; merged tree identical to that head). The `phase-01-arena` branch still exists on GitHub and can be deleted.
 - Phase 2 merge: squash-merged 2026-11-10 by owner approval as `09d9c2a` (from PR head `2e99b13`; merged tree identical to that head; final gameplay code `9c6de7a`). The `phase-02-match` branch still exists on GitHub and can be deleted.
@@ -38,7 +38,12 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
   - `WorldEXE_pre-phase7b_2026-11-10.rbxl` — verified pre-Phase-7B copy (SHA-256 `3198C186…93625552`, identical to the saved place)
   - `WorldEXE_post-phase7b_2026-11-10.rbxl` — post-Phase-7B place (SHA-256 `7EB1F809…D6EEA7ED`, identical to the saved `Place1.rbxl`)
   - `WorldEXE_pre-phase8a1_2026-11-10.rbxl` — verified pre-Phase-8A-1 copy (SHA-256 `7EB1F809…D6EEA7ED`, identical to the saved place). The prototype arena is also kept inside the place as `ServerStorage.WORLD_EXE_RollbackArena_v1` (isolated; the external backup is authoritative)
-  - `WorldEXE_post-phase8a1_2026-11-10.rbxl` — post-Phase-8A-1 place (SHA-256 `E0B955F4…14714745`, identical to the saved `Place1.rbxl`); current rollback point
+  - `WorldEXE_post-phase8a1_2026-11-10.rbxl` — post-Phase-8A-1 place (SHA-256 `E0B955F4…14714745`, identical to the saved `Place1.rbxl`)
+  - `WorldEXE_pre-phase8a2a_2026-11-11.rbxl` — pre-Phase-8A-2a place (SHA-256 `E0B955F4…14714745`, same as post-8A-1)
+  - `WorldEXE_post-phase8a2a_2026-11-11.rbxl` — post-Phase-8A-2a place (SHA-256 `36776D23…F9969DEE`, identical to the saved `Place1.rbxl`)
+  - `WorldEXE_post-phase8a2a-corrections_2026-11-11.rbxl` — after the 8A-2a review corrections (SHA-256 `C69A4704…4E927C5E`, identical to the saved `Place1.rbxl`); current rollback point
+- Studio place (Phase 8A-2a corrections): saved by the owner 2026-11-11 03:09:04 (`Place1.rbxl`, 200,214 bytes, SHA-256 `C69A4704D04D46219FFF45F19F708E902D4925E2ACE1A1796428681E4E927C5E`). Verified from the file: 42/42 sources identical to `src/`; corrected reactor present; no `ZZ_` leftovers. 1,141 map parts / 285 collidable / 21 lights.
+- Studio place (Phase 8A-2a): saved by the owner 2026-11-11 02:27:09 (`Place1.rbxl`, 198,201 bytes, SHA-256 `36776D238C25A1E671CBC6531F842B259F0EDE1F6BAB553C40105E40F9969DEE`). Verified from the file: 42/42 script sources identical to `src/`; Map.Architecture, Map.Megastructure, ReactorSilhouette, roof, LobbyBay present; `ServerStorage.WORLD_EXE_Rollback8A2A` and `WORLD_EXE_RollbackArena_v1` present; no `ZZ_` leftovers. ArenaVersion 3, 1,223 map parts.
 - Studio place (Phase 8A-1): saved by the owner 2026-11-10 23:58:16 (`Place1.rbxl`, 174,847 bytes, SHA-256 `E0B955F4A30672F5FFE2D0E508D31E068E27E749B45B4FE8F081D02314714745`). Verified from the file itself: all 42 decoded script sources are byte-identical (length + hash) to `src/` at `e614194`; the new arena is present (CorePlaza, ReactorDrum, OuterRing, DataArchive racks, reservoir basin, SkyDeck and islands, 100-tile grid, all marker names) together with `ServerStorage.WORLD_EXE_RollbackArena_v1`; no `ZZ_` test leftovers. Immediately before the save, Studio showed ArenaVersion 2, 522 map parts, all 12 marker counts as expected, 8/8 crates at build state, no test scripts or attributes, gravity 196.2 and Lighting 3.00/0.00.
 - Studio place (Phase 7B): saved by the owner 2026-11-10 22:25:42 (`Place1.rbxl`, 167,930 bytes, SHA-256 `7EB1F809B3BE42D3A5948C4FC97F989692986E581E1C790DC2A4D2DCD6EEA7ED`). Verified from the file itself: all 42 decoded script sources are byte-identical (length + hash) to `src/` at `2fca9c5`, the 26 `Map.PatchMarkers` parts are present, and there are no `ZZ_` test leftovers. The Edit place was checked clean before the save: no test scripts or attributes, 8/8 crates at build state, 64/64 DecayTiles solid, Lighting 3.00/0.00, gravity 196.2.
 - Studio place (Phase 7A): `Place1.rbxl` last written 2026-11-10 20:41:38 (158,802 bytes, SHA-256 `3198C186DEEFA561873DB5C00672EB5AD0C4EB7AEE0A085D40A07EF393625552`). Verified from the file itself: all 36 decoded script sources are byte-identical (length + hash) to `src/` at `0ecbfa4`, the 8 Phase 7A pads (`Map.PatchSurfaces`, BounceSurface/SlipSurface tags) are present, and there are no `ZZ_` test leftovers. The Edit place was checked clean: no test scripts or attributes, pads at build state, 64/64 DecayTiles solid, 12 FragmentSpawn, Lighting 3.00/0.00, gravity 196.2.
@@ -72,10 +77,410 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 7A | Interactions + BOUNCY/SLIPPERY/BLACKOUT | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #9](https://github.com/jackambrosia-ai/World.EXE/pull/9) → `059f191` | Targeted solo: 35 PASS, 0 FAIL; round 1: 9 PASS (targeted live Architect runs) |
 | 7B | MAGNETIC/CORRUPTION/FLOOD + 3 combinations | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #10](https://github.com/jackambrosia-ai/World.EXE/pull/10) → `f9e4707` | Targeted solo: 30 PASS, 0 FAIL; round 1: 7 PASS (safe crate restore) |
 | 8A-1 | Arena greybox and gameplay migration | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #12](https://github.com/jackambrosia-ai/World.EXE/pull/12) → `44e8f1d` | Targeted solo: 40 PASS, 0 FAIL; finding fixed in round 1 (4 PASS) |
-| 8A-2 | Architectural identity | Planning — design proposal (implementation requires approval) | — | — |
+| 8A-2 | Architectural identity | 8A-2a in review (hall, reactor, core, lobby bay); 8A-2b/2c not started | [PR #14](https://github.com/jackambrosia-ai/World.EXE/pull/14) | Builder validation PASS; solo Play regression PASS; FPS valid (no measurable change) |
 | 8B | Visual polish | Not started (requires approval) | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 8A-2a owner decisions (2026-11-11)
+
+ChatGPT completed the technical re-review of PR #14 at `6fa695c`; no further implementation corrections requested.
+
+Owner decision (verbatim): "Both are approved"
+
+1. **Strict-AC2 waiver: APPROVED (limited).** The waiver covers exactly five spawns: Spawn_RES_1, Spawn_RES_2, Spawn_ARCH_1, Spawn_ARCH_2, Spawn_ARCH_3.
+   - The strict AC2 results stay documented as measured (`docs/phase8a2a/audit_round2_final.json`).
+   - No gameplay geometry changes: Ring_N, Ring_S, the ring ramps, rack decks and spawns are unchanged.
+   - The waiver does not extend to any other viewpoint or to future geometry.
+2. **Roof/lighting option A′: APPROVED.** The tinted translucent roof glass (Transparency 0.35) and the daytime-sun lighting preset with the correction fill/exposure/bloom values become the approved 8A-2a roof and lighting, replacing the open-roof night identity in PR #13 for this phase.
+
+Not changed by these decisions:
+- PR #14 stays DRAFT. No merge, and no Phase 8A-2b or other phase, until separately authorized.
+- No geometry, script or place changes. The saved place (SHA-256 CF21106D…) and the backups are unchanged.
+- No publishing, asset generation or credit spending.
+
+## Phase 8A-2a final technical corrections (round 2, 2026-11-11)
+
+PR #14 is still DRAFT and not merged. PR #13, #11 and #4 are untouched. No new phase was started. No ForgeGUI, meshes, generated assets, publishing, persistence or paid services. No `src/` changes.
+
+### 1. Reactor geometry (Priority 1): `tools/studio/phase8a2a/8_hollow_rings.luau`
+The solid cylinders were removed to the rollback store (`…Rollback8A2A.CorrectionRemoved`): CoilBand1–3, CoilViolet1–3, GalleryRing60 and GalleryRing120. Replacements are parts only:
+
+- **Hollow coils:** three annular rings built from tangential segments.
+  - y50: r 32, 18 segments, 8 tall.
+  - y95: r 27, 16 segments, 7 tall.
+  - y140: r 22, 14 segments, 6 tall.
+  - Each ring is 6 deep with alternating gunmetal tones. The interiors stay open, so the cyan column and core show through every coil.
+- **Violet identity:** narrow Neon trims, 1.0 × 0.3 studs, on the outer face of every other segment (dashed windings). No large neon surfaces; the C11 neon rule passes on 95 Neon parts. The three violet coil lights are re-hosted on trims, so the light count is unchanged.
+- **Ties:** 4 radial arms per coil connect each ring to the column. They sit 22.5° off the diagonals. On the diagonals they blocked the CORE spawns' column samples; the audit caught it and they were moved.
+- **Galleries:** each level (Y 60 and Y 120) is 8 open DiamondPlate deck segments between r 14 and r 19. They read as structural rings, and the column stays visible above and below.
+- **Scope:** decorative only (no collide, query, touch or shadow). Silhouette size, cyan column/core and crown are unchanged.
+- **Counts:** removed 8 parts, added 100. Central Core 309/320 parts, 24/28 collidable (unchanged), 11/11 lights.
+
+Screenshots in `docs/phase8a2a/round2/`:
+- `before_G1` / `after_G1`
+- `before_G6` / `after_G6`
+- `before_lobby_head` / `after_lobby_head`
+- `player_CORE_1` (actual Play client, HUD visible)
+
+What they show:
+- **G1:** the lower coil reads as a hollow ring with the cyan core visible through it. The upper coils show segment facets and dashed violet trims.
+- **G6:** the open galleries and coils read against the column.
+- **Lobby:** still small at 420 studs; the lobby top trim still crosses it.
+- **CORE_1:** the coils and core fill the frame, but the HUD panel still covers the upper reactor (8B UI).
+
+### 2. Audit fidelity (Priority 2): `6_audit.luau` revision 2, read-only
+- **C1–C11** are now identical to `5_validate`, including the full C6 block: rail-edge test, sloped floors, spoke corridors and the 2-stud marker clearance. It checked 12 rails and 12 structures.
+- **Strict AC2 benchmark:** unchanged (same samples, occluders and thresholds). Walk-out is reported as mitigation only.
+- **SELF self-occlusion (new, informational):** uses the actual corrected reactor geometry as occluders; everything except the EnergyCore and parts with Transparency ≥ 0.4 blocks. It samples 16 core-surface points facing the viewer and 8 crown-fin outer-face points.
+- **AC1 split** into:
+  - geometry intersection: any part with Transparency < 0.95;
+  - sky seen only through translucent surfaces.
+- **State recorded:** ArenaVersion 3, Correction8A2A and Correction8A2A_R2 set, 717 new parts.
+- `5_validate.luau` C11 tightened: any Neon part whose second-largest dimension exceeds 4 fails, except EnergyCore, HubEmitter and CrownEmitter.
+
+### 3. Final read-only audit: one run after all geometry changes
+Saved as `docs/phase8a2a/audit_round2_final.json`.
+
+**Gameplay checks:** C1–C11 all PASS.
+- Flood, bounce, 8 supply columns, spawns and stabilizers are clear.
+- Headroom, rails and corridors pass (C6).
+- 12 crate lanes and 40 drone links pass.
+- Collidables are in the core only.
+- Neon rule and budgets pass.
+- Marker counts are unchanged.
+
+**Budgets:**
+- Map: 1,233 parts, 285 collidable (unchanged), 21 lights, 1 shadow.
+- Megastructure: 394/420 parts, 0 collidable, 8 lights.
+- LobbyBay: 14/30 parts, 0 collidable, 2 lights.
+- CoreTotal: 309/320 parts, 24/28 collidable, 11/11 lights.
+
+**Streaming:** Silhouette, ReactorSilhouette and LobbyBay are Persistent; assemblies are Atomic; Detail and Dressing are Default.
+
+**Strict AC2:** FAIL at the same 5 spawns. These are not changed and await the owner decision.
+
+| Spawn | Visible | Crown | Column | Blockers | Walk-out (mitigation only) |
+|---|---|---|---|---|---|
+| RES_1 | 23% | 0 | 5 | RingRamp_W 14, Ring_S 13 | 20 studs |
+| RES_2 | 23% | 0 | 5 | RingRamp_E 14, Ring_S 13 | 20 studs |
+| ARCH_1 | 40% | 0 | 9 | Ring_N 14, ArchiveWalk_S 4 | 4 studs |
+| ARCH_2 | 13% | 0 | 3 | Ring_N 14, RackDeck_NW 7, Rack_-66B 7 | 16 studs |
+| ARCH_3 | 13% | 0 | 3 | Ring_N 14, RackDeck_NE 7, Rack_66B 7 | 16 studs |
+
+The other 11 spawns pass:
+- CORE_1–4: 63–65%, column 4, crown 11–12.
+- SKY: 63–88%. YARD: 60–68%. RES_3: 63%.
+
+Lobby:
+- centre at head height: PASS 60%, down from 63%, because one Coil3Arm blocks one sample;
+- third-person: 83%;
+- at the glass: 93%.
+
+**SELF self-occlusion (informational), core / crown visible:**
+- CORE_1–4: 2/16 and 2/8. Close to the column, the coils and buttresses frame the core.
+- SKY_1–3: 8/16 and 5–6/8.
+- YARD: 7–8/16 and 0–6/8.
+- RES_1/2: 4/16 and 0/8. RES_3: 7/16 and 4/8.
+- ARCH_1: 7/16 and 0/8. ARCH_2/3: 2/16 and 0/8.
+- Lobby: head 8/16 and 2/8, third-person 11/16 and 4/8, at the glass 12/16 and 4/8.
+
+**AC1:**
+- Geometry intersection: 0/45 rays clear all geometry from each of G1–G6.
+- Sky seen only through translucent surfaces (A′ glass roof): G1 8, G2 11, G3 0, G4 0, G5 6, G6 7 of 45.
+
+**AC3:** the tallest element is CrownFin_1 at Y 192; the tallest non-reactor element is a terrace cap at Y 150; the strongest light is the EnergyCore. **AC6:** 0 reserved hues; core spans are supported within 0–5 studs.
+
+### 4. Performance
+No new benchmark was run. The change adds 92 decorative parts (1,141 → 1,233): no collision, no shadows, no new lights, no lighting change. The part count is within 10 of the 1,223-part state already benchmarked as VALID (1% low 53.86 / 54.38, 60 FPS cap). Not a material change to the render workload.
+
+### 5. Pending owner decisions (not resolved, not claimed)
+- **Strict AC2 at 5 spawns:** needs a waiver or a scoped gameplay change. Ring_N, Ring_S, ring ramps, rack decks and spawns were not modified. ChatGPT's five-spawn waiver is a recommendation only.
+- **Roof A′ (tinted glass + daytime sun):** still provisional. ChatGPT's recommendation to accept it is not owner authorization.
+
+### 6. Save, parity, backups
+- The owner saved Place1.rbxl at 2026-11-11 03:28:25 (201,873 bytes), SHA-256 `CF21106DB9D5180076EA79CD6DC7945EDB713475F02CB8D8C6E0271FADF7C0FD`.
+- Verified from the file:
+  - 42/42 script sources identical to GitHub `src/`;
+  - Coil segments, Gallery60 segments and the Correction8A2A_R2 marker present;
+  - CoilBand1 and GalleryRing60 present only once each, in the rollback store;
+  - 0 `ZZ_` leftovers.
+- New backup: `WorldEXE_post-phase8a2a-corrections-r2_2026-11-11.rbxl`, hash identical. This is now the rollback point.
+- Kept: `…corrections_2026-11-11.rbxl` (C69A4704…) and `…post-phase8a2a_2026-11-11.rbxl` (36776D23…).
+
+### 7. Changed files
+- Added: `tools/studio/phase8a2a/8_hollow_rings.luau`.
+- Changed: `tools/studio/phase8a2a/6_audit.luau`, `5_validate.luau`, `README.md` (step 8, C11 rule, audit description).
+- Evidence: `docs/phase8a2a/audit_round2_final.json` and `docs/phase8a2a/round2/*.jpg`.
+- Status: `docs/PROJECT_STATUS.md`.
+
+### Remaining shortcomings
+- The 5 strict-AC2 spawns.
+- The roof/daylight deviation.
+- The lobby view of the reactor is small and crossed by the lobby trim.
+- From the CORE spawns the reactor's own coils and buttresses hide much of the core (SELF 2/16).
+- The HUD covers the reactor in the Core player view (8B).
+- Archive is dark under BLACKOUT.
+- Outer districts still float (8A-2b).
+
+Stopped for ChatGPT re-review.
+
+## Phase 8A-2a review-correction report (2026-11-11)
+
+WORLD.EXE — Phase 8A-2a review-correction report (stop for re-review)
+
+- PR #14 is still DRAFT and not merged. New head: see the latest commit (corrections bd05473 + FPS d5aaa4e + this report).
+- PR #13, #11 and #4 are untouched. 8A-2b/2c/2d and 8B are not started.
+- No ForgeGUI, meshes, assets, publishing, persistence or paid services.
+- No src/ changes: Studio↔GitHub parity 42/42.
+
+0. BASELINE (verified before any change)
+- Studio state = saved place = post-8A-2a backup (SHA-256 36776D23…F9969DEE).
+- Parity 42/42; ArenaVersion 3; 1,223/285/21; clean.
+- No rebuild or rollback of the saved arena was performed.
+
+1. STRICT AC2 (blocker 1)
+- 5_validate fixed: strict AC2 is now reported as PASS/FAIL per viewpoint. Walk-out is shown separately as mitigation and never changes the strict result. AC2 never triggers the restore (only C1–C11 gameplay/budget failures do).
+- New tools/studio/phase8a2a/6_audit.luau is READ-ONLY (it never restores) and was run on the actual final state.
+- Final strict AC2: FAIL at 5 of 16 spawns. The lobby passes, and the other 11 spawns pass with equal or better visibility than before.
+
+  | Spawn | Visible | Crown | Column | Blockers | Walk-out (mitigation) |
+  |---|---|---|---|---|---|
+  | RES_1 | 23% | 0 | 5 | RingRamp_W 14, Ring_S 13 | 20 studs |
+  | RES_2 | 23% | 0 | 5 | RingRamp_E 14, Ring_S 13 | 20 studs |
+  | ARCH_1 | 40% | 0 | 9 | Ring_N 14, ArchiveWalk_S 4 | 4 studs |
+  | ARCH_2 | 13% | 0 | 3 | Ring_N 14, RackDeck_NW 7, Rack_-66B 7 | 16 studs |
+  | ARCH_3 | 13% | 0 | 3 | Ring_N 14, RackDeck_NE 7, Rack_66B 7 | 16 studs |
+
+- Why no decorative fix exists: from these spawns (25–27 studs behind the Outer Ring deck at Y 22–24), every line to anything above about Y 153 passes through the ring deck. Raising or reshaping the reactor cannot clear it; only the 8A-1 gameplay parts (ring deck/ramps, Archive rack decks) block it.
+- Non-mutating repair simulation, with these parts treated as see-through:
+  - P1: Ring_N + Ring_S → RES_1, RES_2 and ARCH_1 PASS (53/53/70%, crown 11). ARCH_2/3 still FAIL by one column sample (38%, crown 10; Archive racks).
+  - P2: + RingRamp_W/E → RES_1/2 at 78%.
+  - P3: + Archive rack decks → all 5 pass.
+- OWNER DECISION REQUESTED (left unresolved):
+  - (a) Approve P1: Ring_N and Ring_S become a see-through grating. Visual properties only (Material/Transparency); size, CFrame and collision unchanged; cyan edge trims kept. Implications: players see through the ring deck from above and below; edge readability then relies on the trims. Plus an explicit AC2 waiver for ARCH_2/ARCH_3 (Archive is the enclosed district by design).
+  - (b) Waive AC2 for all five spawns.
+- Player-camera evidence (actual Play client camera, HUD visible), docs/phase8a2a/correction/player_*.jpg:
+  - ARCH_1: lower coils visible, ring deck across the top.
+  - RES_1/RES_2: the ring ramp overhead hides the reactor.
+  - ARCH_2/ARCH_3: racks hide it.
+  - CORE_1 reference: the reactor fills the upper frame, but the 8A-1 HUD panel covers it (a UI issue, noted for 8B).
+
+2. ROOF / LIGHTING A/B (blocker 3)
+Same cameras (G1, G6, lobby head height), all reversible; docs/phase8a2a/ab/.
+- A = the saved state (opaque hip roof, ClockTime 13): readable, with a solid low dark ceiling.
+- B = approved identity (roof hidden, ClockTime 0 moonlight, navy haze, extra fill):
+  - the open rib bays read as a dark upper void, which is genuinely cavernous;
+  - BUT floors fall to near-black at G6 and in the lobby. Roblox night moonlight is too weak to model structure, so gameplay readability fails, even with raised ambient and exposure.
+- A′ = high sun + tinted-glass roof (Transparency 0.35, navy):
+  - keeps A's readability;
+  - the bays between the ribs read as a dark upper atmosphere, not a ceiling;
+  - the lobby head-height view gains strong one-point perspective (the ribs converge on the hub over the reactor).
+- RECOMMENDATION: A′, applied in 7_correction and reversible. The remaining deviations from PR #13 (a roof exists, even translucent; daytime sun instead of night) still need owner/ChatGPT approval. Neither is adopted as "approved".
+
+3. TARGETED POLISH (7_correction.luau)
+Decorative only. Every original value is stored as an Orig8A2A_* attribute; removed parts are kept in the rollback store.
+- Reactor:
+  - column Ø18→Ø26 and core Ø6→Ø9;
+  - the faceted 16-block coils, small windings and arms are replaced by smooth cylinder coil bands (Ø64/54/44) with continuous violet neon bands (rim only) and violet lights;
+  - lower shroud Ø44; crown collar Ø38 with fins pushed out; buttresses refit to the new coil radius; cradle refit;
+  - galleries are now grating (a solid disc hid the column from the CORE spawns; caught by the audit);
+  - vertical conduits were tried and removed: the audit showed they blocked several spawns.
+- Value separation: lighter concrete and steel on the plinth, coping, pilasters, vessel, fascia, colonnade and mezzanine cladding, against the navy walls.
+- Roof: A′ glass.
+- Readability: OutdoorAmbient 76,84,124 → 88,96,140; ExposureCompensation 0 → 0.3 (the Reservoir basin rim and floor separate from the walls).
+- Bloom 0.9/1.0/28 → 0.4/1.3/20: the Play camera showed rack faces smeared into cyan blobs.
+- Budgets: map 1,223 → 1,141 parts; collidable 285 (unchanged; no collidable part was touched); lights 21; Central Core 217/320.
+
+4. FINAL-STATE VALIDATION (blocker 2, read-only, on the exact final state)
+Automated:
+- C1–C11 all PASS: flood, bounce apex, 8 supply columns, spawns, stabilizers, headroom, 12 crate lanes, 40 drone links, collidables in the core only, neon rule, budgets.
+- Marker counts unchanged.
+- Streaming: Silhouette, ReactorSilhouette and LobbyBay Persistent; Detail Default; assemblies Atomic.
+- AC1: sky-exposure ray fan, 0/45 rays open from each of G1–G6; wall elevations G1 31°, G3 34°, G4 35°, G5 32° (interior ≤ 35°), G6 41°, G2 47° (edge ≤ 47°).
+- AC3: CrownFin tops at Y 192 are the tallest elements inside the wall line; the tallest non-reactor element is a terrace tower cap at Y 150; the strongest light is the EnergyCore.
+- AC6: 0 reserved hues on new parts; the neon rule passes; Central Core spans have supports within 0–5 studs of every edge midpoint.
+- Lobby window: centre head 63% PASS (blockers: own floor edge, Wall_N_Trim); third-person 88%; at the glass 95%.
+Visual (screenshots, not automated):
+- AC1 openness: G-set. AC3 hierarchy: corrected G1/G6. AC6 repetition and palette: G-set.
+- Other districts' spans and AC4/AC5 are deferred to 8A-2b; AC9 to 8A-2c.
+Evidence gap closed: the post-rib-move state, and now the corrected state, are audited directly (docs/phase8a2a/audit_corrected_final.json).
+
+5. AC10 BLACKOUT (exact values: Brightness 0.5, Exposure baseline −1.2)
+- Screenshots G1, G3, G6 and lobby in docs/phase8a2a/correction/blackout_*.jpg. They were taken just before the bloom reduction.
+- G1, G6, lobby: cyan walkable edges, rails and the reactor (core and violet bands) stay readable; the reactor remains the anchor.
+- G3 (Archive): the aisle floor goes very dark between the bright rack faces. Readable by contrast, but weak — a shortcoming.
+
+6. FOCUSED REGRESSION AND PERFORMANCE
+- Play regression after the corrections: ArenaService.Validate 0 errors; BLACKOUT 1.8/0.3 → 0.5/−0.9 → restored exactly 1.8/0.3; full match → RESET → LOBBY, baseline matches, match 2 initialized; 0 warnings or errors.
+- Post-correction FPS (VALID, owner-focused, same method; Stage 0 baseline kept):
+
+  | Pass | 1% low | p99 frame time | Average |
+  |---|---|---|---|
+  | A | 53.86 → 54.40 | 18.39 → 18.22 ms | 60 (cap) |
+  | B | 54.38 → 54.69 | 18.19 → 18.13 ms | 60 (cap) |
+
+  Heartbeat p99 18.10 → 18.09 ms. Targets pass. The cap prevents measuring headroom; no improvement is claimed.
+
+7. BUILDER / RECOVERY (blocker 5)
+- tools/studio/phase8a2a/README.md documents the step order and which steps mutate.
+- AUTOMATIC rollback: only 5_validate, only on a gameplay/budget failure (exercised once during the original build).
+- MANUAL recovery: if steps 1–4 throw part-way → _G.W8A2A.Restore("manual") in the same session, or the standalone 9_restore.luau from ServerStorage.WORLD_EXE_Rollback8A2A, or close without saving and reopen the last verified .rbxl.
+- Never run a destructive restore on the authoritative place to demonstrate it; none was run in this pass.
+
+8. SAVE, PARITY, BACKUPS
+- The owner saved Place1.rbxl at 2026-11-11 03:09:04 (200,214 bytes), SHA-256 C69A4704D04D46219FFF45F19F708E902D4925E2ACE1A1796428681E4E927C5E.
+- Verified from the file: 42/42 sources identical to src/; corrected reactor parts present; conduits absent; roof, lobby bay and rollback stores present; 0 ZZ_ leftovers.
+- New backup: WorldEXE_post-phase8a2a-corrections_2026-11-11.rbxl (SHA-256 identical) = current rollback point.
+- Previous verified backup kept: WorldEXE_post-phase8a2a_2026-11-11.rbxl (36776D23…).
+
+9. REMAINING SHORTCOMINGS (honest)
+- Strict AC2: 5 spawns, awaiting the owner decision.
+- Roof/daylight deviation: awaiting approval.
+- The outer districts and stepping blocks still float (8A-2b).
+- Head-height lobby: the reactor still reads small at 420 studs and the lobby's own top trim crosses it.
+- Archive under BLACKOUT is dark.
+- The HUD panel covers the reactor in the Core player view (8B UI).
+
+Stopped for ChatGPT re-review.
+
+## Phase 8A-2a report (2026-11-11)
+
+WORLD.EXE — Phase 8A-2a report: Containment Hall, Central Reactor, Central Core, Lobby Observation Bay
+
+- PR: https://github.com/jackambrosia-ai/World.EXE/pull/14 (draft, not merged). Branch phase-08a2a-hall from main 3ed5425.
+- Design PR #13 is untouched (approved design head f623a4e). PR #11 and PR #4 are untouched.
+- No src/ changes: Studio↔GitHub parity is 42/42, unchanged from main.
+- Scope was Stage 0 + 8A-2a only. 8A-2b/2c/2d and 8B were not started.
+- No ForgeGUI use, no generation, no uploads, no publishing, no persistence.
+
+1. PRECONSTRUCTION
+- Studio↔main parity 42/42 and a clean Edit place at the start.
+- Pre-8A-2a backup: WorldEXE_pre-phase8a2a_2026-11-11.rbxl, SHA-256 E0B955F4…14714745, matching the saved place.
+
+2. STAGE 0 — BENCHMARK HARDENING AND BASELINE
+Server side:
+- Requests ZERO_G, CORRUPTION and FLOOD at scale 2 (70 s each).
+- Every 0.1 s it checks that those three specific runtime ids are all ACTIVE through the whole 30 s Heartbeat window. Any break makes the run INVALID, with a reason.
+Client side:
+- Arms only on a real owner click (proof of focus) and match ACTIVE.
+- Re-asserts the scripted camera every frame.
+- INVALID if: dry run, focus lost, camera reset, too few frames, or an average within ±1 of 15 FPS.
+Dry runs: two, both invalid by design. They found and fixed two issues: the MCP tool reset the client camera, and the camera guard miscounted on its first frame.
+Baseline (VALID, owner-focused):
+- Pass A: average 60.00 FPS, 1% low 53.86, p99 18.39 ms, max 20.07 ms.
+- Pass B (3 patches verified ACTIVE throughout): average 60.00, 1% low 54.38, p99 18.19 ms.
+- Server Heartbeat p99 18.10 ms.
+
+3. BUILD
+Reproducible builder: tools/studio/phase8a2a/ 0_lib → 5_validate, plus the standalone rollback 9_restore.
+- Analytic clearance checks are used instead of raycasts, because decor has CanQuery off.
+- Budget caps; automatic full rollback on any failure.
+- The first attempt failed validation and rolled back exactly (verified). Causes:
+  - four colonnade columns blocked drone links WP_C1–4 → SN/SS (removed);
+  - coil neon windings were too large (reduced);
+  - the reactor-visibility (AC2) deviation below.
+
+Containment Hall (Map.Megastructure):
+- Terraced plinth ±320 to Y 60, terrace deck, and 12 machinery towers (tops ≤ Y 150).
+- Upper walls ±400 to Y 180, with pilasters, sparse cyan seams, a violet band and 8 deep windows.
+- Chamfered corner towers.
+- Eight box-truss ceiling ribs to a hub at Y 240 with an emitter.
+- A hip ROOF with an oculus (see deviations).
+- 8 far silhouettes, and a slate shaft floor at Y −90 with a faint grid.
+- Streaming: Silhouette = Persistent; Detail = Default; towers Atomic.
+
+Central Reactor:
+- The gameplay drum is kept. The 8A-1 thin shaft, shell, rings and cap moved to the rollback store.
+- Cradle and collars on the drum.
+- Glass containment column Ø18 with a cyan core Ø6 (Y 15–172).
+- Three tapering coil rings (Y 50/95/140), violet windings on the inner face, support arms.
+- Four lattice buttresses from collidable plinths on the mezzanine inner corners.
+- Two galleries; crown to Y 190; a beam to the ceiling hub.
+
+Central Core:
+- Containment vessel under the plaza edge (walls to Y −90, fins, two outer galleries, fascia).
+- Spoke girders and columns.
+- Mezzanine: clad pillars, capitals, knee braces, deep edge girders.
+- Collidable glass rails on the mezzanine inner edge (with a middle drop gap) and on both gantry bridges.
+- Gantry trusses, ramp stringers, hanger rods.
+- Plaza-edge colonnade: 8 collidable columns outside the flood volume, with a ring canopy at Y 60, fins and 4 pool lights.
+- Plaza inlays.
+
+Lobby: observation notch, pod underside, cheeks, canopy, shrouds, mullions, brackets, "OBSERVATION 01" signage and 2 soft lights. The only lobby change is Wall_N → Glass (Material, Transparency and Color only). Floor, spawns and behaviour are unchanged.
+
+Lighting baseline (tunable PRESET in 4_lobby_lighting):
+- ClockTime 13, latitude 20, Brightness 1.8.
+- Ambient 46,52,84; OutdoorAmbient 76,84,124.
+- Atmosphere density 0.3, haze 1.6, navy.
+- ColorCorrection contrast 0.2; Bloom threshold 1.0, intensity 0.9.
+- Sun/moon hidden, stars 0, SunRays and DepthOfField off.
+
+4. ACTUAL COUNTS
+- Map: 1,223 parts (522 → 1,223; 6 reactor parts removed), 285 collidable (ceiling 900), 21 lights (ceiling 80), 1 shadow-casting light (ceiling 12), 1 beam.
+- Hall: 394 parts (cap 420), 0 collidable, 8 lights.
+- Central Core + reactor: 299 parts (cap 320), 24 collidable (cap 28), 11 lights, 1 shadow.
+- Lobby bay: 14 parts (cap 30), 2 lights.
+- New collidable parts: 4 buttress plinths, 8 mezzanine rails, 4 bridge rails, 8 colonnade columns.
+
+5. VALIDATION
+Builder checks, final run PASS:
+- flood volumes; bounce apex columns to Y 40; 8 supply columns to Y 160; spawn pads; stabilizer radius;
+- walkable headroom (rails only at edges; structures clear of spoke corridors and ≥ 2 studs from markers);
+- 12 crate lanes; 40 drone links; collidables limited to the core region; neon-panel rule; budget caps.
+Play regression (solo):
+- ArenaService.Validate: 0 errors; all 12 marker counts unchanged.
+- BLACKOUT applied 0.5 / −1.2 and restored EXACTLY to 1.8 / 0.
+- Full match LOBBY→…→RESET→LOBBY, then match 2 initialized.
+- Arena baseline matches after RESET; 0 warnings or errors.
+Streaming:
+- StreamingEnabled and radius 1024 unchanged.
+- The client received all 1,223 parts, including Silhouette (181) and ReactorSilhouette (73), both Persistent.
+Reactor visibility (AC2, analytic segment-vs-box against ALL parts including decor; 485k tests):
+- Readable from 11/16 spawns and the lobby centre (63%).
+- DEVIATION FOR REVIEW: RES_1, RES_2, ARCH_1, ARCH_2 and ARCH_3 are blocked at the spawn eye by the pre-existing 8A-1 Outer Ring deck overhead. The reactor reads after walking 20 / 20 / 4 / 16 / 16 studs toward the core. Fixing this would mean moving gameplay geometry, which was not authorized.
+
+6. FPS — POST-8A-2a (VALID, owner-focused; same method)
+- Pass A: 60.00 → 60.00 average; 1% low 53.86 → 54.27; p99 18.39 → 18.25 ms; max 20.07 → 19.26.
+- Pass B: 60.00 → 60.00; 1% low 54.38 → 53.72; p99 18.19 → 18.37 ms.
+- Server Heartbeat p99 18.10 → 18.05 ms.
+- Studio memory +18 to +33 MB.
+- Targets PASS: average 100% of baseline; 1% low ≥ 45; Heartbeat within 10%.
+- Caveat: the 60 FPS cap masks headroom. Differences are within noise. Desktop only.
+
+7. DEVIATIONS FROM THE DESIGN (for review)
+- (a) Lighting: the approved night preset (ClockTime 0.5) rendered almost black, and dusk left the enclosed hall in shadow. Replaced with a high sun plus navy atmosphere (screenshot of the rejected preset included).
+- (b) Roof added: haze dense enough to hide the default sky also faded the reactor at about 300 studs. A non-shadow-casting hip roof (16 parts) removes the sky while keeping long sightlines. The design said "no ceiling panels".
+- (c) South rib relocated: it landed on the lobby bay and blocked the window. It now springs at r 330 under the roof.
+- (d) Containment "pit": the plaza is a solid 200×200 slab, so the pit became a containment vessel under the plaza edge, visible from the routes, not from the plaza.
+- (e) Colonnade reduced from 12 to 8 columns (drone links).
+- (f) AC2 spawn deviations, as in section 5.
+
+8. VISUAL SHORTCOMINGS (honest)
+- The outer districts and Skybridge stepping blocks are still unsupported greybox slabs (8A-2b scope).
+- Palette is very navy-monochrome; the deep windows show pale haze.
+- Coil rings look visibly faceted (segment blocks); the F1 mesh option would fix this.
+- Violet windings are weak.
+- The reactor is slim relative to an 800-stud hall.
+- From head height in the lobby the reactor reads small and the roof underside is dark; the third-person view frames it well.
+- The Reservoir basin and some floors are dark, though cyan edges read.
+- BLACKOUT is very dark; walkable neon edges and the reactor stay readable.
+
+9. EVIDENCE (docs/phase8a2a/ on PR #14)
+- Before: docs/phase8a2/g1–g6.
+- After, the same six cameras: after_g1 … after_g6.
+- Core close-ups: after_core_closeup_mezz_pillar, after_core_closeup_reactor.
+- Lobby: after_lobby_thirdperson, after_lobby_headheight.
+- Overhead: after_overhead_exterior, after_interior_high.
+- after_blackout_g1; rejected_night_preset_g1.
+- fps_baseline_stage0.json, fps_post_8a2a.json, validation_8a2a.json.
+
+10. SAVE AND BACKUP
+- The owner saved Place1.rbxl at 2026-11-11 02:27:09 (198,201 bytes), SHA-256 36776D238C25A1E671CBC6531F842B259F0EDE1F6BAB553C40105E40F9969DEE.
+- Verified from the file: 42/42 script sources identical to src/; Architecture, Megastructure, ReactorSilhouette, EnergyCore, RoofPlate, LobbyBay and signage present; rollback stores present; 0 ZZ_ leftovers.
+- Backup: WorldEXE_post-phase8a2a_2026-11-11.rbxl, SHA-256 identical (36776D23…F9969DEE). This is the current rollback point.
+
+Stopped for ChatGPT's technical and creative review. Not merged; 8A-2b not started.
 
 ## Phase 8A-1 final review (2026-11-10)
 ChatGPT approved PR #12 at `e614194`: no remaining merge blockers. The `MatchStateChanged` correction is accepted. No additional regression testing was required.

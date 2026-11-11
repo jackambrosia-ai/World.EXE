@@ -1,0 +1,17 @@
+{
+  "run": "Stage 0 foreground baseline (pre-8A-2a, ArenaVersion 2, 522 map parts)",
+  "date": "2026-11-11",
+  "place": "Place1.rbxl = WorldEXE_pre-phase8a2a_2026-11-11.rbxl (SHA-256 E0B955F4A30672F5FFE2D0E508D31E068E27E749B45B4FE8F081D02314714745)",
+  "scripts": "tools/studio/phase8a2_fps_benchmark_client.luau @7c899cc, phase8a2_fps_benchmark_server.luau @7c899cc (server Source hash 7029:1166573979)",
+  "client": {"DryRun": false, "Viewport": "1914, 761", "QualityLevel": "Enum.SavedQualitySetting.Automatic", "FocusLostEvents": 0, "CameraResets": 0, "StreamedMapParts": 522,
+    "MemoryStartMb": 1811.21484375, "MemoryAfterAMb": 1813.0390625, "MemoryEndMb": 1809.95703125,
+    "PassAValid": true, "PassA": {"Frames": 3309, "AvgFps": 60.00427530381637, "OnePercentLowFps": 53.863928927027838, "MedianFrameMs": 16.732899472117425, "P99FrameMs": 18.386399373412134, "MaxFrameMs": 20.07180079817772},
+    "PassBValid": true, "SawServerSampling": true, "PassB": {"Frames": 1801, "AvgFps": 59.99831773742713, "OnePercentLowFps": 54.378972081804629, "MedianFrameMs": 16.88230037689209, "P99FrameMs": 18.191199749708177, "MaxFrameMs": 18.89820024371147}},
+  "server": {"Valid": true, "Requests": "ZERO_G=P1-1,CORRUPTION=P1-2,FLOOD=P1-3", "ActiveAtStart": 3, "MinOurActiveDuringSampling": 3, "ActiveAtEnd": 3, "MatchStateAtEnd": "ACTIVE",
+    "HeartbeatSamples": 1801, "HeartbeatAvgMs": 16.666041994813847, "HeartbeatP99Ms": 18.10150220990181, "HeartbeatMaxMs": 19.53722909092903, "ServerFps": 60.00224890295974},
+  "notes": [
+    "Average FPS is pinned at 60 (frame cap), so 1% low and p99/max frame time are the comparison figures.",
+    "Memory is Studio total (editor + server + client in one process), useful only as a same-method comparison.",
+    "During pass B the runner made one read-only client call; CameraResets stayed 0 and focus was never lost."
+  ]
+}

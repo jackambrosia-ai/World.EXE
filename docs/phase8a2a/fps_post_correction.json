@@ -1,0 +1,8 @@
+{"run":"Post-correction foreground run (ArenaVersion 3 + 7_correction, 1141 map parts), same scripts/method as Stage 0","date":"2026-11-11",
+"client":{"DryRun":false,"Viewport":"1914, 761","FocusLostEvents":0,"CameraResets":0,"StreamedMapParts":1141,"MemoryStartMb":1852.45,"MemoryAfterAMb":1853.05,"MemoryEndMb":1853.61,
+"PassAValid":true,"PassA":{"Frames":3306,"AvgFps":60.002,"OnePercentLowFps":54.40,"MedianFrameMs":16.88,"P99FrameMs":18.22,"MaxFrameMs":18.80},
+"PassBValid":true,"PassB":{"Frames":1801,"AvgFps":60.000,"OnePercentLowFps":54.69,"MedianFrameMs":16.77,"P99FrameMs":18.13,"MaxFrameMs":18.70}},
+"server":{"Valid":true,"Requests":"ZERO_G=P1-1,CORRUPTION=P1-2,FLOOD=P1-3","ActiveAtStart":3,"MinOurActiveDuringSampling":3,"ActiveAtEnd":3,"HeartbeatSamples":1801,"HeartbeatAvgMs":16.67,"HeartbeatP99Ms":18.09,"HeartbeatMaxMs":19.12},
+"vs_stage0":{"PassA_1pctLow":"53.86 -> 54.40","PassA_p99":"18.39 -> 18.22 ms","PassB_1pctLow":"54.38 -> 54.69","PassB_p99":"18.19 -> 18.13 ms","Heartbeat_p99":"18.10 -> 18.09 ms","memory_end":"1810 -> 1854 MB (Studio total)"},
+"targets":"avg >= 85% of baseline PASS (100%); 1% low >= 45 PASS; Heartbeat p99 within 10% PASS",
+"caveat":"Average pinned at the 60 FPS cap; differences are within run-to-run noise. No improvement is claimed. Desktop only."}
