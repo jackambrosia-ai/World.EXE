@@ -1,7 +1,8 @@
 --!strict
 -- WORLD.EXE server entry point.
 -- Initializes services in explicit order:
--- Arena -> Net -> PlayerState -> WorldModifier -> Match (which initializes Patch and Architect).
+-- Arena -> Net -> PlayerState -> WorldModifier -> Match (which initializes Patch, Architect,
+-- Stability, Objective and Collectible; Score needs no Init).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")

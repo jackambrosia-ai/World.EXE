@@ -4,7 +4,7 @@
 
 local Config = {}
 
-Config.Version = "0.4.0-phase4"
+Config.Version = "0.5.0-phase5"
 Config.RootName = "WORLD_EXE"
 
 -- CollectionService tags used by the Studio-owned arena.
@@ -14,6 +14,7 @@ Config.Tags = table.freeze({
 	Stabilizer = "Stabilizer",
 	SupplyLandingPoint = "SupplyLandingPoint",
 	DroneWaypoint = "DroneWaypoint",
+	FragmentSpawn = "FragmentSpawn", -- Phase 5: data-fragment spawn markers (Map.FragmentSpawns)
 })
 
 -- Phase 1 arena baseline. Server validation reports any drift from these counts.
@@ -25,6 +26,7 @@ Config.ExpectedTagCounts = table.freeze({
 	Stabilizer = 3,
 	SupplyLandingPoint = 5,
 	DroneWaypoint = 15,
+	FragmentSpawn = 12,
 })
 
 -- Instance class each tag must be applied to (checked with IsA).
@@ -34,6 +36,7 @@ Config.TagClasses = table.freeze({
 	Stabilizer = "Model",
 	SupplyLandingPoint = "BasePart",
 	DroneWaypoint = "BasePart",
+	FragmentSpawn = "BasePart",
 })
 
 export type AttributeKind = "id" | "zone" | "positive" | "links"
@@ -66,6 +69,10 @@ Config.AttributeSchema = table.freeze({
 		table.freeze({ name = "WaypointId", kind = "id" }),
 		table.freeze({ name = "Zone", kind = "zone" }),
 		table.freeze({ name = "Links", kind = "links" }),
+	}),
+	FragmentSpawn = table.freeze({
+		table.freeze({ name = "FragmentSpawnId", kind = "id" }),
+		table.freeze({ name = "Zone", kind = "zone" }),
 	}),
 }) :: { [string]: { AttributeField } }
 
@@ -129,6 +136,8 @@ Config.PlayerAttributes = table.freeze({
 	Role = "WORLD_EXE_Role",
 	Alive = "WORLD_EXE_Alive",
 	Shield = "WORLD_EXE_ShieldUntil", -- server time the SUPPLY_DROP shield expires (absent = none)
+	Score = "WORLD_EXE_Score", -- Phase 5: this match's score so far (absent outside a match)
+	Fragments = "WORLD_EXE_Fragments", -- Phase 5: data fragments carried and not yet spent
 })
 
 -- RemoteEvents created by the server under ReplicatedStorage.WORLD_EXE.Remotes.
@@ -177,6 +186,24 @@ Config.Patches = table.freeze({
 -- Shared world properties owned by WorldModifierService (effective value is clamped to this range).
 Config.WorldModifiers = table.freeze({
 	Gravity = table.freeze({ Min = 0, Max = 1000 }),
+})
+
+---------------------------------------------------------------------------------------------------
+-- Phase 5: stability, objectives, collectibles, scoring (display values; server tuning lives in
+-- the services)
+
+Config.Stability = table.freeze({
+	Initial = 100,
+	Min = 0,
+	Max = 100,
+	SuccessTarget = 50, -- team success if stability ends at or above this (or enough repairs)
+})
+
+Config.ObjectiveStates = table.freeze({
+	Idle = "IDLE",
+	Repairing = "REPAIRING",
+	Paused = "PAUSED",
+	Cooldown = "COOLDOWN",
 })
 
 -- Reference-board palette (docs/04_UI_AND_ART_DIRECTION.md).
