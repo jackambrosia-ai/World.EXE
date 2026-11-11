@@ -3,8 +3,8 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 8A-1 IN REVIEW — review round 1 correction (redundant MatchStateChanged firing removed) pushed to PR #12 for final review. Phase 8A-2 and 8B not started. D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
-- Current phase: Phase 8A-1 — Arena greybox and gameplay migration (in review)
+- Overall status: PHASE 8A-1 APPROVED — ChatGPT final review approved PR #12 at `e614194`; closeout done (parity, clean place, owner save verified, post-8A-1 backup). Awaiting explicit owner approval to squash-merge. Next after the merge: Phase 8A-2 architectural design proposal (design review first; no implementation without approval). D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
+- Current phase: Phase 8A-1 — approved; awaiting owner merge decision
 - Current branch: `phase-08a1-arena-layout`
 - Current PR: Phase 8A-1 in review: [jackambrosia-ai/World.EXE#12](https://github.com/jackambrosia-ai/World.EXE/pull/12); Phase 8A design PR #11 (draft, separate). Phase 7B merged via [jackambrosia-ai/World.EXE#10](https://github.com/jackambrosia-ai/World.EXE/pull/10). Phase 7A merged via [jackambrosia-ai/World.EXE#9](https://github.com/jackambrosia-ai/World.EXE/pull/9). Phase 6 merged via [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
 - Studio place: saved by the owner 2026-11-10 17:35:27 (`Place1.rbxl`, 135,464 bytes, SHA-256 `F4DF639AB773961792E97BF2FB305751D64ABAFCF6B11BD0F598C86368FE90FF`). The save is verified from the file itself: all 21 `Source` strings decoded from the saved `.rbxl` are byte-identical (length + hash) to `src/` at `c7f5186` (unchanged in `main` `8d244b9`), and the file has no other scripts. Before the save, the Edit place was checked clean: no test scripts or attributes, 64 DecayTiles, gravity 196.2.
@@ -36,7 +36,9 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
   - `WorldEXE_post-phase7a_2026-11-10.rbxl` — post-Phase-7A place (SHA-256 `3198C186…93625552`, identical to the saved `Place1.rbxl`)
   - `WorldEXE_pre-phase7b_2026-11-10.rbxl` — verified pre-Phase-7B copy (SHA-256 `3198C186…93625552`, identical to the saved place)
   - `WorldEXE_post-phase7b_2026-11-10.rbxl` — post-Phase-7B place (SHA-256 `7EB1F809…D6EEA7ED`, identical to the saved `Place1.rbxl`)
-  - `WorldEXE_pre-phase8a1_2026-11-10.rbxl` — verified pre-Phase-8A-1 copy (SHA-256 `7EB1F809…D6EEA7ED`, identical to the saved place); current rollback point. The prototype arena is also kept inside the place as `ServerStorage.WORLD_EXE_RollbackArena_v1` (isolated; the external backup is authoritative)
+  - `WorldEXE_pre-phase8a1_2026-11-10.rbxl` — verified pre-Phase-8A-1 copy (SHA-256 `7EB1F809…D6EEA7ED`, identical to the saved place). The prototype arena is also kept inside the place as `ServerStorage.WORLD_EXE_RollbackArena_v1` (isolated; the external backup is authoritative)
+  - `WorldEXE_post-phase8a1_2026-11-10.rbxl` — post-Phase-8A-1 place (SHA-256 `E0B955F4…14714745`, identical to the saved `Place1.rbxl`); current rollback point
+- Studio place (Phase 8A-1): saved by the owner 2026-11-10 23:58:16 (`Place1.rbxl`, 174,847 bytes, SHA-256 `E0B955F4A30672F5FFE2D0E508D31E068E27E749B45B4FE8F081D02314714745`). Verified from the file itself: all 42 decoded script sources are byte-identical (length + hash) to `src/` at `e614194`; the new arena is present (CorePlaza, ReactorDrum, OuterRing, DataArchive racks, reservoir basin, SkyDeck and islands, 100-tile grid, all marker names) together with `ServerStorage.WORLD_EXE_RollbackArena_v1`; no `ZZ_` test leftovers. Immediately before the save, Studio showed ArenaVersion 2, 522 map parts, all 12 marker counts as expected, 8/8 crates at build state, no test scripts or attributes, gravity 196.2 and Lighting 3.00/0.00.
 - Studio place (Phase 7B): saved by the owner 2026-11-10 22:25:42 (`Place1.rbxl`, 167,930 bytes, SHA-256 `7EB1F809B3BE42D3A5948C4FC97F989692986E581E1C790DC2A4D2DCD6EEA7ED`). Verified from the file itself: all 42 decoded script sources are byte-identical (length + hash) to `src/` at `2fca9c5`, the 26 `Map.PatchMarkers` parts are present, and there are no `ZZ_` test leftovers. The Edit place was checked clean before the save: no test scripts or attributes, 8/8 crates at build state, 64/64 DecayTiles solid, Lighting 3.00/0.00, gravity 196.2.
 - Studio place (Phase 7A): `Place1.rbxl` last written 2026-11-10 20:41:38 (158,802 bytes, SHA-256 `3198C186DEEFA561873DB5C00672EB5AD0C4EB7AEE0A085D40A07EF393625552`). Verified from the file itself: all 36 decoded script sources are byte-identical (length + hash) to `src/` at `0ecbfa4`, the 8 Phase 7A pads (`Map.PatchSurfaces`, BounceSurface/SlipSurface tags) are present, and there are no `ZZ_` test leftovers. The Edit place was checked clean: no test scripts or attributes, pads at build state, 64/64 DecayTiles solid, 12 FragmentSpawn, Lighting 3.00/0.00, gravity 196.2.
 - Studio place (Phase 6): saved by the owner 2026-11-10 19:11:29 (`Place1.rbxl`, 150,191 bytes, SHA-256 `B2252755CFA1DA6FCE1BCC34D64BCEAEF49BAAB88B117A9E4E07A37BB397F3B2`). Verified from the file itself: all 28 decoded script sources are byte-identical (length + hash) to `src/` at `03f9cab` (unchanged in `main` `16cef23`), with no other scripts. Before the save, the Edit place was checked clean: no test scripts or attributes, 64/64 DecayTiles collidable, 12 FragmentSpawn markers, stabilizer rings at their original colour, gravity 196.2.
@@ -68,11 +70,35 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 6 | Initial abilities | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #8](https://github.com/jackambrosia-ai/World.EXE/pull/8) → `16cef23` | Targeted solo: 27 PASS, 0 FAIL; multiplayer deferred (see Phase 6 report) |
 | 7A | Interactions + BOUNCY/SLIPPERY/BLACKOUT | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #9](https://github.com/jackambrosia-ai/World.EXE/pull/9) → `059f191` | Targeted solo: 35 PASS, 0 FAIL; round 1: 9 PASS (targeted live Architect runs) |
 | 7B | MAGNETIC/CORRUPTION/FLOOD + 3 combinations | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #10](https://github.com/jackambrosia-ai/World.EXE/pull/10) → `f9e4707` | Targeted solo: 30 PASS, 0 FAIL; round 1: 7 PASS (safe crate restore) |
-| 8A-1 | Arena greybox and gameplay migration | **In review** (solo Studio tests; multiplayer deferred) | [PR #12](https://github.com/jackambrosia-ai/World.EXE/pull/12) (`b1cbbc7`) | Targeted solo: 40 PASS, 0 FAIL; finding fixed in round 1 (4 PASS) |
+| 8A-1 | Arena greybox and gameplay migration | **Approved — awaiting owner merge** (solo Studio tests; multiplayer deferred) | [PR #12](https://github.com/jackambrosia-ai/World.EXE/pull/12) (`b1cbbc7`) | Targeted solo: 40 PASS, 0 FAIL; finding fixed in round 1 (4 PASS) |
 | 8A-2 | Architectural identity | Not started (requires approval) | — | — |
 | 8B | Visual polish | Not started (requires approval) | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 8A-1 final review (2026-11-10)
+ChatGPT approved PR #12 at `e614194`: no remaining merge blockers. The `MatchStateChanged` correction is accepted. No additional regression testing was required.
+
+Closeout (completed):
+1. Studio ↔ GitHub parity: 42/42 hash-identical to `e614194`.
+2. Edit place clean, and the new arena intact: ArenaVersion 2, 522 map parts, all 12 marker counts as expected, 8/8 crates at build state.
+3. The owner saved `Place1.rbxl` (2026-11-10 23:58:16). Verified from the file: 42 script sources match; the new arena geometry and markers are present; the rollback copy is included; no test leftovers.
+4. Backup `WorldEXE_post-phase8a1_2026-11-10.rbxl` created. Its SHA-256 matches the saved place: `E0B955F4A30672F5FFE2D0E508D31E068E27E749B45B4FE8F081D02314714745`.
+5. This document and PR #12 were updated.
+
+Carried forward:
+- A foreground desktop client FPS measurement, before Phase 8A-2 approval.
+- Mobile performance and multiplayer integration, mandatory before release.
+
+Next (owner, 2026-11-10): the larger arena still reads as floating platforms rather than a convincing simulation facility. After the merge, a **Phase 8A-2 architectural design proposal** covers:
+- district silhouettes;
+- supports, exteriors and enclosed spaces;
+- a much stronger reactor;
+- environmental framing instead of the empty void;
+- a distinct identity for each zone;
+- performance-conscious detail.
+
+Design review comes first; there is no implementation without approval.
 
 ## Phase 8A-1 review round 1 correction (2026-11-10)
 
