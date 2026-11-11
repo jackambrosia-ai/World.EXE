@@ -1,8 +1,8 @@
 --!strict
 -- WORLD.EXE combination allowlist (Phase 7A; docs/03_PATCH_CATALOG.md "Approved combinations").
 -- A combination exists only if listed here. Each one names exactly two source patches and the
--- server behaviour module (ServerScriptService.WORLD_EXE.Patches.<Behavior>). Phase 7B adds
--- FLOATING_DEBRIS, RAPID_DECAY and SLIDE_FIELD.
+-- server behaviour module (ServerScriptService.WORLD_EXE.Patches.<Behavior>). Phase 7B added
+-- FLOATING_DEBRIS, RAPID_DECAY and SLIDE_FIELD, completing the five approved combinations.
 
 export type InteractionDefinition = {
 	Id: string,
@@ -26,6 +26,27 @@ local definitions: { InteractionDefinition } = {
 		Sources = { "BLACKOUT", "DRONE_SWARM" },
 		Warning = "HUNTER SCAN — Drones sweep the dark. An amber cone means a lock is coming!",
 		Behavior = "HunterScan",
+	},
+	{
+		Id = "FLOATING_DEBRIS",
+		DisplayName = "Floating Debris",
+		Sources = { "FLOOD", "MAGNETIC" },
+		Warning = "FLOATING DEBRIS — The crates float! Use them as stepping stones above the water.",
+		Behavior = "FloatingDebris",
+	},
+	{
+		Id = "RAPID_DECAY",
+		DisplayName = "Rapid Decay",
+		Sources = { "DECAY", "CORRUPTION" },
+		Warning = "RAPID DECAY — Tiles fail faster. Amber tiles still warn before they drop!",
+		Behavior = "RapidDecay",
+	},
+	{
+		Id = "SLIDE_FIELD",
+		DisplayName = "Slide Field",
+		Sources = { "SLIPPERY", "MAGNETIC" },
+		Warning = "SLIDE FIELD — Crates race to the glowing rings. Stay off their lanes!",
+		Behavior = "SlideField",
 	},
 }
 

@@ -4,7 +4,7 @@
 
 local Config = {}
 
-Config.Version = "0.7.0-phase7a"
+Config.Version = "0.7.0-phase7b"
 Config.RootName = "WORLD_EXE"
 
 -- CollectionService tags used by the Studio-owned arena.
@@ -17,6 +17,10 @@ Config.Tags = table.freeze({
 	FragmentSpawn = "FragmentSpawn", -- Phase 5: data-fragment spawn markers (Map.FragmentSpawns)
 	BounceSurface = "BounceSurface", -- Phase 7A: BOUNCY pads (Map.PatchSurfaces)
 	SlipSurface = "SlipSurface", -- Phase 7A: SLIPPERY pads (Map.PatchSurfaces)
+	MagneticProp = "MagneticProp", -- Phase 7B: MAGNETIC crates (Map.PatchMarkers)
+	MagneticPoint = "MagneticPoint", -- Phase 7B: safe points the crates move to
+	CorruptionNode = "CorruptionNode", -- Phase 7B: CORRUPTION path nodes (one path per Zone)
+	FloodZone = "FloodZone", -- Phase 7B: FLOOD low-ground footprints
 })
 
 -- Phase 1 arena baseline. Server validation reports any drift from these counts.
@@ -31,6 +35,10 @@ Config.ExpectedTagCounts = table.freeze({
 	FragmentSpawn = 12,
 	BounceSurface = 4,
 	SlipSurface = 4,
+	MagneticProp = 8,
+	MagneticPoint = 4,
+	CorruptionNode = 12,
+	FloodZone = 2,
 })
 
 -- Instance class each tag must be applied to (checked with IsA).
@@ -43,6 +51,10 @@ Config.TagClasses = table.freeze({
 	FragmentSpawn = "BasePart",
 	BounceSurface = "BasePart",
 	SlipSurface = "BasePart",
+	MagneticProp = "BasePart",
+	MagneticPoint = "BasePart",
+	CorruptionNode = "BasePart",
+	FloodZone = "BasePart",
 })
 
 export type AttributeKind = "id" | "zone" | "positive" | "links"
@@ -87,6 +99,24 @@ Config.AttributeSchema = table.freeze({
 	SlipSurface = table.freeze({
 		table.freeze({ name = "SurfaceId", kind = "id" }),
 		table.freeze({ name = "Zone", kind = "zone" }),
+	}),
+	MagneticProp = table.freeze({
+		table.freeze({ name = "PropId", kind = "id" }),
+		table.freeze({ name = "Zone", kind = "zone" }),
+	}),
+	MagneticPoint = table.freeze({
+		table.freeze({ name = "PointId", kind = "id" }),
+		table.freeze({ name = "Zone", kind = "zone" }),
+	}),
+	CorruptionNode = table.freeze({
+		table.freeze({ name = "NodeId", kind = "id" }),
+		table.freeze({ name = "Zone", kind = "zone" }),
+		table.freeze({ name = "Order", kind = "positive" }),
+	}),
+	FloodZone = table.freeze({
+		table.freeze({ name = "FloodZoneId", kind = "id" }),
+		table.freeze({ name = "Zone", kind = "zone" }),
+		table.freeze({ name = "MaxRise", kind = "positive" }),
 	}),
 }) :: { [string]: { AttributeField } }
 

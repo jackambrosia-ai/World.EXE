@@ -39,6 +39,8 @@ local patchModules = services.Parent:WaitForChild("Patches")
 local Decay = require(patchModules:WaitForChild("Decay"))
 local Bouncy = require(patchModules:WaitForChild("Bouncy"))
 local Slippery = require(patchModules:WaitForChild("Slippery"))
+local Corruption = require(patchModules:WaitForChild("Corruption"))
+local Magnetic = require(patchModules:WaitForChild("Magnetic"))
 
 -- Server-only tuning (provisional).
 local RATE_BURST = 4
@@ -341,6 +343,12 @@ local function scan(root: BasePart): { { Target: BasePart, Kind: string } }
 	end
 	for _, pad in Slippery.GetActivePads() do
 		consider(pad, "slip")
+	end
+	for _, node in Corruption.GetActiveNodes() do
+		consider(node, "corrupt")
+	end
+	for _, prop in Magnetic.GetActiveProps() do
+		consider(prop, "prop")
 	end
 	table.sort(found, function(a, b)
 		return a.Distance < b.Distance

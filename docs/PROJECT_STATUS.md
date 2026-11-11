@@ -3,10 +3,10 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 7A COMPLETE — merged to `main`. Phase 7B not started; it requires separate owner approval. D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
-- Current phase: Phase 7A complete; next is Phase 7B — FLOOD, CORRUPTION and the remaining combinations (requires owner approval)
-- Current branch: `main`
-- Current PR: no WORLD.EXE phase PR open. Phase 7A merged via [jackambrosia-ai/World.EXE#9](https://github.com/jackambrosia-ai/World.EXE/pull/9). Phase 6 merged via [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
+- Overall status: PHASE 7B IN REVIEW — implemented on branch `phase-07b-catalog-expansion`; PR open for ChatGPT technical review. Completes the initial catalog (10 patches, 5 combinations). Phase 8 not started. D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
+- Current phase: Phase 7B — MAGNETIC, CORRUPTION, FLOOD and the remaining combinations (in review)
+- Current branch: `phase-07b-catalog-expansion`
+- Current PR: Phase 7B PR (link in the tracker). Phase 7A merged via [jackambrosia-ai/World.EXE#9](https://github.com/jackambrosia-ai/World.EXE/pull/9). Phase 6 merged via [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
 - Studio place: saved by the owner 2026-11-10 17:35:27 (`Place1.rbxl`, 135,464 bytes, SHA-256 `F4DF639AB773961792E97BF2FB305751D64ABAFCF6B11BD0F598C86368FE90FF`). The save is verified from the file itself: all 21 `Source` strings decoded from the saved `.rbxl` are byte-identical (length + hash) to `src/` at `c7f5186` (unchanged in `main` `8d244b9`), and the file has no other scripts. Before the save, the Edit place was checked clean: no test scripts or attributes, 64 DecayTiles, gravity 196.2.
 - Phase 1 merge: squash-merged 2026-11-10 by owner approval as `9b9cbd0` (from PR head `ddc784c`; merged tree identical to that head). The `phase-01-arena` branch still exists on GitHub and can be deleted.
 - Phase 2 merge: squash-merged 2026-11-10 by owner approval as `09d9c2a` (from PR head `2e99b13`; merged tree identical to that head; final gameplay code `9c6de7a`). The `phase-02-match` branch still exists on GitHub and can be deleted.
@@ -32,7 +32,8 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
   - `WorldEXE_pre-phase6_2026-11-10.rbxl` — verified pre-Phase-6 copy (SHA-256 `13CDA584…FEC74635`, identical to the saved place)
   - `WorldEXE_post-phase6_2026-11-10.rbxl` — post-Phase-6 place (SHA-256 `B2252755…B397F3B2`, identical to the saved `Place1.rbxl`)
   - `WorldEXE_pre-phase7a_2026-11-10.rbxl` — verified pre-Phase-7A copy (SHA-256 `B2252755…B397F3B2`, identical to the saved place)
-  - `WorldEXE_post-phase7a_2026-11-10.rbxl` — post-Phase-7A place (SHA-256 `3198C186…93625552`, identical to the saved `Place1.rbxl`); current rollback point
+  - `WorldEXE_post-phase7a_2026-11-10.rbxl` — post-Phase-7A place (SHA-256 `3198C186…93625552`, identical to the saved `Place1.rbxl`)
+  - `WorldEXE_pre-phase7b_2026-11-10.rbxl` — verified pre-Phase-7B copy (SHA-256 `3198C186…93625552`, identical to the saved place); current rollback point
 - Studio place (Phase 7A): `Place1.rbxl` last written 2026-11-10 20:41:38 (158,802 bytes, SHA-256 `3198C186DEEFA561873DB5C00672EB5AD0C4EB7AEE0A085D40A07EF393625552`). Verified from the file itself: all 36 decoded script sources are byte-identical (length + hash) to `src/` at `0ecbfa4`, the 8 Phase 7A pads (`Map.PatchSurfaces`, BounceSurface/SlipSurface tags) are present, and there are no `ZZ_` test leftovers. The Edit place was checked clean: no test scripts or attributes, pads at build state, 64/64 DecayTiles solid, 12 FragmentSpawn, Lighting 3.00/0.00, gravity 196.2.
 - Studio place (Phase 6): saved by the owner 2026-11-10 19:11:29 (`Place1.rbxl`, 150,191 bytes, SHA-256 `B2252755CFA1DA6FCE1BCC34D64BCEAEF49BAAB88B117A9E4E07A37BB397F3B2`). Verified from the file itself: all 28 decoded script sources are byte-identical (length + hash) to `src/` at `03f9cab` (unchanged in `main` `16cef23`), with no other scripts. Before the save, the Edit place was checked clean: no test scripts or attributes, 64/64 DecayTiles collidable, 12 FragmentSpawn markers, stabilizer rings at their original colour, gravity 196.2.
 - Studio place (Phase 5): saved by the owner 2026-11-10 18:16:45 (`Place1.rbxl`, 144,480 bytes, SHA-256 `13CDA584FCF8C65F22044D67DF9CFCD45043F2669F21F8456304ADCCFEC74635`). Verified from the file itself: all 25 decoded script sources are byte-identical (length + hash) to `src/` at `6e7ed2e` (unchanged in `main` `66374fe`), the file has no other scripts, and the 12 FragmentSpawn marker ids are present. Before the save, the Edit place was checked clean: no test scripts or attributes, stabilizer rings at their original colour, 64 DecayTiles, gravity 196.2.
@@ -47,6 +48,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 - Testing policy (owner, 2026-11-10): automated and targeted solo tests routinely, chosen by the risk a change introduces; multiplayer batched across phases; owner interaction only when genuinely necessary; full regression suite at milestones and release candidates.
 - Known Phase 2 gaps carried forward (not counted as passed): real mid-match join → Spectator; multiplayer spawn-protection window; > 12 players; streaming at distance; pending-respawn invalidation on departure. Hardening note for Phase 10: server→client remotes have no `OnServerEvent` handler (client spam is queued with warnings).
 - Known Phase 7A gaps (not counted as passed): a real failing combination activation (shared RunHook path covered by E1/E2); combination cap 5 unreachable with 2 combinations; departure/recovery during a combination (code paths only); BLACKOUT on a real client; all multiplayer behaviour — deferred to the multiplayer integration milestone.
+- Known Phase 7B gaps (not counted as passed): recovery, shutdown or departure while a 7B patch runs (code paths only); MAGNETIC restore with a player on a crate's resting spot; all multiplayer behaviour (crate replication, several players pausing crates, flood slow and corruption damage on several players) — deferred to the multiplayer integration milestone.
 - Last updated: 2026-11-10
 
 ## Phase tracker
@@ -60,10 +62,141 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 5 | Stability/objectives/scoring | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #6](https://github.com/jackambrosia-ai/World.EXE/pull/6) → `66374fe` | Targeted solo: 36 PASS, 0 FAIL; round 1: 10 PASS (targeted); multiplayer deferred |
 | 6 | Initial abilities | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #8](https://github.com/jackambrosia-ai/World.EXE/pull/8) → `16cef23` | Targeted solo: 27 PASS, 0 FAIL; multiplayer deferred (see Phase 6 report) |
 | 7A | Interactions + BOUNCY/SLIPPERY/BLACKOUT | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #9](https://github.com/jackambrosia-ai/World.EXE/pull/9) → `059f191` | Targeted solo: 35 PASS, 0 FAIL; round 1: 9 PASS (targeted live Architect runs) |
-| 7B | FLOOD, CORRUPTION, remaining combinations | Not started (after 7A review) | — | — |
+| 7B | MAGNETIC/CORRUPTION/FLOOD + 3 combinations | **In review** (solo Studio tests; multiplayer deferred) | PR (phase-07b-catalog-expansion) | Targeted solo: 30 PASS, 0 FAIL; see Phase 7B report |
 | 8 | UI and visual polish | Not started | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 7B report — Remaining patches and combinations (2026-11-10)
+
+Approved scope (Phase 7B execution approval):
+- Three patches: MAGNETIC, CORRUPTION, FLOOD.
+- Three combinations: FLOATING_DEBRIS, RAPID_DECAY, SLIDE_FIELD.
+
+This completes the initial catalog of **10 patches and 5 combinations**.
+
+Unchanged (approved provisional values):
+- Architect interval 25 s; BLACKOUT 35 s.
+- Severity costs −4 / −5 / −6; combination cost −4; +10 Discovery.
+- 3 major patches at most.
+
+The match timeline is unchanged. D3, persistence, ForgeGUI and publishing are not included.
+
+### Pre-checks (all passed)
+- `main` synced to `9a720b7`.
+- Studio matched `main` on all 36 scripts, and the Edit place was clean.
+- `WorldEXE_pre-phase7b_2026-11-10.rbxl` was created. Its SHA-256 matches the saved place: `3198C186…93625552`.
+- Branch `phase-07b-catalog-expansion` created.
+
+### Completed features
+- **Arena content** (dedicated tagged parts only; no existing geometry changed), under `Map.PatchMarkers`, built by `tools/studio/phase7b_markers.luau`:
+  - 8 `MagneticProp` crates (3×3×3, anchored, collidable).
+  - 4 `MagneticPoint` markers.
+  - 12 `CorruptionNode` markers: 2 paths of 6, CentralCore and ResearchYard, ordered by `Order`.
+  - 2 `FloodZone` footprints: the Core deck 80×80 and the Research Yard 104×104, each with `MaxRise` 2.5.
+  - Markers are invisible, with no collision, queries or touch.
+  - The build tool checked, before creating anything:
+    - floor under every crate and node;
+    - crate headroom;
+    - a box sweep of each crate's lane to its point;
+    - clearance from spawns, stabilizers, supply points, fragment markers and pads.
+  - Yard items sit on DecayTile centres.
+  - Config adds the tags, counts (8/4/12/2), classes and attribute schema, so Bootstrap validation and the arena baseline cover them.
+- **New patches:**
+
+  | Patch | Severity / weight | Duration | Effect | Counterplay | Safeguards and restore |
+  |---|---|---|---|---|---|
+  | MAGNETIC | standard / 3 | 35 s | Up to 8 crates move along fixed lanes toward their zone's nearest MagneticPoint, stopping 3.5 studs short. The field flips every 8 s: pull, then push back to rest. Blue while pulling, orange while pushing. | Keep off the lanes; crates telegraph by colour | Anchored and kinematic: the server sets CFrame at 10 Hz and 6 studs/s, so physics ownership never leaves the server and nothing is flung. A crate never moves while a character is within 4 + 1.5 studs of its next position. CFrame and Colour restored exactly. |
+  | CORRUPTION | severe / 2 | 35 s | One path is chosen at random. A new node every 3 s: amber warning disc for 2 s, then a magenta corrupted disc. 4 damage/s (applied every 0.5 s) to living Participants on a corrupted disc. | Step off amber discs; the trail covers at most 6 discs of 6 studs; SCANNER shows the discs | At most 6 active nodes across all CORRUPTION patches. ForceField (spawn protection) blocks the damage. Discs are runtime parts with no collision or queries and are removed at the end. |
+  | FLOOD | severe / 2 | 35 s | Water rises linearly to 2.5 studs over 10 s in both zones, then holds. Wading Participants (feet below the surface) walk at 60% speed. **Non-lethal.** | Take the ramps: the Skybridge ramp and steps, the Lookout ramp, the Bridge and the North Annex stay dry | WalkSpeed is restored on leaving the water, on no longer being a living Participant, and at the end. The water is a runtime part with no collision or queries. |
+
+- **New combinations** (InteractionCatalog). As in 7A, each one: starts once per match; ends with either source; holds no slot; costs −4 stability; gives +10 Discovery.
+  - **FLOATING_DEBRIS** (FLOOD + MAGNETIC):
+    - Crates float on the water: bottom 1 stud below the surface, so the top is 2 studs above it.
+    - A crate someone stands on keeps them out of the water and does not move while occupied.
+    - When it ends, crates settle back to their resting height.
+  - **RAPID_DECAY** (DECAY + CORRUPTION):
+    - DECAY starts tile groups 1.5× as often (cycle 5 → 3.33 s).
+    - Unchanged: the 2.5 s amber warning, the collapse time and the cap of 8 unsafe tiles.
+    - DECAY's loop now checks every 0.25 s against the current cycle.
+  - **SLIDE_FIELD** (SLIPPERY + MAGNETIC):
+    - Crates slide at 2× speed to their points and are held there (no push-back).
+    - Each point is marked by a glowing ring.
+    - The rule that crates never strike a player still applies.
+- **SCANNER** also highlights corruption discs and magnetic crates.
+- **Unchanged:** PatchInteractionService, BehaviorRuntime, ArchitectService, MatchService and Stability/Score, plus all Phase 7A patches except DECAY (speed hook only). PatchService gained three entries in its behaviour list.
+
+### Changed / added files
+- Added:
+  - `Patches/Magnetic.luau`, `Corruption.luau`, `Flood.luau`, `FloatingDebris.luau`, `RapidDecay.luau`, `SlideField.luau`
+  - `tools/studio/phase7b_markers.luau`
+- Changed:
+  - Shared: `Config` (0.7.0-phase7b, tags, counts, classes, schema), `PatchCatalog`, `InteractionCatalog`
+  - `Services/PatchService` (behaviour list), `Patches/Decay` (speed hook), `Services/AbilityService` (scanner), `Controllers/AbilityController` (colours)
+  - `src/README.md`, this document
+- Studio parity: **42/42 scripts hash-identical.**
+
+### Tests (solo Studio, targeted, 2026-11-10)
+Most tests used scripts injected into the play server, calling the real services with a real player. Lifecycle runs used real Architect submissions through the `RequestPatchSubmission` remote. Movement speed was measured on the real client.
+
+| # | Test | Result | Evidence |
+|---|---|---|---|
+| V0 | Arena validation | PASS | `Validate` ok, 0 errors; MagneticProp 8, MagneticPoint 4, CorruptionNode 12, FloodZone 2; baseline matches. Bootstrap: `v0.7.0-phase7b … CorruptionNode=12 … FloodZone=2 … MagneticPoint=4, MagneticProp=8` |
+| M1 | MAGNETIC activation | PASS | 8/8 crates moved (cap 8); pull colour shown |
+| M2 | Crates never strike players | PASS | Player standing in crate 2's lane: closest crate-to-player distance 6.08 studs (clearance 5.5); 29 held steps |
+| M3 | Lanes and polarity | PASS | Maximum distance from a lane 0.000 studs; 8/8 moved more than 5 studs while pulling; 8/8 moving back after the flip; push colour shown |
+| M4 | MAGNETIC restore | PASS | 8/8 crates exactly restored (CFrame and Colour), 8/8 anchored; baseline matches |
+| C1 | Warning before damage | PASS | First node amber at +0.2 s (not yet corrupted); corrupted at +2.3 s |
+| C2 | Corruption damage | PASS | On a corrupted disc: 98 → 92 in 2 s, i.e. 4/s damage minus Roblox's default health regeneration of +1/s. 9 studs away: 92 → 94 (regeneration only, no damage) |
+| C3 | Spread and cap | PASS | After 22 s: 6 active, 6 corrupted; never more than 6 |
+| C4 | CORRUPTION cleanup | PASS | 0 nodes, 0 disc parts; baseline matches |
+| F1 | Predictable rise; dry routes | PASS | Water 1.24 at +5 s, 2.50 at +10.5 s. Bridge, North Annex and SkyDeck dry |
+| F2 | Slow, non-lethal | PASS | WalkSpeed 16 → 9.6 while wading; SkyDeck 16; Annex 16; back in water 9.6; health 100 → 100 |
+| F3 | Real client movement | PASS | Real client steady walking speed: dry 16.0 studs/s, wading 9.6 studs/s (−40%) |
+| F4 | FLOOD restore | PASS | WalkSpeed 16.0; 0 slowed; 0 water parts; baseline matches |
+| FD1 | FLOATING_DEBRIS start | PASS | Running; 2 patch slots used (the combination uses none); stability 83 → 68 (FLOOD −6, MAGNETIC −5, combination −4); Discovery +10 |
+| FD2 | Floating stepping stones | PASS | 8/8 crates floating, centre Y 3.00 (rest 1.50; expected 3.00). On a floating crate: WalkSpeed 16.0, crate moved 0.00 studs while occupied. Wading beside it: 9.6 |
+| FD3 | Ends with its source | PASS | FLOOD cancelled → `source_ended`; MAGNETIC still running; 8/8 crates back at resting height within 1.2 s |
+| RD1 | RAPID_DECAY speed | PASS | DECAY cycle 5.00 → 3.33 s. Measured group gaps: before 5.22 / 5.17 s; during 3.37 / 3.40 / 3.40 s |
+| RD2 | Safety unchanged | PASS | Shortest amber warning before a collapse 2.47 s (2.5 s, with 0.05 s sampling); at most 8 unsafe tiles (cap 8) |
+| RD3 | Ends with its source | PASS | CORRUPTION cancelled → `source_ended`; cycle back to 5.00 s |
+| SF1 | SLIDE_FIELD | PASS | Running; 4 rings; crate speed 11.2 studs/s (2 × 6, measured over 0.5 s); held 3.5 studs from the point, with no push-back over 12 s |
+| SF2 | Ends with its source | PASS | SLIPPERY cancelled → `source_ended`; 0 rings left |
+| SF3 | Once per match; no strikes | PASS | MAGNETIC + SLIPPERY again in the same match: no second SLIDE_FIELD. With a player in a lane, the closest crate came to 6.05 studs |
+| S1 | SCANNER | PASS | Real client highlights: 3 corruption discs, 4 magnetic crates (plus fragments) |
+| L1 | Natural combinations | PASS | Live match 1 with a deliberate Architect (prefers partner cards, submits after 4 s): **RAPID_DECAY** at 102 s, **FLOATING_DEBRIS** at 160 s and **SLIDE_FIELD** at 277 s, all through normal Architect turns. 14 turns, 14 activations, at most 2 of 3 slots |
+| L2 | Ordinary Architect | PASS | Live match 2 with random cards after 3–10 s: 13 activations, 0 combinations, at most 2 of 3 slots |
+| L3 | Cleanup across consecutive matches | PASS | At LOBBY after each match: 8/8 crates restored, WalkSpeed 16.0, 0 slowed, 0 corruption nodes, DECAY cycle 5.00, Lighting exact, gravity 196.2000, world and arena baselines match, 0 patches, 0 interactions, 0 patch objects |
+| L4 | Match end with patches running | PASS | FLOOD, MAGNETIC and CORRUPTION running with FLOATING_DEBRIS (3 slots; player wading at 9.6). At RESULTS: all ended; FLOATING_DEBRIS `source_ended:match_end`; 0 nodes, 0 water parts, WalkSpeed 16.0. At LOBBY: 8/8 crates restored; baseline matches |
+| P1 | Server Output | PASS | Two full matches: only `[WORLD_EXE]` info lines; no errors or warnings |
+| P2 | Source parity | PASS | 42/42 hash-identical |
+| P3 | Edit place clean | PASS | No test scripts or attributes; 8/8 crates at build state; 26 markers; 64/64 DecayTiles solid; Lighting 3.00/0.00; gravity 196.2 |
+
+Totals: **30 PASS, 0 FAIL.**
+
+Not rerun:
+- The Phase 3 engine suite (E1–E9) and the Phase 7A suite were not rerun. The shared systems are unchanged: BehaviorRuntime, PatchInteractionService and PatchService code paths. PatchService only gained behaviour-list entries.
+- DECAY and the SCANNER, which did change, were retested (RD1–RD3, S1).
+
+Not tested:
+- Recovery, shutdown or departure while a 7B patch runs. These use the same `CancelAll` / `Reset` paths, covered for earlier patches.
+- MAGNETIC restore while a player stands on a crate's resting spot.
+- Multiplayer, deferred to the integration milestone:
+  - kinematic crate replication;
+  - several players pausing crates;
+  - FLOOD slowing several players;
+  - corruption damage on several players.
+
+### Design notes for review
+- **"Loose physics props" are kinematic.** The crates are anchored and moved by the server instead of being unanchored physics parts. This meets "server-controlled, no ownership exploits, no uncontrolled collisions": nothing can be flung, and no client owns them.
+- **MAGNETIC polarity flip.** Pull for 8 s, then push for 8 s. Without it, crates finish within about 4 s and FLOATING_DEBRIS and SLIDE_FIELD would show nothing when their second source arrives later. The crates stay on validated lanes.
+- **SUPPLY_DROP shield and CORRUPTION.** The shield blocks one drone hit and is used up by it. It does **not** block corruption damage over time, which would use it up within half a second. Spawn protection (ForceField) does block corruption damage.
+- **Crate restore** puts a crate back at its resting spot at once, even if a player stands there. Roblox pushes the character out of the overlap. This was not tested with a player on the spot.
+
+### Balancing considerations (carried forward)
+- **Combination length:** about 6–10 s, as in 7A. FLOATING_DEBRIS crates rise in under a second, so the effect is visible within that window.
+- **Patch frequency:** 13–14 activations per match, as with the 25 s cadence.
+- **Higher stability pressure with 7B:** CORRUPTION and FLOOD are severe (−6), and the deliberate Architect also triggered three combinations (−12). Match 1 ended at stability 12 and match 2 at 33, with no repairs (solo). Revisit in playtests together with the repair loop.
 
 ## Phase 7A final review (2026-11-10)
 ChatGPT approved PR #9 at `0ecbfa4`: no remaining blocking issues. The Architect cadence correction is accepted. Both combinations were demonstrated through normal Architect turns. The 25 s interval, the 35 s BLACKOUT duration and the reduced severity costs are approved as provisional tuning. No additional test round was required.
