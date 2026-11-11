@@ -3,10 +3,10 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 7B COMPLETE — merged to `main`. The initial catalog (10 patches, 5 combinations) is complete. Next: Phase 8A Major Arena Reconstruction — design proposal under review; implementation requires separate owner approval. D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
-- Current phase: Phase 7B complete; Phase 8A (Major Arena Reconstruction) in planning — design proposal only, no map changes
-- Current branch: `main`
-- Current PR: no WORLD.EXE phase PR open. Phase 7B merged via [jackambrosia-ai/World.EXE#10](https://github.com/jackambrosia-ai/World.EXE/pull/10). Phase 7A merged via [jackambrosia-ai/World.EXE#9](https://github.com/jackambrosia-ai/World.EXE/pull/9). Phase 6 merged via [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
+- Overall status: PHASE 8A-1 APPROVED — ChatGPT final review approved PR #12 at `e614194`; closeout done (parity, clean place, owner save verified, post-8A-1 backup). Awaiting explicit owner approval to squash-merge. Next after the merge: Phase 8A-2 architectural design proposal (design review first; no implementation without approval). D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
+- Current phase: Phase 8A-1 — approved; awaiting owner merge decision
+- Current branch: `phase-08a1-arena-layout`
+- Current PR: Phase 8A-1 in review: [jackambrosia-ai/World.EXE#12](https://github.com/jackambrosia-ai/World.EXE/pull/12); Phase 8A design PR #11 (draft, separate). Phase 7B merged via [jackambrosia-ai/World.EXE#10](https://github.com/jackambrosia-ai/World.EXE/pull/10). Phase 7A merged via [jackambrosia-ai/World.EXE#9](https://github.com/jackambrosia-ai/World.EXE/pull/9). Phase 6 merged via [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
 - Studio place: saved by the owner 2026-11-10 17:35:27 (`Place1.rbxl`, 135,464 bytes, SHA-256 `F4DF639AB773961792E97BF2FB305751D64ABAFCF6B11BD0F598C86368FE90FF`). The save is verified from the file itself: all 21 `Source` strings decoded from the saved `.rbxl` are byte-identical (length + hash) to `src/` at `c7f5186` (unchanged in `main` `8d244b9`), and the file has no other scripts. Before the save, the Edit place was checked clean: no test scripts or attributes, 64 DecayTiles, gravity 196.2.
 - Phase 1 merge: squash-merged 2026-11-10 by owner approval as `9b9cbd0` (from PR head `ddc784c`; merged tree identical to that head). The `phase-01-arena` branch still exists on GitHub and can be deleted.
 - Phase 2 merge: squash-merged 2026-11-10 by owner approval as `09d9c2a` (from PR head `2e99b13`; merged tree identical to that head; final gameplay code `9c6de7a`). The `phase-02-match` branch still exists on GitHub and can be deleted.
@@ -35,7 +35,10 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
   - `WorldEXE_pre-phase7a_2026-11-10.rbxl` — verified pre-Phase-7A copy (SHA-256 `B2252755…B397F3B2`, identical to the saved place)
   - `WorldEXE_post-phase7a_2026-11-10.rbxl` — post-Phase-7A place (SHA-256 `3198C186…93625552`, identical to the saved `Place1.rbxl`)
   - `WorldEXE_pre-phase7b_2026-11-10.rbxl` — verified pre-Phase-7B copy (SHA-256 `3198C186…93625552`, identical to the saved place)
-  - `WorldEXE_post-phase7b_2026-11-10.rbxl` — post-Phase-7B place (SHA-256 `7EB1F809…D6EEA7ED`, identical to the saved `Place1.rbxl`); current rollback point
+  - `WorldEXE_post-phase7b_2026-11-10.rbxl` — post-Phase-7B place (SHA-256 `7EB1F809…D6EEA7ED`, identical to the saved `Place1.rbxl`)
+  - `WorldEXE_pre-phase8a1_2026-11-10.rbxl` — verified pre-Phase-8A-1 copy (SHA-256 `7EB1F809…D6EEA7ED`, identical to the saved place). The prototype arena is also kept inside the place as `ServerStorage.WORLD_EXE_RollbackArena_v1` (isolated; the external backup is authoritative)
+  - `WorldEXE_post-phase8a1_2026-11-10.rbxl` — post-Phase-8A-1 place (SHA-256 `E0B955F4…14714745`, identical to the saved `Place1.rbxl`); current rollback point
+- Studio place (Phase 8A-1): saved by the owner 2026-11-10 23:58:16 (`Place1.rbxl`, 174,847 bytes, SHA-256 `E0B955F4A30672F5FFE2D0E508D31E068E27E749B45B4FE8F081D02314714745`). Verified from the file itself: all 42 decoded script sources are byte-identical (length + hash) to `src/` at `e614194`; the new arena is present (CorePlaza, ReactorDrum, OuterRing, DataArchive racks, reservoir basin, SkyDeck and islands, 100-tile grid, all marker names) together with `ServerStorage.WORLD_EXE_RollbackArena_v1`; no `ZZ_` test leftovers. Immediately before the save, Studio showed ArenaVersion 2, 522 map parts, all 12 marker counts as expected, 8/8 crates at build state, no test scripts or attributes, gravity 196.2 and Lighting 3.00/0.00.
 - Studio place (Phase 7B): saved by the owner 2026-11-10 22:25:42 (`Place1.rbxl`, 167,930 bytes, SHA-256 `7EB1F809B3BE42D3A5948C4FC97F989692986E581E1C790DC2A4D2DCD6EEA7ED`). Verified from the file itself: all 42 decoded script sources are byte-identical (length + hash) to `src/` at `2fca9c5`, the 26 `Map.PatchMarkers` parts are present, and there are no `ZZ_` test leftovers. The Edit place was checked clean before the save: no test scripts or attributes, 8/8 crates at build state, 64/64 DecayTiles solid, Lighting 3.00/0.00, gravity 196.2.
 - Studio place (Phase 7A): `Place1.rbxl` last written 2026-11-10 20:41:38 (158,802 bytes, SHA-256 `3198C186DEEFA561873DB5C00672EB5AD0C4EB7AEE0A085D40A07EF393625552`). Verified from the file itself: all 36 decoded script sources are byte-identical (length + hash) to `src/` at `0ecbfa4`, the 8 Phase 7A pads (`Map.PatchSurfaces`, BounceSurface/SlipSurface tags) are present, and there are no `ZZ_` test leftovers. The Edit place was checked clean: no test scripts or attributes, pads at build state, 64/64 DecayTiles solid, 12 FragmentSpawn, Lighting 3.00/0.00, gravity 196.2.
 - Studio place (Phase 6): saved by the owner 2026-11-10 19:11:29 (`Place1.rbxl`, 150,191 bytes, SHA-256 `B2252755CFA1DA6FCE1BCC34D64BCEAEF49BAAB88B117A9E4E07A37BB397F3B2`). Verified from the file itself: all 28 decoded script sources are byte-identical (length + hash) to `src/` at `03f9cab` (unchanged in `main` `16cef23`), with no other scripts. Before the save, the Edit place was checked clean: no test scripts or attributes, 64/64 DecayTiles collidable, 12 FragmentSpawn markers, stabilizer rings at their original colour, gravity 196.2.
@@ -52,6 +55,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 - Known Phase 2 gaps carried forward (not counted as passed): real mid-match join → Spectator; multiplayer spawn-protection window; > 12 players; streaming at distance; pending-respawn invalidation on departure. Hardening note for Phase 10: server→client remotes have no `OnServerEvent` handler (client spam is queued with warnings).
 - Known Phase 7A gaps (not counted as passed): a real failing combination activation (shared RunHook path covered by E1/E2); combination cap 5 unreachable with 2 combinations; departure/recovery during a combination (code paths only); BLACKOUT on a real client; all multiplayer behaviour — deferred to the multiplayer integration milestone.
 - Known Phase 7B gaps (not counted as passed): recovery, shutdown or departure while a 7B patch runs (code paths only); all multiplayer behaviour (crate replication, several players pausing crates, flood slow and corruption damage on several players) — deferred to the multiplayer integration milestone.
+- Known Phase 8A-1 gaps (not counted as passed): multiplayer behaviour on the larger map; device performance (mobile FPS/memory); a meaningful foreground desktop client FPS measurement (requested before Phase 8A-2 approval). The `MatchStateChanged` warning was fixed in review round 1.
 - Last updated: 2026-11-10
 
 ## Phase tracker
@@ -66,10 +70,214 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 6 | Initial abilities | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #8](https://github.com/jackambrosia-ai/World.EXE/pull/8) → `16cef23` | Targeted solo: 27 PASS, 0 FAIL; multiplayer deferred (see Phase 6 report) |
 | 7A | Interactions + BOUNCY/SLIPPERY/BLACKOUT | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #9](https://github.com/jackambrosia-ai/World.EXE/pull/9) → `059f191` | Targeted solo: 35 PASS, 0 FAIL; round 1: 9 PASS (targeted live Architect runs) |
 | 7B | MAGNETIC/CORRUPTION/FLOOD + 3 combinations | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #10](https://github.com/jackambrosia-ai/World.EXE/pull/10) → `f9e4707` | Targeted solo: 30 PASS, 0 FAIL; round 1: 7 PASS (safe crate restore) |
-| 8A | Major arena reconstruction | Planning — design proposal in `docs/PHASE_8A_ARENA_DESIGN.md` (implementation requires approval) | — | — |
+| 8A-1 | Arena greybox and gameplay migration | **Approved — awaiting owner merge** (solo Studio tests; multiplayer deferred) | [PR #12](https://github.com/jackambrosia-ai/World.EXE/pull/12) (`b1cbbc7`) | Targeted solo: 40 PASS, 0 FAIL; finding fixed in round 1 (4 PASS) |
+| 8A-2 | Architectural identity | Not started (requires approval) | — | — |
 | 8B | Visual polish | Not started (requires approval) | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 8A-1 final review (2026-11-10)
+ChatGPT approved PR #12 at `e614194`: no remaining merge blockers. The `MatchStateChanged` correction is accepted. No additional regression testing was required.
+
+Closeout (completed):
+1. Studio ↔ GitHub parity: 42/42 hash-identical to `e614194`.
+2. Edit place clean, and the new arena intact: ArenaVersion 2, 522 map parts, all 12 marker counts as expected, 8/8 crates at build state.
+3. The owner saved `Place1.rbxl` (2026-11-10 23:58:16). Verified from the file: 42 script sources match; the new arena geometry and markers are present; the rollback copy is included; no test leftovers.
+4. Backup `WorldEXE_post-phase8a1_2026-11-10.rbxl` created. Its SHA-256 matches the saved place: `E0B955F4A30672F5FFE2D0E508D31E068E27E749B45B4FE8F081D02314714745`.
+5. This document and PR #12 were updated.
+
+Carried forward:
+- A foreground desktop client FPS measurement, before Phase 8A-2 approval.
+- Mobile performance and multiplayer integration, mandatory before release.
+
+Next (owner, 2026-11-10): the larger arena still reads as floating platforms rather than a convincing simulation facility. After the merge, a **Phase 8A-2 architectural design proposal** covers:
+- district silhouettes;
+- supports, exteriors and enclosed spaces;
+- a much stronger reactor;
+- environmental framing instead of the empty void;
+- a distinct identity for each zone;
+- performance-conscious detail.
+
+Design review comes first; there is no implementation without approval.
+
+## Phase 8A-1 review round 1 correction (2026-11-10)
+
+ChatGPT reviewed PR #12 at `f213753`: CHANGES REQUESTED, with one small correction. The arena, the migration, spawn validation, rollback preservation and the 40 passing tests were accepted, and so were the layout deviations.
+
+### Change
+- **`MatchService.publish()` no longer fires `MatchStateChanged`.**
+  - It had no client listener, so in long sessions its events filled Roblox's queue for unhandled events and produced the warning.
+  - Clients already read the replicated, versioned `Snapshot` attribute. That attribute and its `Version` are unchanged.
+  - Match lifecycle and HUD behaviour are unchanged.
+- **The remote definition is kept.** `Config.Remotes.MatchStateChanged` is still created by NetService and marked "reserved", to avoid unnecessary compatibility changes.
+- **Files:** `Services/MatchService.luau` (one line removed, comment added), `Shared/Config.luau` (comment).
+
+### Focused tests (solo Studio)
+| # | Test | Result | Evidence |
+|---|---|---|---|
+| Q1 | No queue warning under heavy publishing | PASS | 341 extra snapshot publishes (Version 4 → 446; the old warning appeared after about 256 unhandled events). Client log: 0 "queue exhausted", 0 warnings, 0 errors. Server log: 448 entries, 0 "queue exhausted", 0 warnings, 0 errors |
+| Q2 | Snapshot updates reach the real client | PASS | The client's latest Version equals the server's (446). The client saw 443 change events, because Roblox coalesces rapid attribute updates; `MatchStateClient` already ignores older versions |
+| Q3 | Full lifecycle on the real client and HUD | PASS | Snapshot: COUNTDOWN → INITIALIZING → ACTIVE → FINAL_PHASE → RESULTS → RESET → LOBBY → COUNTDOWN. HUD label: MATCH STARTING → INITIALIZING SIMULATION → SIMULATION ACTIVE → FINAL PHASE → RESULTS → RESETTING → LOBBY → MATCH STARTING. 0 warnings or errors on client and server |
+| Q4 | Parity and Edit place | PASS | 42/42 hash-identical; Edit place clean |
+
+Totals: **4 PASS, 0 FAIL.** The 40 arena tests were not repeated, per the review.
+
+Non-blocking items carried forward:
+- A meaningful foreground desktop client FPS measurement, before Phase 8A-2 approval.
+- Mobile performance and multiplayer integration, mandatory before release.
+
+## Phase 8A-1 report — Arena greybox and gameplay migration (2026-11-10)
+
+Scope (Phase 8A-1 execution approval): replace the prototype arena with the approved larger greybox facility and move every gameplay marker onto it.
+
+The design ([PR #11](https://github.com/jackambrosia-ai/World.EXE/pull/11), decisions M1–M8) was approved with conditions: its dimensions, marker counts and tuning are initial targets, subject to playability and performance validation. Final visual quality is **not** part of this stage (8A-2/8B).
+
+### Pre-checks (all passed)
+- `main` synced to `54c3f92`; Studio matched it on 42/42 scripts.
+- `WorldEXE_pre-phase8a1_2026-11-10.rbxl` was created. Its SHA-256 matches the saved place: `7EB1F809…D6EEA7ED`.
+- Branch `phase-08a1-arena-layout` created.
+
+### How it was built
+- **Reproducible builder:** `tools/studio/phase8a1_build_arena.luau`, committed. One run does three things:
+  1. Moves the old `Map` and `Lobby` to `ServerStorage.WORLD_EXE_RollbackArena_v1` (an isolated rollback copy; the external `.rbxl` backup stays authoritative).
+  2. Builds the new map and lobby (`ArenaVersion = 2`).
+  3. Validates everything before keeping it; on any failure it restores the old arena exactly.
+- **What the builder validates:**
+  - floor under every spawn, pad, node, crate and point;
+  - spawn and pad headroom;
+  - a box sweep of every crate lane;
+  - line of sight on every drone waypoint link;
+  - clear sky above every supply point;
+  - the spawn-safety rules;
+  - stabilizer clearance from hazards.
+- **Two validation catches, both fixed before anything was kept:**
+  - Two runs were rejected because the Core pylons blocked drone patrol lines; the pylons moved, together with two nearby pads and fragments.
+  - After the build, review found that no crate stood inside a flood zone, so FLOATING_DEBRIS would have had no visible effect. Two crates and their point moved into the reservoir basin, in both the builder and the place, and were checked: floor at −10, lanes clear.
+- **Only the new map is processed.** Every tag consumer already filters to `Workspace.WORLD_EXE.Map` or `.Lobby`. Tested: the 149 tagged instances in the rollback copy were never counted or touched.
+- **Size:** 522 map parts (greybox; the budget is about 4,000).
+
+### Layout (as built)
+- **Footprint:** 520 × 520 (X/Z −260…260).
+- **Tiers:** T0 Y 0, T1 Y 24, T2 Y 48, T3 Y 72, plus the reservoir basin at Y −10.
+- **Zones:**
+
+  | Zone | Contents |
+  |---|---|
+  | **Central Core** | Plaza 200×200 (T0). Reactor drum, about 140-stud spire and rings (landmark). Mezzanine ring (T1) with 2 ramps. East gantry: ramp T1→T2 and bridge to the SkyDeck. North gantry (T1) to the Archive walkway. 4 pylons (12 tall, bounce targets) and cover walls |
+  | **Research Yard** | 10×10 DecayTile grid, two test chambers with doorways, T1 catwalks with ramps |
+  | **Skybridge** | Base (T0); landings (T1) with climb ramps; SkyDeck (T2) with deck ramps; two T3 islands reached by 5-step stairs |
+  | **Data Archive** (new) | 12 server racks (24 tall, tops at T1) in 6 rows with 14-stud aisles and a cross-aisle; atrium; rack decks (T1); south walkway (T1); 2 ramps to the ring |
+  | **Coolant Reservoir** (new) | Basin (Y −10) with 3 ramps out, rims (T0), 2 pump towers, T1 bridge with a 14-stud zero-G gap, links and ramps to the ring |
+  | **Outer Ring** (new) | T1 loop at ±230, 14 wide |
+
+- **Connections:** 4 T0 spokes, 24 wide.
+- **Lobby:** moved to (0, 160, 410), outside the new bounds.
+
+**Deviations from the design** (allowed as initial targets; all deliberate):
+- **Archive gantry is at T1, not T2.** It lands directly on the Archive's T1 walkway, so it needs no T2 landing over the atrium.
+- **Two mezzanine ramps (W, S) instead of four.** North and east ramps would have passed under the two gantries with too little headroom. The gantries replace them; the mezzanine still has 4 ways on or off.
+- **MagneticPoint 4, not 6.** Each lane needs its own approach side, so the 8 crates use 4 points: reservoir rim, reservoir basin, archive, yard.
+- **ZERO_G shortcuts are horizontal gaps, not climbs.** Roblox's jump-height mode keeps the jump at about 7.2 studs under any gravity, so low gravity extends distance (about 16 studs) rather than height. The shortcuts are therefore the two 14-stud gaps (Archive rack tops, Reservoir bridge).
+
+### Config and code changes (all small)
+| Item | Change |
+|---|---|
+| `Config` | Version `0.8.0-phase8a1`. Zones add DataArchive, CoolantReservoir, OuterRing. New counts (below). `ArenaBounds` (−275, −40, −275)…(275, 160, 275). New `SpawnFloodMargin` = 3 and `SpawnHazardClearance` = 8 |
+| `ArenaService` | New spawn-safety validation: outside every FloodZone (+3); at least 8 studs from corruption nodes, bounce/slip pads and crate lanes |
+| `Decay` | Unsafe-tile cap 8 → 12 (of 100) |
+| `CollectibleService` | Active fragment cap 8 → 12 |
+
+Unchanged: patch rules, timings, stability, cadence, the 3-patch cap, drones, SCANNER, the match timeline, Lighting.
+
+**Marker counts** (all validated):
+
+| Marker | Old → new |
+|---|---|
+| DecayTile | 64 → 100 |
+| ArenaSpawn | 12 → 16 |
+| Stabilizer | 3 (unchanged) |
+| SupplyLandingPoint | 5 → 8 |
+| DroneWaypoint | 15 → 30 |
+| FragmentSpawn | 12 → 24 |
+| BounceSurface | 4 → 8 |
+| SlipSurface | 4 → 8 |
+| MagneticProp | 8 (unchanged) |
+| MagneticPoint | 4 (unchanged) |
+| CorruptionNode | 12 → 18 |
+| FloodZone | 2 → 3 |
+
+### Screenshots (greybox)
+`docs/phase8a1/`: `01_topdown.jpg`, `02_central_core.jpg`, `03_data_archive.jpg`, `04_coolant_reservoir.jpg`, `05_skybridge.jpg`, `06_research_yard.jpg`.
+
+### Tests (solo Studio, targeted, 2026-11-10)
+- Traversal, jump and bounce tests used the **real client** character: `MoveTo` and real jumps.
+- Patch tests used scripts injected into the play server, calling the real services.
+- Match runs used real Architect submissions through the remote.
+
+| # | Test | Result | Evidence |
+|---|---|---|---|
+| V1 | Arena validation | PASS | `Validate` ok, 0 errors; all 12 counts as above; baseline matches; 16 spawns in use. Bootstrap `v0.8.0-phase8a1 … Ready` |
+| V2 | Only the new map is processed | PASS | The 149 tagged instances in the rollback copy are ignored by validation. DECAY touched 0/64 rollback tiles and claimed 0 tiles outside the active map |
+| V3 | Spawn safety | PASS | Builder and runtime rules: no spawn on DecayTiles or in flood zones; all at least 8 studs from nodes, pads and lanes; headroom clear |
+| T1 | Centre → Yard stabilizer (spoke W) | PASS | 238 studs in **14.9 s** |
+| T2 | Centre → Archive atrium (spoke N) | PASS | 215 studs in **13.4 s** |
+| T3 | Centre → Reservoir rim (spoke S) | PASS | 165 studs in **10.3 s** |
+| T4 | Centre → Sky base (spoke E) | PASS | **12.1 s**. The first try failed because my test route ran straight into the Core cover wall; it was rerouted around it |
+| T5 | Edge to edge (Yard west → Sky base east) | PASS | 465 studs in **29.2 s** (target about 30–35 s) |
+| T6 | T0 → T1 (mezzanine ramp) | PASS | 5.6 s |
+| T7 | Mezzanine T1 → SkyDeck T2 via gantry | PASS | 336 studs in 20.9 s, ending at the SkyDeck stabilizer |
+| T8 | Sky base T0 → landing T1 → SkyDeck T2 | PASS | 234 studs in 14.5 s |
+| T9 | Yard T0 → catwalk T1 → Outer Ring | PASS | 13.4 s |
+| T10 | Archive T0 → ring T1 → ring corner | PASS | 15.7 s |
+| T11 | Reservoir basin → rim (exit ramp) | PASS | 4.6 s |
+| T12 | Reservoir rim → ring → bridge T1 | PASS | 12.0 s |
+| J1 | Archive aisle gap (14), normal gravity | PASS (blocked as designed) | Fell into the aisle (y 3.4) |
+| J2 | Archive aisle gap (14), ZERO_G | PASS | Crossed at gravity 58.9 (landed x −85.7, y 27.5) |
+| J3 | Reservoir bridge gap (14), normal / ZERO_G | PASS | Normal: fell into the basin. ZERO_G: crossed twice (landed x 15.9 and 12.9) |
+| B1 | BOUNCY pad → pylon top (12) | PASS | Peak root y 18.7; landed on the pylon |
+| B2 | BOUNCY pad → catwalk (24), normal gravity | PASS (blocked as designed) | Peak 18.5; does not reach |
+| B3 | Bounce under ZERO_G → mezzanine / walkway / catwalk (T1) | PASS | Mezzanine S: landed (peak 36.7). Archive walkway: landed (peak 39.4). Yard catwalk: landed in 2/2 runs when steering near the apex. Steering at launch clips the catwalk's underside and falls; this is a player-skill note |
+| P1 | ZERO_G | PASS | Gravity 58.86 |
+| P2 | DECAY on the 100-tile grid | PASS | At most 8 unsafe in 12 s (cap 12); 0 tiles outside the active map; full restore |
+| P3 | DRONE_SWARM on the 30-node graph | PASS | 3 drones, all moving; 0 out-of-bounds samples; 0 objects after the end |
+| P4 | SUPPLY_DROP | PASS | Crate landed 0.0 studs from a landing point |
+| P5–P7 | BOUNCY / SLIPPERY / BLACKOUT | PASS | 8/8 pads glowing; 8/8 pads iced; lighting 0.50/−1.20, restored to 3.00/0.00; baseline matches |
+| P8 | MAGNETIC | PASS | 8/8 crates moved; restored exactly 8/8; 0 ghosts |
+| P9 | CORRUPTION | PASS | Paths chosen at random (Archive, Yard, Archive in 3 runs); at most 6 active; 0 left after the end |
+| P10 | FLOOD | PASS | 3/3 water parts. Surface: basin −4.00 (−10 + 6), Core plaza 2.50, Yard grid 2.50. Rims, SkyDeck and Archive dry |
+| C1–C5 | All 5 combinations | PASS | HUNTER_SCAN, FLOATING_DEBRIS, RAPID_DECAY (cycle 3.33 s), SLIDE_FIELD (4 rings), SUPER_BOUNCE each started; each ended with its source |
+| C2b | FLOATING_DEBRIS stage (basin) | PASS | Basin crates floated to y −3.50 (expected −3.50); rim crate stayed at 1.50; after FLOOD ended the basin crate settled to −8.50 |
+| L1 | Two consecutive matches, real Architect submissions (time scale 0.3) | PASS | Match 2: 14 activations. Match 3: 14 activations. At LOBBY after **each**: 8/8 crates exact, 0 ghosts, 0 slowed, 0 nodes, 0 DECAY claims, gravity 196.2000, lighting exact, world baseline, 0 patches, 0 interactions, 0 patch objects, `LastResetBaselineMatches=true`, arena baseline, WalkSpeed 16.0 |
+| X1 | Studio / GitHub parity | PASS | 42/42 hash-identical |
+| X2 | Edit place clean | PASS | No test scripts or attributes; 8/8 crates and 100/100 tiles at build state; Lighting 3.00/0.00; gravity 196.2 |
+| X3 | Output | **FINDING** | No errors. One **pre-existing** client warning in this very long session (60+ test activations): `Remote event invocation queue exhausted for …MatchStateChanged`. See Findings |
+
+Totals: **40 PASS (P5–P7 and C1–C5 counted individually), 0 FAIL, 1 finding.**
+
+### Performance (measured in Studio, not on devices)
+| Measure | Idle | Load (DRONE_SWARM + FLOOD + MAGNETIC) | Notes |
+|---|---|---|---|
+| Server heartbeat | 61 Hz; avg 16.7 ms, worst 18.9 ms | 61 Hz; avg 16.7 ms, worst 18.1 ms | No measurable change under load |
+| Server physics | 60 FPS | 60 FPS | |
+| Studio memory | 1715 MB | 1717 MB | **One Studio process** running both server and client; not a per-device figure |
+| Client FPS | 15 | 15 | **Not representative:** Studio throttles rendering of the unfocused window to exactly 15 FPS (66.7 ms frames, identical idle and under load) |
+| Parts | 522 map, 571 in Workspace, 917 instances | 577 streamed in on the client during load | |
+
+**Estimates, not measured:** mobile FPS and per-device memory. These need device testing, assigned to the pre-release integration and hardening milestones.
+
+### Findings
+- **`MatchStateChanged` has no client listener (pre-existing since Phase 2; map-independent).** The server fires it on every snapshot publish, but clients read the `Snapshot` attribute instead. In a long session Roblox's queue for unhandled events fills and drops them with this warning. Gameplay is unaffected, since the attribute is the source of truth.
+  - Proposed one-line fix: `MatchStateClient` connects a handler (or the server stops firing it).
+  - It was **not** changed here, because 8A-1 is arena-only. Approval is requested to fold it into 8A-1 or schedule it for Phase 10 hardening.
+
+### Not tested
+- Real multiplayer on the larger map: spawn spread, chokepoints, drone targeting with several players, crate replication. Deferred to the mandatory pre-release integration milestone.
+- Device performance (mobile FPS and memory).
+- Every possible route. The routes above cover each zone, tier and connection type.
+
+### Balancing notes (carried forward)
+- **Bigger map, same timeline:** stabilizers are about 15 s from the centre. Fragment cap raised to 12; pacing to be revisited in playtests.
+- Combination overlaps (about 6–10 s), patch frequency and stability pressure are unchanged and still open.
 
 ## Phase 7B final review (2026-11-10)
 ChatGPT approved PR #10 at `2fca9c5`: no remaining merge-blocking issues. The MAGNETIC ghost-restoration correction is accepted. No further test round was required.

@@ -22,7 +22,7 @@ local ScoreService = require(script.Parent:WaitForChild("ScoreService"))
 local FRAGMENTS_ATTR = Config.PlayerAttributes.Fragments
 
 -- Server-only tuning (provisional).
-local MAX_ACTIVE = 8
+local MAX_ACTIVE = 12 -- Phase 8A-1: larger arena (was 8)
 local WAVE_SECONDS = 20
 local PICKUP_RANGE = 8
 local FRAGMENT_SIZE = 1.6
