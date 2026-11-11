@@ -3,7 +3,7 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 8A-2c IN REVIEW (patch-responsive environments built, validated and saved; draft PR open). Phase 8A-2b merged as `9a6cec4`. D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
+- Overall status: PHASE 8A-2c APPROVED, AWAITING OWNER MERGE DECISION (ChatGPT final review of PR #16 at `add57bb`, 2026-11-11: technical and creative review approved; no further correction cycle). PR #16 stays draft and unmerged until the owner authorizes the merge. Phase 8A-2b merged as `9a6cec4`. D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
 - Current phase: Phase 8A-2c — patch-responsive environments (`EnvironmentResponseClient` + EnvFX hooks), owner construction authorization 2026-11-11 with Option B (limited EnvFX geometry) and no WARNING-state response
 - Current branch: `phase-08a2c-envfx` (from `main` `cb3e138`)
 - Current PR: Phase 8A-2c draft PR on `phase-08a2c-envfx`. Phase 8A-2b merged via [jackambrosia-ai/World.EXE#15](https://github.com/jackambrosia-ai/World.EXE/pull/15); Phase 8A-2 design [jackambrosia-ai/World.EXE#13](https://github.com/jackambrosia-ai/World.EXE/pull/13) (draft). Phase 8A-2a merged via [jackambrosia-ai/World.EXE#14](https://github.com/jackambrosia-ai/World.EXE/pull/14). Phase 8A-1 merged via [jackambrosia-ai/World.EXE#12](https://github.com/jackambrosia-ai/World.EXE/pull/12); Phase 8A design PR #11 (draft, separate). Phase 7B merged via [jackambrosia-ai/World.EXE#10](https://github.com/jackambrosia-ai/World.EXE/pull/10). Phase 7A merged via [jackambrosia-ai/World.EXE#9](https://github.com/jackambrosia-ai/World.EXE/pull/9). Phase 6 merged via [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
@@ -73,6 +73,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 - Known Phase 7B gaps (not counted as passed): recovery, shutdown or departure while a 7B patch runs (code paths only); all multiplayer behaviour (crate replication, several players pausing crates, flood slow and corruption damage on several players) — deferred to the multiplayer integration milestone.
 - Known Phase 8A-1 gaps (not counted as passed): multiplayer behaviour on the larger map; device performance (mobile FPS/memory); a meaningful foreground desktop client FPS measurement (requested before Phase 8A-2 approval). The `MatchStateChanged` warning was fixed in review round 1.
 - Carry-forward polish (nonblocking, recorded at 8A-2b approval; not to be implemented until planned in a later phase): Archive BLACKOUT atrium floor and north-foreground readability; modest visual improvements to the dominant Skybridge pylons and other district silhouettes; mobile accessibility and performance testing.
+- Carry-forward polish (nonblocking, recorded at 8A-2c approval; not to be implemented until a future authorized phase): SUPER_BOUNCE coil highlights read nearly white under bloom; bounce-pad perimeter indicators could be more distinct; the Data Archive open floor stays underlit during BLACKOUT; full multiplayer, mobile, gamepad and device-performance testing remains deferred.
 - Last updated: 2026-11-11
 
 ## Phase tracker
@@ -88,12 +89,14 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 7A | Interactions + BOUNCY/SLIPPERY/BLACKOUT | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #9](https://github.com/jackambrosia-ai/World.EXE/pull/9) → `059f191` | Targeted solo: 35 PASS, 0 FAIL; round 1: 9 PASS (targeted live Architect runs) |
 | 7B | MAGNETIC/CORRUPTION/FLOOD + 3 combinations | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #10](https://github.com/jackambrosia-ai/World.EXE/pull/10) → `f9e4707` | Targeted solo: 30 PASS, 0 FAIL; round 1: 7 PASS (safe crate restore) |
 | 8A-1 | Arena greybox and gameplay migration | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #12](https://github.com/jackambrosia-ai/World.EXE/pull/12) → `44e8f1d` | Targeted solo: 40 PASS, 0 FAIL; finding fixed in round 1 (4 PASS) |
-| 8A-2 | Architectural identity | 8A-2a merged (`1773f13`); 8A-2b **merged** (`9a6cec4`); 8A-2c in review (draft PR) | [PR #14](https://github.com/jackambrosia-ai/World.EXE/pull/14) (8A-2a); [PR #15](https://github.com/jackambrosia-ai/World.EXE/pull/15) (8A-2b, draft) | 8A-2c: AC9 all 10 patches + 5 combinations, streaming, reset and consecutive matches PASS (0 mismatches); AC10 screenshots; AC2 unchanged; FPS valid (unchanged) |
+| 8A-2 | Architectural identity | 8A-2a merged (`1773f13`); 8A-2b **merged** (`9a6cec4`); 8A-2c approved at `add57bb`, awaiting owner merge | [PR #14](https://github.com/jackambrosia-ai/World.EXE/pull/14) (8A-2a); [PR #15](https://github.com/jackambrosia-ai/World.EXE/pull/15) (8A-2b, draft) | 8A-2c: AC9 all 10 patches + 5 combinations, streaming, reset and consecutive matches PASS (0 mismatches); AC10 screenshots; AC2 unchanged; FPS valid (unchanged) |
 | 8B | Visual polish | Not started (requires approval) | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
 
 ## Phase 8A-2c report — Patch-responsive environments (2026-11-11)
+
+**Final review (ChatGPT, `add57bb`): APPROVED.** No further correction cycle required. Nonblocking polish carried forward (see Current state). Awaiting the owner's merge decision.
 
 Owner construction authorization 2026-11-11: Option B (≤40 decorative parts, 0 collidable, ≤4 normally-disabled lights, ≤1 static scan beam), no WARNING-state response, readiness adjustments a–e approved.
 
