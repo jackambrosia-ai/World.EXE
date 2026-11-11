@@ -26,6 +26,8 @@
 --                             existing floor within 40 studs below, or a floor at that level, fails).
 -- Visual acceptance (reported, never a rollback trigger): AC2 strict benchmark (unchanged) with SELF
 -- self-occlusion, lobby views, AC1 split, AC3 heights, AC6 reserved hues and slab span support.
+-- report.ACCEPTANCE combines C1-C13, AC6 and strict AC2 for every non-waived viewpoint into one
+-- overall PASS/FAIL; the five owner-approved AC2 exceptions are listed separately.
 local CS = game:GetService("CollectionService")
 local root = workspace:WaitForChild("WORLD_EXE")
 local map, lobby = root.Map, root.Lobby
@@ -593,7 +595,7 @@ local function selfScore(eye: Vector3, ignore: Instance?)
 	return core, crown
 end
 local WAIVED = { Spawn_RES_1 = true, Spawn_RES_2 = true, Spawn_ARCH_1 = true, Spawn_ARCH_2 = true, Spawn_ARCH_3 = true }
-local ac2, ac2Fail, newFail, selfLines = {}, {}, {}, {}
+local ac2, ac2Fail, newFail, selfLines, waivedLines = {}, {}, {}, {}, {}
 for _, s in spawns do
 	local eye = s.Position + V(0, s.Size.Y / 2 + 5, 0)
 	local v, c, co, blk = benchScore(eye, s)
@@ -604,7 +606,11 @@ for _, s in spawns do
 			table.insert(newFail, s.Name)
 		end
 	end
-	table.insert(ac2, string.format("%s %s%s %d%% crown %d column %d | blockers: %s", s.Name, if ok then "PASS" else "FAIL", if WAIVED[s.Name] then " (waived)" else "", math.floor(v / #bench * 100 + 0.5), c, co, if blk == "" then "-" else blk))
+	local line = string.format("%s %s%s %d%% crown %d column %d | blockers: %s", s.Name, if ok then "PASS" else "FAIL", if WAIVED[s.Name] then " (waived)" else "", math.floor(v / #bench * 100 + 0.5), c, co, if blk == "" then "-" else blk)
+	table.insert(ac2, line)
+	if WAIVED[s.Name] then
+		table.insert(waivedLines, line)
+	end
 	local sc, scr = selfScore(eye, s)
 	table.insert(selfLines, string.format("%s core %d/16 crown %d/8", s.Name, sc, scr))
 	task.wait()
@@ -790,5 +796,27 @@ report.AC6_spanOver30 = spanFail
 
 report.errors = errors
 report.result = if #errors == 0 then "GAMEPLAY CHECKS C1-C13 PASS (read-only)" else "GAMEPLAY CHECK FAILURES: " .. #errors
-_G.AUDIT8A2B_PASS = #errors == 0 and #newFail == 0
+
+-- Combined acceptance summary (correction 2026-11-11). The detailed arrays above stay unchanged;
+-- this block decides acceptance from ALL of them, so a regression in AC6 or in any non-waived AC2
+-- viewpoint can never read as a pass. The five owner-approved AC2 exceptions are reported
+-- separately with their measured (failing) strict results; they are not counted as passes.
+local function verdict(ok: boolean): string
+	return if ok then "PASS" else "FAIL"
+end
+local waivedNames = {}
+for n in WAIVED do
+	table.insert(waivedNames, n)
+end
+table.sort(waivedNames)
+local acc = {
+	gameplay_C1_C13 = verdict(#errors == 0) .. string.format(" (%d errors)", #errors),
+	AC6_structuralSupport = verdict(#spanFail == 0) .. string.format(" (%d slabs, %d over 30)", #slabParts, #spanFail),
+	AC6_colorRestrictions = verdict(#reserved == 0) .. string.format(" (%d unapproved reserved hues; %d declared warning uses)", #reserved, #reservedUse),
+	AC2_strict_nonWaived = verdict(#newFail == 0) .. string.format(" (%d of %d spawns + lobby centre checked; failing: %s)", #spawns - #waivedLines, #spawns, if #newFail == 0 then "none" else table.concat(newFail, ", ")),
+	AC2_ownerApprovedExceptions = { spawns = waivedNames, approved = "owner, 2026-11-11 (limited five-spawn waiver)", measuredStrict = waivedLines },
+}
+acc.overall = verdict(#errors == 0 and #spanFail == 0 and #reserved == 0 and #newFail == 0)
+report.ACCEPTANCE = acc
+_G.AUDIT8A2B_PASS = acc.overall == "PASS"
 return game:GetService("HttpService"):JSONEncode(report)

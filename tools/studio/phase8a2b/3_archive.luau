@@ -57,7 +57,7 @@ for i = 0, 7 do
 end
 -- Two lamps hung from the ribs (x +-12: off the ARCH spawns' sightlines and the drop column), low
 -- enough for their light to reach the aisle floor, including under BLACKOUT.
-for _, l in { { 12, 32, -172, C.White, 40, 1.6 }, { -12, 34, -230, C.Cyan, 38, 1.3 } } do
+for _, l in { { 12, 32, -172, C.White, 50, 2.5 }, { -12, 34, -230, C.Cyan, 46, 2.0 } } do
 	W.Box(A, roof, "LampRod", V(l[1] - 0.2, l[2] + 0.5, l[3] - 0.2), V(l[1] + 0.2, ribY(l[1]) - 1, l[3] + 0.2), C.SteelLt, M.Metal)
 	local lamp = W.Box(A, roof, "ArchiveLamp", V(l[1] - 1, l[2] - 0.5, l[3] - 1), V(l[1] + 1, l[2] + 0.5, l[3] + 1), C.White, M.Neon)
 	W.Light(A, lamp, "PointLight", { Color = l[4], Range = l[5], Brightness = l[6] })
@@ -70,14 +70,17 @@ local function hanger(x: number, zRib: number, zA: number, zB: number)
 	W.Box(A, hang, "Yoke", V(x - 0.4, top - 1, zA - 0.3), V(x + 0.4, top, zB + 0.3), C.Steel, M.Metal, { support = true })
 	W.Box(A, hang, "HangerRod", V(x - 0.3, 21, zA - 0.3), V(x + 0.3, top - 1, zA), C.SteelLt, M.Metal, { support = true })
 	W.Box(A, hang, "HangerRod", V(x - 0.3, 21, zB), V(x + 0.3, top - 1, zB + 0.3), C.SteelLt, M.Metal, { support = true })
-	W.Box(A, hang, "Bearer", V(x - 0.6, 21, zA - 0.3), V(x + 0.6, 22, zB + 0.3), C.Steel, M.Metal, { support = true })
+	return W.Box(A, hang, "Bearer", V(x - 0.6, 21, zA - 0.3), V(x + 0.6, 22, zB + 0.3), C.Steel, M.Metal, { support = true })
 end
 for _, x in { -100, -30, 30, 100 } do
 	hanger(x, -230, -237.5, -222.5)
 end
+local entryBearer
 for _, x in { -30, 30 } do
-	hanger(x, -150, -155, -145)
+	entryBearer = hanger(x, -150, -155, -145)
 end
+-- Correction 2026-11-11: the eighth Archive light, a low pool at the Archive entrance under the walk.
+W.Light(A, entryBearer, "PointLight", { Color = C.White, Range = 30, Brightness = 2 })
 
 -- Columns tucked against the rack faces under the RackDecks and the ArchiveWalk.
 for _, x in { -110, -88, -66, 66, 88, 110 } do
@@ -105,6 +108,14 @@ for _, rack in archive:GetDescendants() do
 		for k, spec in { { -8, 15 }, { 0, 9 }, { 8, 12 } } do
 			W.Box(A, racks, "RackLightBar", V(face + 0.2 * out, 4, z0 + spec[1] - 0.15), V(face + 0.35 * out, 4 + spec[2], z0 + spec[1] + 0.15), if k == 2 then C.CyanDim else C.Cyan, M.Neon)
 		end
+		-- Correction 2026-11-11: thin dim kick strip at the base of each rack face (aisle edge cue that
+		-- stays readable under BLACKOUT; 0.3 x 0.3 cross-section).
+		W.Box(A, racks, "RackKickStrip", V(face, 0, z0 - 11.5), V(face + 0.3 * out, 0.3, z0 + 11.5), C.CyanDim, M.Neon)
+		if string.sub(rack.Name, -1) == "B" then
+			-- South end of the B row (faces the core entrance and the walk).
+			local zs = z0 + rack.Size.Z / 2
+			W.Box(A, racks, "RackEndStrip", V(rack.Position.X - 4, 0, zs), V(rack.Position.X + 4, 0.3, zs + 0.3), C.CyanDim, M.Neon)
+		end
 		monitor = W.Box(A, racks, "StaticMonitor", V(face + 0.2 * out, 16.5, z0 - 6), V(face + 0.45 * out, 19.5, z0 - 2), C.Static, M.Glass)
 		if corruptSet[rack.Name] then
 			W.Box(A, racks, "CorruptBlock", V(face + 0.45 * out, 17.2, z0 - 5.2), V(face + 0.6 * out, 17.8, z0 - 4), C.Magenta, M.Neon)
@@ -116,7 +127,15 @@ W.Light(A, monitor, "PointLight", { Color = C.Magenta, Range = 8, Brightness = 0
 -- Aisle lights at mid-rack height (one per aisle, alternating rows) so the aisle floors stay
 -- readable, including under BLACKOUT (lights at tray height did not reach the floor).
 for _, n in { "Rack_-110A", "Rack_-88B", "Rack_88A", "Rack_110B" } do
-	W.Light(A, plates[n], "PointLight", { Color = C.Cyan, Range = 22, Brightness = 1.4 })
+	W.Light(A, plates[n], "PointLight", { Color = C.Cyan, Range = 26, Brightness = 2.4 })
+end
+-- Correction 2026-11-11: edge strips along both sides of the two Archive ramps (decorative, on the
+-- ramp top surface; the ramps themselves are unchanged).
+for _, n in { "ArchiveRamp_W", "ArchiveRamp_E" } do
+	local r = archive:FindFirstChild(n, true)
+	for _, sd in { -1, 1 } do
+		W.P(A, racks, "RampEdgeStrip", V(0.3, 0.15, r.Size.Z - 1), r.CFrame * CFrame.new(sd * (r.Size.X / 2 - 0.25), r.Size.Y / 2 + 0.075, 0), C.CyanDim, M.Neon)
+	end
 end
 
 -- Cable trays (Y 42, above the bounce apex limit of 40).

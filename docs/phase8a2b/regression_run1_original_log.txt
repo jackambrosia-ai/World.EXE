@@ -1,0 +1,26 @@
+Phase 8A-2b regression, run 1 (original harness, before the PASS/FAIL correction), 2026-11-11.
+Provenance: the "Log" attribute of ServerScriptService.ZZ_Regress8A2B in the solo Play session, read
+through Studio MCP while the run progressed. Copied verbatim from those tool outputs. The Play
+session (and therefore the Script) no longer exists; the corrected harness was re-run for an
+authoritative PASS/FAIL result (see regression_run2_passfail.txt).
+
+waiting for ACTIVE
+match 1 ACTIVE | Validate ok=true errors=0 | baseline at start: true
+ZERO_G: P1-1 active=true ended=true
+DECAY: P1-2 active=true ended=true
+DRONE_SWARM: P1-3 active=true ended=true
+SUPPLY_DROP: P1-4 active=true ended=true
+BOUNCY: P1-5 active=true ended=true
+SLIPPERY: P1-6 active=true ended=true
+BLACKOUT: P1-7 active=true ended=true
+MAGNETIC: P1-8 active=true ended=true
+CORRUPTION: P1-9 active=true ended=true
+FLOOD: P1-10 active=true ended=true
+SUPER_BOUNCE (ZERO_G + BOUNCY): requests true/true, combination started=true, all ended=true, history +1
+HUNTER_SCAN (BLACKOUT + DRONE_SWARM): requests true/true, combination started=true, all ended=true, history +1
+FLOATING_DEBRIS (FLOOD + MAGNETIC): requests true/true, combination started=true, all ended=true, history +1
+RAPID_DECAY (DECAY + CORRUPTION): requests true/true, combination started=true, all ended=true, history +1
+SLIDE_FIELD (SLIPPERY + MAGNETIC): requests true/true, combination started=true, all ended=true, history +1
+baseline after patches: true | patches still tracked: 0
+match end: RESULTS=true LOBBY=true | baseline at LOBBY matches=true (differences 0)
+second match 2 ACTIVE=true | Validate ok=true
