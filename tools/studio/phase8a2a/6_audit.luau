@@ -1,28 +1,32 @@
--- WORLD.EXE Phase 8A-2a: READ-ONLY final-state audit (Studio Edit mode).
+-- WORLD.EXE Phase 8A-2a: READ-ONLY final-state audit (Studio Edit mode). Revision 2 (2026-11-11).
 -- Mutates nothing and never calls a restore. Works on the actual saved build (no builder state
--- needed): 8A-2a parts are found through their "Arch8A2A" attribute.
+-- needed): 8A-2a parts are found through their "Arch8A2A" attribute. Every reading comes from ONE
+-- run on ONE state; the report records that state (ArenaVersion, correction markers, part count).
 --
 -- Automated checks:
---   C1..C11  gameplay clearances and rules (same definitions as 5_validate), budgets, streaming modes.
---   AC2      STRICT reactor recognizability from all 16 spawn eyes (+5) and the lobby. Pass per
---            viewpoint: >= 30% of 40 samples visible, >= 1 crown and >= 4 column samples. Reports the
---            top blocking parts. The walk-out distance is reported SEPARATELY as mitigation only; it
---            never changes the strict result.
---   LOBBY    window clearance from the lobby centre (head height), third-person and at-the-glass eyes.
---   AC1      sky exposure: a 9x5 ray fan (90 x 50 degrees) from each reference camera; a ray that hits
---            no part within 1,500 studs counts as open sky. Plus wall elevation angles.
---   AC3      height hierarchy inside the wall line (enclosure excluded) and the brightest light.
---   AC6      neon panel rule; reserved hues (amber/green/red) on new parts; Central Core span support.
--- Visual criteria (openness, district identity, repetition, readability) are judged from screenshots.
---
--- SIM_NON_OCCLUDING: optional list of full names treated as see-through in AC2/LOBBY only, to
--- evaluate a proposed repair without changing anything. Empty by default.
-local SIM_NON_OCCLUDING: { string } = {}
-
+--   C1..C11  identical definitions to 5_validate (C6 includes the edge-rail test, the sloped-floor
+--            envelope, the structure spoke-corridor test and the 2-stud marker clearance; C11 flags any
+--            Neon part with two dimensions > 4 except EnergyCore/HubEmitter/CrownEmitter), plus
+--            budgets and streaming modes.
+--   AC2      STRICT approved benchmark, unchanged: 40 fixed samples (column axis, coil points at the
+--            historical radii 24/20/16, crown), reactor-silhouette parts excluded as occluders. Pass:
+--            >= 30% visible, >= 1 crown, >= 4 column. Walk-out is mitigation only.
+--   SELF     Informational, separate from AC2: honest self-occlusion with the actual corrected reactor.
+--            Samples on the energy core's surface facing the viewer (16 heights) and on the outer
+--            face of the crown fins facing the viewer (8 points, Y 176/186); EVERY part is an occluder, including the reactor's own parts, except the
+--            energy core itself and see-through parts (Transparency >= 0.4, e.g. the glass column).
+--   LOBBY    strict-benchmark visibility from the lobby centre, third-person and at-the-glass eyes.
+--   AC1      Two separate readings from each reference camera (9x5 ray fan over 90 x 50 degrees):
+--            (a) GEOMETRY INTERSECTION: rays that hit no part (Transparency < 0.95) within 1,500
+--                studs; (b) VISUAL SKY THROUGH TRANSLUCENT SURFACES: rays whose only hits are parts
+--                with Transparency >= 0.3 (e.g. the 0.35 tinted-glass roof). (b) > 0 means the sky can
+--                be seen dimmed through glass; judge the visible-sky criterion from screenshots.
+--   AC3      height hierarchy inside the wall line (enclosure excluded) and the strongest light.
+--   AC6      reserved hues on new parts; Central Core span support.
 local CS = game:GetService("CollectionService")
 local root = workspace:WaitForChild("WORLD_EXE")
 local map, lobby = root.Map, root.Lobby
-local report: { [string]: any } = { simulated = SIM_NON_OCCLUDING }
+local report: { [string]: any } = {}
 local errors = {}
 local function err(s)
 	table.insert(errors, s)
@@ -38,6 +42,12 @@ for _, d in map:GetDescendants() do
 		end
 	end
 end
+report.state = {
+	ArenaVersion = root:GetAttribute("ArenaVersion"),
+	Correction8A2A = map:GetAttribute("Correction8A2A"),
+	Correction8A2A_R2 = map:GetAttribute("Correction8A2A_R2"),
+	newParts = #newParts,
+}
 
 local function aabb(p: BasePart): (Vector3, Vector3)
 	local cf, s = p.CFrame, p.Size / 2
@@ -53,7 +63,6 @@ local function boxHit(p: BasePart, lo: Vector3, hi: Vector3): boolean
 	local a, b = aabb(p)
 	return a.X < hi.X and b.X > lo.X and a.Y < hi.Y and b.Y > lo.Y and a.Z < hi.Z and b.Z > lo.Z
 end
--- Segment vs oriented box; returns the entry parameter t (0..1) or nil.
 local function segT(p: BasePart, a: Vector3, b: Vector3, margin: number?): number?
 	local m = margin or 0
 	local la = p.CFrame:PointToObjectSpace(a)
@@ -91,14 +100,13 @@ local function tagged(tag: string)
 	return list
 end
 
--- Marker counts (in Map only).
 local counts = {}
 for _, t in { "ArenaSpawn", "BounceSurface", "CorruptionNode", "DecayTile", "DroneWaypoint", "FloodZone", "FragmentSpawn", "MagneticPoint", "MagneticProp", "SlipSurface", "Stabilizer", "SupplyLandingPoint" } do
 	counts[t] = #tagged(t)
 end
 report.markerCounts = counts
 
--- C1..C9, C11 (identical definitions to 5_validate).
+-- C1..C5
 for _, z in tagged("FloodZone") do
 	local base = z.Position.Y - z.Size.Y / 2
 	for _, p in newSolid do
@@ -140,24 +148,76 @@ for _, st in tagged("Stabilizer") do
 		end
 	end
 end
+-- C6 (identical to 5_validate).
 local floors = {}
 for _, p in map:GetDescendants() do
 	if p:IsA("BasePart") and p.CanCollide and not newSet[p] and p.CFrame.UpVector.Y > 0.9 and p.Size.X >= 4 and p.Size.Z >= 4 then
 		table.insert(floors, p)
 	end
 end
+local markers = {}
+for _, tag in { "CorruptionNode", "SlipSurface", "BounceSurface", "MagneticProp", "MagneticPoint", "ArenaSpawn", "SupplyLandingPoint", "FragmentSpawn", "DecayTile" } do
+	for _, m in tagged(tag) do
+		if m:IsA("BasePart") then
+			table.insert(markers, m)
+		end
+	end
+end
+local spokeCorridors = {}
+for _, sp in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
+	local cx, cz = sp[1] * 114, sp[2] * 114
+	local hx = if sp[1] ~= 0 then 28 else 15
+	local hz = if sp[2] ~= 0 then 28 else 15
+	table.insert(spokeCorridors, { Vector3.new(cx - hx, 0, cz - hz), Vector3.new(cx + hx, 8, cz + hz) })
+end
+local c6 = { rails = 0, structures = 0, other = 0 }
 for _, p in newSolid do
 	local isRail = p:GetAttribute("EdgeRail") == true
 	local isStructure = string.find(p.Name, "^Column_") ~= nil or string.find(p.Name, "^ButtressPlinth_") ~= nil
-	if not isRail and not isStructure then
-		for _, f in floors do
-			local top = f.Position.Y + f.Size.Y / 2
-			if boxHit(p, Vector3.new(f.Position.X - f.Size.X / 2 + 1, top + 0.2, f.Position.Z - f.Size.Z / 2 + 1), Vector3.new(f.Position.X + f.Size.X / 2 - 1, top + 6, f.Position.Z + f.Size.Z / 2 - 1)) then
+	if isRail then
+		c6.rails += 1
+	elseif isStructure then
+		c6.structures += 1
+	else
+		c6.other += 1
+	end
+	for _, f in floors do
+		local top = f.Position.Y + f.Size.Y / 2
+		local lo = Vector3.new(f.Position.X - f.Size.X / 2 + 1, top + 0.2, f.Position.Z - f.Size.Z / 2 + 1)
+		local hi = Vector3.new(f.Position.X + f.Size.X / 2 - 1, top + 6, f.Position.Z + f.Size.Z / 2 - 1)
+		if f.CFrame.RightVector.Y > 0.05 or f.CFrame.LookVector.Y > 0.05 or f.CFrame.LookVector.Y < -0.05 then
+			local a, b = aabb(f)
+			lo, hi = Vector3.new(a.X, a.Y, a.Z), Vector3.new(b.X, b.Y + 6, b.Z)
+		end
+		if boxHit(p, lo, hi) then
+			if isRail then
+				local pa, pb = aabb(p)
+				local nearEdge = math.min(math.abs(pa.X - (f.Position.X - f.Size.X / 2)), math.abs(pb.X - (f.Position.X + f.Size.X / 2)), math.abs(pa.Z - (f.Position.Z - f.Size.Z / 2)), math.abs(pb.Z - (f.Position.Z + f.Size.Z / 2)))
+				local onTop = math.abs(pa.Y - top) < 0.6
+				if not (onTop and nearEdge <= 1.5) then
+					err("C6 rail not at an edge: " .. p:GetFullName() .. " vs " .. f.Name)
+				end
+			elseif not isStructure then
 				err("C6 headroom: " .. p:GetFullName() .. " over " .. f.Name)
 			end
 		end
 	end
+	if isStructure then
+		for _, c in spokeCorridors do
+			if boxHit(p, c[1], c[2]) then
+				err("C6 structure in spoke corridor: " .. p:GetFullName())
+			end
+		end
+		for _, m in markers do
+			local a, b = aabb(m)
+			if boxHit(p, a - Vector3.new(2, 2, 2), b + Vector3.new(2, 8, 2)) then
+				err("C6 structure within 2 of marker " .. m.Name .. ": " .. p:GetFullName())
+			end
+		end
+	end
 end
+report.C6_checked = c6
+-- C7, C8, C9
 local lanes, links = 0, 0
 for _, prop in tagged("MagneticProp") do
 	for _, pt in tagged("MagneticPoint") do
@@ -188,19 +248,26 @@ for id, wp in wps do
 		end
 	end
 end
+report.checks = { lanes = lanes, links = links }
 for _, p in newSolid do
 	local a, b = aabb(p)
 	if b.X > 160.5 or a.X < -101 or a.Z < -147 or b.Z > 101 then
 		err("C9 collidable outside core: " .. p:GetFullName())
 	end
 end
+-- C11 (identical to 5_validate) and AC6 reserved hues.
+local NEON_EXEMPT = { EnergyCore = true, HubEmitter = true, CrownEmitter = true }
 local reserved = {}
+local neonCount = 0
 for _, p in newParts do
 	if p.Material == Enum.Material.Neon then
-		local s = { p.Size.X, p.Size.Y, p.Size.Z }
-		table.sort(s)
-		if s[1] < 1 and s[2] > 4 then
-			err("C11 neon panel: " .. p:GetFullName())
+		neonCount += 1
+		if not NEON_EXEMPT[p.Name] then
+			local s = { p.Size.X, p.Size.Y, p.Size.Z }
+			table.sort(s)
+			if s[2] > 4 then
+				err("C11 neon surface: " .. p:GetFullName())
+			end
 		end
 	end
 	local h, sat, v = p.Color:ToHSV()
@@ -208,10 +275,9 @@ for _, p in newParts do
 		table.insert(reserved, p:GetFullName())
 	end
 end
-report.checks = { lanes = lanes, links = links }
+report.C11_neonPartsChecked = neonCount
 report.AC6_reservedHues = reserved
-
--- Budgets and streaming.
+-- C10 budgets and streaming.
 local totals = { parts = 0, collide = 0, lights = 0, shadows = 0 }
 for _, d in map:GetDescendants() do
 	if d:IsA("BasePart") then
@@ -244,8 +310,7 @@ for _, p in newParts do
 	end
 end
 report.totals, report.areas = totals, areas
-local caps = { Megastructure = { 420, 0, 8 }, LobbyBay = { 30, 0, 2 }, CoreTotal = { 320, 28, 11 } }
-for k, cap in caps do
+for k, cap in { Megastructure = { 420, 0, 8 }, LobbyBay = { 30, 0, 2 }, CoreTotal = { 320, 28, 11 } } do
 	local a = areas[k] or { parts = 0, collide = 0, lights = 0 }
 	if a.parts > cap[1] or a.collide > cap[2] or a.lights > cap[3] then
 		err("C10 budget " .. k)
@@ -256,68 +321,74 @@ if totals.parts > 4000 or totals.collide > 900 or totals.lights > 80 or totals.s
 end
 local streaming = {}
 for _, m in map:GetDescendants() do
-	if m:IsA("Model") and m:GetAttribute("Arch8A2A") == nil and (m:IsDescendantOf(map:FindFirstChild("Architecture") or map) or m:IsDescendantOf(map:FindFirstChild("Megastructure") or map)) then
-		streaming[m.Name] = m.ModelStreamingMode.Name
+	if m:IsA("Model") and (m:IsDescendantOf(map:FindFirstChild("Architecture") or map) or m:IsDescendantOf(map:FindFirstChild("Megastructure") or map)) then
+		local key = if string.find(m.Name, "^TerraceTower_") then "TerraceTower_*" else m.Name
+		streaming[key] = m.ModelStreamingMode.Name
 	end
 end
 report.streaming = streaming
 
--- Occluders for visibility checks.
-local sim = {}
-for _, n in SIM_NON_OCCLUDING do
-	sim[n] = true
-end
-local reactorParts = {}
+-- Visibility helpers.
+local silParts = {}
 for _, d in map.Architecture.CentralCore.ReactorSilhouette:GetDescendants() do
 	if d:IsA("BasePart") then
-		reactorParts[d] = true
+		silParts[d] = true
 	end
 end
-local occluders = {}
+local benchOcc, honestOcc = {}, {}
 for _, c in { map, lobby } do
 	for _, d in c:GetDescendants() do
-		if d:IsA("BasePart") and not reactorParts[d] and d.Transparency < 0.5 and d.Size.Magnitude > 0.5 and not sim[d:GetFullName()] then
-			table.insert(occluders, d)
+		if d:IsA("BasePart") and d.Size.Magnitude > 0.5 then
+			if not silParts[d] and d.Transparency < 0.5 then
+				table.insert(benchOcc, d)
+			end
+			if d.Name ~= "EnergyCore" and d.Transparency < 0.4 then
+				table.insert(honestOcc, d)
+			end
 		end
 	end
 end
-local samples = {}
+local bench = {}
 for k = 0, 15 do
-	table.insert(samples, { kind = "column", p = Vector3.new(0, 22 + k * 9.5, 0) })
+	table.insert(bench, { kind = "column", p = Vector3.new(0, 22 + k * 9.5, 0) })
 end
 for _, ring in { { 50, 24 }, { 95, 20 }, { 140, 16 } } do
 	for j = 0, 3 do
 		local a = j * math.pi / 2
-		table.insert(samples, { kind = "coil", p = Vector3.new(math.cos(a) * ring[2], ring[1], math.sin(a) * ring[2]) })
+		table.insert(bench, { kind = "coil", p = Vector3.new(math.cos(a) * ring[2], ring[1], math.sin(a) * ring[2]) })
 	end
 end
 for j = 0, 11 do
 	local a = j * math.pi / 6
 	local r = if j % 2 == 0 then 13 else 6
-	table.insert(samples, { kind = "crown", p = Vector3.new(math.cos(a) * r, 175 + (j % 3) * 6, math.sin(a) * r) })
+	table.insert(bench, { kind = "crown", p = Vector3.new(math.cos(a) * r, 175 + (j % 3) * 6, math.sin(a) * r) })
 end
-local function score(eye: Vector3, ignore: Instance?)
-	local vis, crown, column = 0, 0, 0
-	local blockers = {}
-	for _, smp in samples do
-		local nearest, nearestT = nil, 2
-		for _, o in occluders do
-			if o ~= ignore then
-				local t = segT(o, eye, smp.p)
-				if t and t < nearestT then
-					nearest, nearestT = o, t
-				end
+local function visible(occ, eye: Vector3, target: Vector3, ignore: Instance?): (boolean, BasePart?)
+	local nearest, nt = nil, 2
+	for _, o in occ do
+		if o ~= ignore then
+			local t = segT(o, eye, target)
+			if t and t < nt then
+				nearest, nt = o, t
 			end
 		end
-		if nearest then
-			blockers[nearest.Name] = (blockers[nearest.Name] or 0) + 1
-		else
+	end
+	return nearest == nil, nearest
+end
+local function benchScore(eye: Vector3, ignore: Instance?)
+	local vis, crown, column = 0, 0, 0
+	local blockers = {}
+	for _, smp in bench do
+		local ok, b = visible(benchOcc, eye, smp.p, ignore)
+		if ok then
 			vis += 1
 			if smp.kind == "crown" then
 				crown += 1
 			elseif smp.kind == "column" then
 				column += 1
 			end
+		elseif b then
+			blockers[b.Name] = (blockers[b.Name] or 0) + 1
 		end
 	end
 	local list = {}
@@ -333,56 +404,74 @@ local function score(eye: Vector3, ignore: Instance?)
 	end
 	return vis, crown, column, table.concat(top, ", ")
 end
-local function pass(vis, crown, column)
-	return vis / #samples >= 0.3 and crown >= 1 and column >= 4
+local function benchPass(v, c, co)
+	return v / #bench >= 0.3 and c >= 1 and co >= 4
+end
+-- Honest self-occlusion samples: core surface facing the viewer + crown top.
+local function selfScore(eye: Vector3, ignore: Instance?)
+	local flat = Vector3.new(eye.X, 0, eye.Z)
+	local toward = if flat.Magnitude > 0.1 then flat.Unit else Vector3.new(0, 0, 1)
+	local core, crown = 0, 0
+	for k = 0, 15 do
+		local y = 20 + k * 9.5
+		local p = toward * 4.4 + Vector3.new(0, y, 0)
+		if visible(honestOcc, eye, p, ignore) then
+			core += 1
+		end
+	end
+	-- Crown: points on the outer face of the crown fins/collar facing the viewer (Y 172..190,
+	-- within ±45 degrees of the viewer direction).
+	local side = Vector3.new(-toward.Z, 0, toward.X)
+	for j = 0, 7 do
+		local ang = math.rad(-45 + (j % 4) * 30)
+		local dir = toward * math.cos(ang) + side * math.sin(ang)
+		local p = dir * 20.5 + Vector3.new(0, if j < 4 then 176 else 186, 0)
+		if visible(honestOcc, eye, p, ignore) then
+			crown += 1
+		end
+	end
+	return core, crown
 end
 
--- AC2 strict.
-local ac2, ac2Fail = {}, {}
-local yieldN = 0
+-- AC2 strict (benchmark, unchanged) + SELF (informational).
+local ac2, ac2Fail, selfLines = {}, {}, {}
 for _, s in spawns do
 	local eye = s.Position + Vector3.new(0, s.Size.Y / 2 + 5, 0)
-	local vis, crown, column, blk = score(eye, s)
-	local ok = pass(vis, crown, column)
+	local v, c, co, blk = benchScore(eye, s)
+	local ok = benchPass(v, c, co)
 	local walk = nil
 	if not ok then
+		table.insert(ac2Fail, s.Name)
 		local flat = Vector3.new(-eye.X, 0, -eye.Z).Unit
 		for step = 4, 60, 4 do
-			local v2, c2, co2 = score(eye + flat * step, s)
-			if pass(v2, c2, co2) then
+			local v2, c2, co2 = benchScore(eye + flat * step, s)
+			if benchPass(v2, c2, co2) then
 				walk = step
 				break
 			end
+			task.wait()
 		end
-		table.insert(ac2Fail, s.Name)
 	end
-	table.insert(ac2, string.format("%s %s %d%% crown %d column %d | blockers: %s%s", s.Name, if ok then "PASS" else "FAIL", math.floor(vis / #samples * 100 + 0.5), crown, column, if blk == "" then "-" else blk, if walk then " | walk-out mitigation: " .. walk .. " studs" elseif not ok then " | walk-out: none within 60" else ""))
-	yieldN += 1
-	if yieldN % 3 == 0 then
-		task.wait()
-	end
+	table.insert(ac2, string.format("%s %s %d%% crown %d column %d | blockers: %s%s", s.Name, if ok then "PASS" else "FAIL", math.floor(v / #bench * 100 + 0.5), c, co, if blk == "" then "-" else blk, if walk then " | walk-out mitigation: " .. walk .. " studs" elseif not ok then " | walk-out: none within 60" else ""))
+	local sc, scr = selfScore(eye, s)
+	table.insert(selfLines, string.format("%s energy-core surface %d/16, crown top %d/8", s.Name, sc, scr))
+	task.wait()
 end
 local lobbyLines = {}
 for _, v in { { "LobbyCentre_head", Vector3.new(0, 164.5, 420) }, { "Lobby_thirdPerson", Vector3.new(0, 172, 434) }, { "Lobby_atGlass", Vector3.new(0, 164.5, 399) } } do
-	local vis, crown, column, blk = score(v[2])
-	local ok = pass(vis, crown, column)
-	table.insert(lobbyLines, string.format("%s %s %d%% crown %d column %d | blockers: %s", v[1], if ok then "PASS" else "FAIL", math.floor(vis / #samples * 100 + 0.5), crown, column, if blk == "" then "-" else blk))
+	local vv, c, co, blk = benchScore(v[2])
+	local ok = benchPass(vv, c, co)
+	local sc, scr = selfScore(v[2])
+	table.insert(lobbyLines, string.format("%s %s %d%% crown %d column %d | blockers: %s | SELF core %d/16 crown %d/8", v[1], if ok then "PASS" else "FAIL", math.floor(vv / #bench * 100 + 0.5), c, co, if blk == "" then "-" else blk, sc, scr))
 	if v[1] == "LobbyCentre_head" and not ok then
 		table.insert(ac2Fail, "Lobby")
 	end
 end
 report.AC2_strict = { result = if #ac2Fail == 0 then "PASS" else "FAIL (" .. #ac2Fail .. " viewpoints)", failing = ac2Fail, lines = ac2 }
+report.SELF_occlusion_informational = selfLines
 report.LOBBY = lobbyLines
 
--- AC1 sky exposure from the six reference cameras (all parts are blockers here).
-local allParts = {}
-for _, c in { map, lobby } do
-	for _, d in c:GetDescendants() do
-		if d:IsA("BasePart") and d.Transparency < 0.95 then
-			table.insert(allParts, d)
-		end
-	end
-end
+-- AC1 (two readings).
 local cams = {
 	G1 = { Vector3.new(0, 6, 110), Vector3.new(0, 40, 0) },
 	G2 = { Vector3.new(-235, 6, 60), Vector3.new(0, 30, 0) },
@@ -391,41 +480,52 @@ local cams = {
 	G5 = { Vector3.new(200, 54, 10), Vector3.new(0, 30, 0) },
 	G6 = { Vector3.new(225, 30, 225), Vector3.new(0, 15, 0) },
 }
-local sky = {}
+local anyParts, opaqueParts = {}, {}
+for _, c in { map, lobby } do
+	for _, d in c:GetDescendants() do
+		if d:IsA("BasePart") then
+			if d.Transparency < 0.95 then
+				table.insert(anyParts, d)
+			end
+			if d.Transparency < 0.3 then
+				table.insert(opaqueParts, d)
+			end
+		end
+	end
+end
+local function hitsAny(list, a, b)
+	for _, p in list do
+		if segT(p, a, b) then
+			return true
+		end
+	end
+	return false
+end
+local geo, vis = {}, {}
 for name, cam in cams do
 	local cf = CFrame.lookAt(cam[1], cam[2])
-	local open, total = 0, 0
+	local openGeo, throughGlass, total = 0, 0, 0
 	for yi = -2, 2 do
 		for xi = -4, 4 do
 			total += 1
 			local dir = (cf * CFrame.Angles(math.rad(yi * 12.5), math.rad(-xi * 11.25), 0)).LookVector
 			local b = cam[1] + dir * 1500
-			local hit = false
-			for _, p in allParts do
-				if segT(p, cam[1], b) then
-					hit = true
-					break
-				end
-			end
-			if not hit then
-				open += 1
+			local anyHit = hitsAny(anyParts, cam[1], b)
+			if not anyHit then
+				openGeo += 1
+			elseif not hitsAny(opaqueParts, cam[1], b) then
+				throughGlass += 1
 			end
 		end
 		task.wait()
 	end
-	sky[name] = string.format("%d/%d rays open to sky (%d%%)", open, total, math.floor(open / total * 100 + 0.5))
+	geo[name] = string.format("%d/%d rays hit no geometry", openGeo, total)
+	vis[name] = string.format("%d/%d rays see sky only through translucent surfaces (roof glass etc.)", throughGlass, total)
 end
-report.AC1_skyExposure = sky
-local elev = {}
-for name, cam in cams do
-	local x, y, z = cam[1].X, cam[1].Y, cam[1].Z
-	local dU = math.min(400 - math.abs(x), 400 - math.abs(z))
-	local dP = math.min(320 - math.abs(x), 320 - math.abs(z))
-	elev[name] = string.format("plinth %.0f deg, upper wall %.0f deg", math.deg(math.atan2(60 - y, dP)), math.deg(math.atan2(180 - y, dU)))
-end
-report.AC1_wallElevation = elev
+report.AC1_geometryIntersection = geo
+report.AC1_skyThroughTranslucent = vis
 
--- AC3 hierarchy: tallest non-enclosure parts inside the wall line.
+-- AC3
 local enclosure = { "^Roof", "^Rib", "^Hub", "^Wall_", "^Win", "^Pilaster", "^Seam", "^Band", "^Corner", "^Plinth", "^Terrace", "^Far", "^Fascia" }
 local tall = {}
 for _, d in map:GetDescendants() do
@@ -436,7 +536,7 @@ for _, d in map:GetDescendants() do
 				skip = true
 			end
 		end
-		local a, b = aabb(d)
+		local _, b = aabb(d)
 		if not skip and math.abs(d.Position.X) < 400 and math.abs(d.Position.Z) < 400 and not d:IsDescendantOf(map.Megastructure.LobbyBay) then
 			table.insert(tall, { b.Y, d.Name })
 		end
@@ -445,9 +545,12 @@ end
 table.sort(tall, function(a, b)
 	return a[1] > b[1]
 end)
-local top = {}
-for i = 1, 6 do
-	table.insert(top, string.format("%s %.0f", tall[i][2], tall[i][1]))
+local nonReactor = ""
+for _, t in tall do
+	if not (string.find(t[2], "^Crown") or string.find(t[2], "^Energy") or string.find(t[2], "^Containment")) then
+		nonReactor = string.format("%s %.0f", t[2], t[1])
+		break
+	end
 end
 local brightest, bVal = "", 0
 for _, l in map:GetDescendants() do
@@ -456,9 +559,9 @@ for _, l in map:GetDescendants() do
 		brightest = l.Parent.Name .. "/" .. l.ClassName
 	end
 end
-report.AC3 = { tallestInsideWallLine = top, strongestLight = brightest }
+report.AC3 = { tallest = string.format("%s %.0f", tall[1][2], tall[1][1]), tallestNonReactor = nonReactor, strongestLight = brightest }
 
--- AC6 Central Core span support (other districts are 8A-2b scope).
+-- AC6 Central Core span support.
 local supports = {}
 for _, d in map:GetDescendants() do
 	if d:IsA("BasePart") and (string.find(d.Name, "Column") or string.find(d.Name, "Pillar") or string.find(d.Name, "Vessel") or string.find(d.Name, "Girder") or string.find(d.Name, "Hanger") or string.find(d.Name, "Stringer") or string.find(d.Name, "Chord") or string.find(d.Name, "Fascia") or string.find(d.Name, "Crossbeam")) then
@@ -476,18 +579,16 @@ for _, n in { "CorePlaza", "Mezz_N", "Mezz_S", "Mezz_E", "Mezz_W", "Gantry_N_Bri
 			for _, s in supports do
 				local sa, sb = aabb(s)
 				if sb.Y <= a.Y + 1 and sa.Y < a.Y then
-					local cx = math.clamp(mid.X, sa.X, sb.X)
-					local cz = math.clamp(mid.Z, sa.Z, sb.Z)
-					best = math.min(best, (Vector3.new(cx, 0, cz) - Vector3.new(mid.X, 0, mid.Z)).Magnitude)
+					best = math.min(best, (Vector3.new(math.clamp(mid.X, sa.X, sb.X), 0, math.clamp(mid.Z, sa.Z, sb.Z)) - Vector3.new(mid.X, 0, mid.Z)).Magnitude)
 				end
 			end
 			worst = math.max(worst, best)
 		end
-		table.insert(spans, string.format("%s worst edge-midpoint distance to a support below: %s", n, if worst == math.huge then "none" else string.format("%.0f", worst)))
+		table.insert(spans, string.format("%s %s", n, if worst == math.huge then "none" else string.format("%.0f", worst)))
 	end
 end
 report.AC6_coreSpanSupport = spans
 
 report.errors = errors
-report.result = if #errors == 0 then "GAMEPLAY CHECKS PASS (read-only)" else "GAMEPLAY CHECK FAILURES: " .. #errors
+report.result = if #errors == 0 then "GAMEPLAY CHECKS C1-C11 PASS (read-only)" else "GAMEPLAY CHECK FAILURES: " .. #errors
 return game:GetService("HttpService"):JSONEncode(report)

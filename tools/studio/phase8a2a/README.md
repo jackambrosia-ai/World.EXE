@@ -13,7 +13,10 @@ All scripts run in Roblox Studio **Edit** mode through Studio MCP `execute_luau`
 | 4 | `4_lobby_lighting.luau` | **Yes**: changes `Wall_N` visuals and the Lighting preset, then parents `Architecture` and `Megastructure` into the Map | |
 | 5 | `5_validate.luau` | On a **gameplay/budget** failure (C1..C11) it calls `W.Restore()`. On success it sets ArenaVersion 3 | Strict AC2 is reported only, never restored. |
 | 7 | `7_correction.luau` | Yes: review corrections (reactor massing, materials, roof glass, fill, bloom). Originals are kept as `Orig8A2A_*` attributes; removed parts go to `…Rollback8A2A.CorrectionRemoved` | Runs on the saved build. Needs no builder state. |
-| 6 | `6_audit.luau` | **No** (read-only) | Final-state audit of the actual place. Never restores. |
+| 8 | `8_hollow_rings.luau` | Yes: replaces the solid coil/gallery discs from step 7 with hollow segmented rings (parts only, decorative, non-collidable). Removed discs go to `…Rollback8A2A.CorrectionRemoved`; sets `Map.Correction8A2A_R2` | Runs after step 7. Asserts it has not run before. |
+| 6 | `6_audit.luau` | **No** (read-only) | Final-state audit of the actual place. Never restores. C1–C11 match `5_validate` exactly (including C6 rail-edge, spoke-corridor and 2-stud marker-clearance checks). Reports the strict AC2 benchmark unchanged, plus an informational SELF self-occlusion score (all reactor parts count as occluders except the EnergyCore and parts with Transparency ≥ 0.4), and splits AC1 into geometry intersection vs sky seen only through translucent surfaces. |
+
+C11 (both scripts): any Neon part whose second-largest dimension exceeds 4 studs fails, except `EnergyCore`, `HubEmitter` and `CrownEmitter`.
 | 9 | `9_restore.luau` | Yes | Standalone rollback to pre-8A-2a. See below. |
 
 ## Two different recovery situations

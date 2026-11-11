@@ -14,7 +14,8 @@
 --   C8 drone LOS: no new collidable part (queryable) intersects any waypoint link.
 --   C9 zero-G / Skybridge: no new collidable part beyond x 160 or outside the core region.
 --   C10 budget: per-area caps and global ceilings (4,000 parts / 900 collidable / 80 lights / 12 shadow).
---   C11 neon panels: no new Neon part with two dimensions > 4 and the third < 1.
+--   C11 neon surfaces: no new Neon part with two dimensions > 4 (any thickness), except the named
+--      landmark emitters EnergyCore, HubEmitter and CrownEmitter.
 --   AC2 reactor visibility: from all 16 spawns (eye +5) and the lobby centre, segment-vs-box
 --      occlusion against every BasePart in Map + Lobby (decor included; parts with
 --      Transparency >= 0.5 and the reactor's own parts do not occlude; cylinders as boxes).
@@ -254,12 +255,15 @@ for _, p in newSolid do
 	end
 end
 -- C11 neon panels.
+-- C11 (tightened 2026-11-11): any new Neon part with two dimensions > 4 is a large glowing surface,
+-- whatever its thickness. Only the named reactor/hub emitters are exempt (landmark light sources).
+local NEON_EXEMPT = { EnergyCore = true, HubEmitter = true, CrownEmitter = true }
 for _, p in W.newParts do
-	if p.Material == Enum.Material.Neon then
+	if p.Material == Enum.Material.Neon and not NEON_EXEMPT[p.Name] then
 		local s = { p.Size.X, p.Size.Y, p.Size.Z }
 		table.sort(s)
-		if s[1] < 1 and s[2] > 4 then
-			err("C11 neon panel: " .. p:GetFullName())
+		if s[2] > 4 then
+			err("C11 neon surface: " .. p:GetFullName())
 		end
 	end
 end
