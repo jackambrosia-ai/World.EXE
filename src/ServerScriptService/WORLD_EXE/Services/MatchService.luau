@@ -162,7 +162,7 @@ local function buildResults(): { [string]: any }
 		end
 		table.insert(turns, { Turn = result.Turn, Architect = result.ArchitectName, Outcome = result.Outcome, PatchId = result.PatchId })
 	end
-	local final = ScoreService.Finalize(StabilityService.Get(), ObjectiveService.GetRepairsCompleted())
+	local final = ScoreService.Finalize(StabilityService.Get(), ObjectiveService.GetRepairsCompleted(), outcome, outcomeReason)
 	return {
 		Team = final.Team,
 		Players = final.Players,

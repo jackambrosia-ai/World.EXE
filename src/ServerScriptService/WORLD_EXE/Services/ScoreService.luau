@@ -6,7 +6,12 @@
 --   match is ignored, so no event can be scored twice.
 -- * Finalize() runs once at RESULTS: team outcome, placements and match-scoped rewards. Nothing is
 --   persisted (no XP, currency or DataStores until Phase 9).
--- * Players who leave keep a "Left" row with their partial score but get no placement or rewards.
+-- * Completed matches: team success if stability >= target OR repairs >= TEAM_REPAIR_TARGET.
+--   Aborted matches (any outcome other than "completed"): never a team success; Team.Aborted is
+--   true; players get the participation reward only (no team bonus, no placement bonus) and are
+--   listed unplaced (Placement 0), still ordered by score.
+-- * Players who leave keep a "Left" row with the score they had when they left; no further awards,
+--   no placement, no rewards.
 -- * Each participant's running score is mirrored to a server-set player attribute for the HUD.
 
 local Players = game:GetService("Players")
@@ -99,7 +104,7 @@ function ScoreService.Award(userId: number, reason: string, points: number, key:
 		return false
 	end
 	local entry = entries[userId]
-	if entry == nil then
+	if entry == nil or entry.Left then
 		return false
 	end
 	usedKeys[key] = true
@@ -113,9 +118,7 @@ function ScoreService.Award(userId: number, reason: string, points: number, key:
 	elseif reason == "architect" then
 		entry.ArchitectPatches += 1
 	end
-	if not entry.Left then
-		setAttribute(userId, entry.Score)
-	end
+	setAttribute(userId, entry.Score)
 	return true
 end
 
@@ -149,14 +152,17 @@ function ScoreService.MarkLeft(userId: number)
 end
 
 -- Team outcome, placements and rewards, computed once. Later calls return the same table.
-function ScoreService.Finalize(stability: number, repairsCompleted: number): { [string]: any }
+-- outcome: the match outcome ("completed", or "aborted" and similar); outcomeReason: its reason.
+function ScoreService.Finalize(stability: number, repairsCompleted: number, outcome: string, outcomeReason: string?): { [string]: any }
 	if finalized then
 		return finalized
 	end
 	active = false
-	local success = stability >= Config.Stability.SuccessTarget or repairsCompleted >= TEAM_REPAIR_TARGET
-	local reason = if stability >= Config.Stability.SuccessTarget
-		then `stability {stability} >= {Config.Stability.SuccessTarget}`
+	local completed = outcome == "completed"
+	local success = completed and (stability >= Config.Stability.SuccessTarget or repairsCompleted >= TEAM_REPAIR_TARGET)
+	local reason = if not completed
+		then `match {outcome} ({outcomeReason or "no reason"}): no team result`
+		elseif stability >= Config.Stability.SuccessTarget then `stability {stability} >= {Config.Stability.SuccessTarget}`
 		elseif repairsCompleted >= TEAM_REPAIR_TARGET then `{repairsCompleted} repairs >= {TEAM_REPAIR_TARGET}`
 		else `stability {stability} < {Config.Stability.SuccessTarget} and {repairsCompleted} repairs < {TEAM_REPAIR_TARGET}`
 
@@ -180,11 +186,11 @@ function ScoreService.Finalize(stability: number, repairsCompleted: number): { [
 
 	local rows = {}
 	for i, entry in ranked do
-		local placementBonus = REWARDS.Placement[i] or 0
+		local placementBonus = if completed then REWARDS.Placement[i] or 0 else 0
 		local teamBonus = if success then REWARDS.TeamSuccess else 0
 		local rewards = REWARDS.Participation + teamBonus + placementBonus
 		table.insert(rows, {
-			Placement = i,
+			Placement = if completed then i else 0,
 			UserId = entry.UserId,
 			Name = entry.Name,
 			Score = entry.Score,
@@ -221,6 +227,7 @@ function ScoreService.Finalize(stability: number, repairsCompleted: number): { [
 	finalized = {
 		Team = {
 			Success = success,
+			Aborted = not completed,
 			Reason = reason,
 			Stability = stability,
 			StabilityTarget = Config.Stability.SuccessTarget,

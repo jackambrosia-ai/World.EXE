@@ -3,8 +3,8 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 5 IMPLEMENTED — awaiting ChatGPT technical review; not merged. Multiplayer validation deferred to the batched integration milestone (required before public release). Open owner decision: D3 (stability affecting match flow) not implemented. Phase 6 requires separate approval Phase 5 not started and requires separate owner approval
-- Current phase: Phase 5 — Stability, objectives, collectibles, scoring (in review)
+- Overall status: PHASE 5 IMPLEMENTED — review round 1 corrected (aborted-match results); awaiting ChatGPT final review; not merged. Multiplayer validation deferred to the batched integration milestone (required before public release). Open owner decision: D3 (stability affecting match flow) not implemented. Phase 6 requires separate approval Phase 5 not started and requires separate owner approval
+- Current phase: Phase 5 — Stability, objectives, collectibles, scoring (round 1 corrected, final review pending)
 - Current branch: `phase-05-objectives-scoring` (from `main` `9f760c6`)
 - Current PR: [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6) targeting `main` (open, not merged). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
 - Studio place: saved by the owner 2026-11-10 17:35:27 (`Place1.rbxl`, 135,464 bytes, SHA-256 `F4DF639AB773961792E97BF2FB305751D64ABAFCF6B11BD0F598C86368FE90FF`). The save is verified from the file itself: all 21 `Source` strings decoded from the saved `.rbxl` are byte-identical (length + hash) to `src/` at `c7f5186` (unchanged in `main` `8d244b9`), and the file has no other scripts. Before the save, the Edit place was checked clean: no test scripts or attributes, 64 DecayTiles, gravity 196.2.
@@ -44,12 +44,66 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 2 | Match and Architect | **Complete — merged** (solo + two-client Studio tests; gaps listed above) | [PR #2](https://github.com/jackambrosia-ai/World.EXE/pull/2) → `09d9c2a` | Two-client matrix: 19 PASS, 1 split, 1 NOT TESTED |
 | 3 | Patch engine | **Complete — merged** (solo Studio tests; multi-client outstanding) | [PR #3](https://github.com/jackambrosia-ai/World.EXE/pull/3) → `c2ab456` | Original: 25 PASS, 0 FAIL, 3 NOT TESTED. Round 1: 18 PASS, 0 FAIL, 1 NOT TESTED |
 | 4 | Four prototype patches | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #5](https://github.com/jackambrosia-ai/World.EXE/pull/5) → `8d244b9` | Solo: 36 PASS, 0 FAIL, 3 NOT TESTED; round 1: 6 PASS (targeted); multiplayer deferred |
-| 5 | Stability/objectives/scoring | **Implemented — in review, not merged** (solo Studio tests) | [PR #6](https://github.com/jackambrosia-ai/World.EXE/pull/6), branch `phase-05-objectives-scoring` | Targeted solo: 36 PASS, 0 FAIL; multiplayer deferred (see Phase 5 report) |
+| 5 | Stability/objectives/scoring | **Round 1 corrected — final review pending, not merged** (solo Studio tests) | [PR #6](https://github.com/jackambrosia-ai/World.EXE/pull/6), branch `phase-05-objectives-scoring` | Targeted solo: 36 PASS, 0 FAIL; round 1: 10 PASS (targeted); multiplayer deferred |
 | 6 | Initial abilities | Not started | — | — |
 | 7 | Interactions and expansion | Not started | — | — |
 | 8 | UI and visual polish | Not started | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 5 review round 1 correction (2026-11-10)
+
+ChatGPT reviewed PR #6 at `347cb59`: CHANGES REQUESTED, one results-consistency blocker. The rest of the architecture was accepted.
+
+### Finding and resolution
+1. **Aborted matches could report team success.**
+   - The problem: `MatchService.buildResults()` called `ScoreService.Finalize(stability, repairs)` for every outcome. Stability starts at 100, so an aborted match could show `Team.Success = true`.
+   - Fix: the signature is now `Finalize(stability, repairs, outcome, outcomeReason)`, and MatchService passes the match outcome.
+   - **Completed matches** (`outcome == "completed"`): unchanged rule, success if stability ≥ 50 OR repairs ≥ 3.
+   - **Aborted matches** (any other outcome, today `"aborted"` / "no participants"):
+     - `Team.Success = false` and the new field `Team.Aborted = true`.
+     - `Team.Reason = "match aborted (<reason>): no team result"`.
+   - **Aborted reward policy (explicit):**
+     - Players still placed get the participation reward only (+20). No team bonus, no placement bonus.
+     - Every row has `Placement = 0` (unplaced), still ordered by score.
+     - Left rows get nothing, as before.
+     - In practice an abort happens only when no participants remain, so every row is Left and rewards are 0.
+   - `Finalize` stays idempotent: a second call returns the same table, whatever arguments it is given.
+   - Compatibility: all existing `LastResult` fields are kept; `Team.Aborted` is additive. The HUD shows "MATCH ABORTED — …" and "-" for an unplaced row.
+2. **Defensive change (accepted suggestion):** `ScoreService.Award()` now ignores players marked `Left`.
+   - A Left row keeps exactly the score the player had when they left.
+   - This also covers a repair or Architect award that lands after its player has gone.
+   - No Phase 5 rule needs to award departed players.
+
+### Changed files
+- `Services/ScoreService.luau`: Finalize signature and aborted policy; Left guard.
+- `Services/MatchService.luau`: passes `outcome`, `outcomeReason`.
+- `Controllers/HUDController.luau`: aborted label; "-" placement.
+- `docs/PROJECT_STATUS.md`.
+- Parity: 25/25 scripts hash-identical (ScoreService 8723 bytes, hash 292975779; MatchService 16801/733335019; HUDController 11114/850775587).
+
+### Targeted regressions (as requested; the full Phase 5 matrix was not repeated)
+| # | Test | Result | Evidence |
+|---|---|---|---|
+| 1 | Abort during INITIALIZING with stability 100 | PASS | Live: the only player was kicked during INITIALIZING (stability 100) → `INITIALIZING -> RESULTS (no participants)`; `Success=false Aborted=true` "match aborted (no participants): no team result"; row Left, place 0, rewards 0 |
+| 2 | Abort during ACTIVE with high stability | PASS | Live, match 2: kicked during ACTIVE at stability 100 → outcome aborted; `Success=false Aborted=true`; row Left, place 0, rewards 0 (P0 T0 Pl0); the reset afterwards was clean (ledger inactive, stability 100, 0 fragments, 0 runtime effects) |
+| 3 | Completed, stability ≥ 50 → success | PASS | Clone: stability 50 → success; rewards 170 (20+100+50) / 150 (20+100+30). Live match 1 completed: `Success=true Aborted=false` "stability 100 >= 50", place 1, rewards 170 |
+| 4 | Completed, repairs ≥ 3 → success | PASS | Clone: stability 10, 3 repairs → success "3 repairs >= 3" |
+| 5 | Completed below both thresholds → failure | PASS | Clone: stability 49, 2 repairs → failure; participation + placement kept (70) |
+| 6 | Finalize twice → no duplicate rewards or score changes | PASS | Clone: the second call (with different, aborted arguments) returned the same table; score, rewards and total unchanged; a later Award was ignored |
+| 7 | Reset and next match start clean | PASS | Live: after match 1 RESULTS/RESET, match 2 ACTIVE had a new ledger (score 0, repairs 0, score attribute 0, no fragments attribute), stability 100, 8 fragments, stabilizers IDLE, 0 repairs |
+| U1 | Aborted with stability 100 and 5 repairs → no success, no team/placement rewards | PASS | Clone: `Success=false Aborted=true`; both rows place 0, rewards 20 (participation only) |
+| D1 | Award to a Left player ignored | PASS | Clone: after MarkLeft, a +50 award returned false; the Left row kept 10 points and got 0 rewards |
+| P1 | Source parity, Output, Edit place | PASS | 25/25 identical; Output only `[WORLD_EXE]` lines plus the test's own kick message; Edit place clean |
+
+Totals for round 1: **10 PASS, 0 FAIL.**
+
+Not tested:
+- The "MATCH ABORTED" HUD label on a real client. The abort path removes the only client in solo tests; the change is a display-only label.
+
+Method notes:
+- Score rules were tested on a cloned ScoreService inside a play server. Edit-mode tool context caches the old Config, which is a known Studio MCP limitation.
+- Live aborts were produced by kicking the only player, which makes the participant list empty: the real abort trigger.
 
 ## Phase 5 report — Stability, objectives, collectibles, scoring (2026-11-10)
 
@@ -95,7 +149,7 @@ Not included: persistence, DataStores, new patches, abilities, ForgeGUI.
   - Points: fragment +10; repair +50; assist +25; survival +5 per 60 s alive; accepted Architect patch +5.
   - Running score in the `WORLD_EXE_Score` attribute.
   - `Finalize` runs once at RESULTS:
-    - Team success if stability ≥ 50 OR at least 3 repairs.
+    - Team success if stability ≥ 50 OR at least 3 repairs. (Round 1: completed matches only; aborted matches are never a success.)
     - Rewards: participation +20 to every placed player; team success +100 each; placement +50/+30/+15.
     - Ties: score, then repairs, then fragments, then lower UserId.
     - Players who left: a "Left" row with their partial score, no placement, no rewards.

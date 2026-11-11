@@ -59,7 +59,8 @@ local function resultsText(data: any): string
 	}
 	local team = data.Team
 	if typeof(team) == "table" then
-		table.insert(lines, string.format("%s — %s", if team.Success then "TEAM SUCCESS" else "TEAM FAILED", tostring(team.Reason)))
+		local label = if team.Aborted then "MATCH ABORTED" elseif team.Success then "TEAM SUCCESS" else "TEAM FAILED"
+		table.insert(lines, string.format("%s — %s", label, tostring(team.Reason)))
 	end
 	if typeof(data.Players) == "table" then
 		for _, row in data.Players do
@@ -71,7 +72,7 @@ local function resultsText(data: any): string
 					local b = if typeof(row.RewardBreakdown) == "table" then row.RewardBreakdown else {}
 					table.insert(lines, string.format(
 						"%s. %s — %s pts + %s rewards (participation %s, team %s, placement %s) = %s · %s",
-						tostring(row.Placement), tostring(row.Name), tostring(row.Score), tostring(row.Rewards),
+						if row.Placement == 0 then "-" else tostring(row.Placement), tostring(row.Name), tostring(row.Score), tostring(row.Rewards),
 						tostring(b.Participation), tostring(b.Team), tostring(b.Placement), tostring(row.Total), stats
 					))
 				end
