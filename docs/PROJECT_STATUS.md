@@ -3,8 +3,8 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 7B IN REVIEW — review round 1 correction (safe MAGNETIC crate restore) pushed to PR #10 for focused final review. Completes the initial catalog (10 patches, 5 combinations). Phase 8 not started. D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
-- Current phase: Phase 7B — MAGNETIC, CORRUPTION, FLOOD and the remaining combinations (in review)
+- Overall status: PHASE 7B APPROVED — ChatGPT final review approved PR #10 at `2fca9c5`; closeout done (parity, clean place, owner save verified, post-7B backup). Awaiting explicit owner approval to squash-merge. Next milestone after the merge: Phase 8A Major Arena Reconstruction (map design review first), then Phase 8B Visual Polish. D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
+- Current phase: Phase 7B — approved; awaiting owner merge decision
 - Current branch: `phase-07b-catalog-expansion`
 - Current PR: Phase 7B in review: [jackambrosia-ai/World.EXE#10](https://github.com/jackambrosia-ai/World.EXE/pull/10). Phase 7A merged via [jackambrosia-ai/World.EXE#9](https://github.com/jackambrosia-ai/World.EXE/pull/9). Phase 6 merged via [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
 - Studio place: saved by the owner 2026-11-10 17:35:27 (`Place1.rbxl`, 135,464 bytes, SHA-256 `F4DF639AB773961792E97BF2FB305751D64ABAFCF6B11BD0F598C86368FE90FF`). The save is verified from the file itself: all 21 `Source` strings decoded from the saved `.rbxl` are byte-identical (length + hash) to `src/` at `c7f5186` (unchanged in `main` `8d244b9`), and the file has no other scripts. Before the save, the Edit place was checked clean: no test scripts or attributes, 64 DecayTiles, gravity 196.2.
@@ -33,7 +33,9 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
   - `WorldEXE_post-phase6_2026-11-10.rbxl` — post-Phase-6 place (SHA-256 `B2252755…B397F3B2`, identical to the saved `Place1.rbxl`)
   - `WorldEXE_pre-phase7a_2026-11-10.rbxl` — verified pre-Phase-7A copy (SHA-256 `B2252755…B397F3B2`, identical to the saved place)
   - `WorldEXE_post-phase7a_2026-11-10.rbxl` — post-Phase-7A place (SHA-256 `3198C186…93625552`, identical to the saved `Place1.rbxl`)
-  - `WorldEXE_pre-phase7b_2026-11-10.rbxl` — verified pre-Phase-7B copy (SHA-256 `3198C186…93625552`, identical to the saved place); current rollback point
+  - `WorldEXE_pre-phase7b_2026-11-10.rbxl` — verified pre-Phase-7B copy (SHA-256 `3198C186…93625552`, identical to the saved place)
+  - `WorldEXE_post-phase7b_2026-11-10.rbxl` — post-Phase-7B place (SHA-256 `7EB1F809…D6EEA7ED`, identical to the saved `Place1.rbxl`); current rollback point
+- Studio place (Phase 7B): saved by the owner 2026-11-10 22:25:42 (`Place1.rbxl`, 167,930 bytes, SHA-256 `7EB1F809B3BE42D3A5948C4FC97F989692986E581E1C790DC2A4D2DCD6EEA7ED`). Verified from the file itself: all 42 decoded script sources are byte-identical (length + hash) to `src/` at `2fca9c5`, the 26 `Map.PatchMarkers` parts are present, and there are no `ZZ_` test leftovers. The Edit place was checked clean before the save: no test scripts or attributes, 8/8 crates at build state, 64/64 DecayTiles solid, Lighting 3.00/0.00, gravity 196.2.
 - Studio place (Phase 7A): `Place1.rbxl` last written 2026-11-10 20:41:38 (158,802 bytes, SHA-256 `3198C186DEEFA561873DB5C00672EB5AD0C4EB7AEE0A085D40A07EF393625552`). Verified from the file itself: all 36 decoded script sources are byte-identical (length + hash) to `src/` at `0ecbfa4`, the 8 Phase 7A pads (`Map.PatchSurfaces`, BounceSurface/SlipSurface tags) are present, and there are no `ZZ_` test leftovers. The Edit place was checked clean: no test scripts or attributes, pads at build state, 64/64 DecayTiles solid, 12 FragmentSpawn, Lighting 3.00/0.00, gravity 196.2.
 - Studio place (Phase 6): saved by the owner 2026-11-10 19:11:29 (`Place1.rbxl`, 150,191 bytes, SHA-256 `B2252755CFA1DA6FCE1BCC34D64BCEAEF49BAAB88B117A9E4E07A37BB397F3B2`). Verified from the file itself: all 28 decoded script sources are byte-identical (length + hash) to `src/` at `03f9cab` (unchanged in `main` `16cef23`), with no other scripts. Before the save, the Edit place was checked clean: no test scripts or attributes, 64/64 DecayTiles collidable, 12 FragmentSpawn markers, stabilizer rings at their original colour, gravity 196.2.
 - Studio place (Phase 5): saved by the owner 2026-11-10 18:16:45 (`Place1.rbxl`, 144,480 bytes, SHA-256 `13CDA584FCF8C65F22044D67DF9CFCD45043F2669F21F8456304ADCCFEC74635`). Verified from the file itself: all 25 decoded script sources are byte-identical (length + hash) to `src/` at `6e7ed2e` (unchanged in `main` `66374fe`), the file has no other scripts, and the 12 FragmentSpawn marker ids are present. Before the save, the Edit place was checked clean: no test scripts or attributes, stabilizer rings at their original colour, 64 DecayTiles, gravity 196.2.
@@ -62,10 +64,31 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 5 | Stability/objectives/scoring | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #6](https://github.com/jackambrosia-ai/World.EXE/pull/6) → `66374fe` | Targeted solo: 36 PASS, 0 FAIL; round 1: 10 PASS (targeted); multiplayer deferred |
 | 6 | Initial abilities | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #8](https://github.com/jackambrosia-ai/World.EXE/pull/8) → `16cef23` | Targeted solo: 27 PASS, 0 FAIL; multiplayer deferred (see Phase 6 report) |
 | 7A | Interactions + BOUNCY/SLIPPERY/BLACKOUT | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #9](https://github.com/jackambrosia-ai/World.EXE/pull/9) → `059f191` | Targeted solo: 35 PASS, 0 FAIL; round 1: 9 PASS (targeted live Architect runs) |
-| 7B | MAGNETIC/CORRUPTION/FLOOD + 3 combinations | **In review** (solo Studio tests; multiplayer deferred) | [PR #10](https://github.com/jackambrosia-ai/World.EXE/pull/10) (`2b8b3f0`) | Targeted solo: 30 PASS, 0 FAIL; round 1: 7 PASS (safe crate restore) |
-| 8 | UI and visual polish | Not started | — | — |
+| 7B | MAGNETIC/CORRUPTION/FLOOD + 3 combinations | **Approved — awaiting owner merge** (solo Studio tests; multiplayer deferred) | [PR #10](https://github.com/jackambrosia-ai/World.EXE/pull/10) (`2b8b3f0`) | Targeted solo: 30 PASS, 0 FAIL; round 1: 7 PASS (safe crate restore) |
+| 8A | Major arena reconstruction | Not started (map design review first; requires approval) | — | — |
+| 8B | Visual polish | Not started (requires approval) | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 7B final review (2026-11-10)
+ChatGPT approved PR #10 at `2fca9c5`: no remaining merge-blocking issues. The MAGNETIC ghost-restoration correction is accepted. No further test round was required.
+
+Closeout (completed):
+1. Studio ↔ GitHub parity: 42/42 hash-identical to `2fca9c5`.
+2. Edit place clean (see "Current state").
+3. The owner saved `Place1.rbxl` (2026-11-10 22:25:42). Verified from the file: 42 decoded script sources match `src/`; Phase 7B markers present; no test leftovers.
+4. Backup `WorldEXE_post-phase7b_2026-11-10.rbxl` created. Its SHA-256 matches the saved place: `7EB1F809B3BE42D3A5948C4FC97F989692986E581E1C790DC2A4D2DCD6EEA7ED`.
+5. This document and PR #10 were updated.
+
+Carried forward:
+- Stability balancing for the expanded catalog.
+- Short combination durations (about 6–10 s).
+- Deferred multiplayer integration tests.
+- Temporary ghost crates that need a clear spot before becoming solid.
+
+Next milestone (owner, 2026-11-10): the current map is considered substantially too small and visually far from the WORLD.EXE vision.
+- After Phase 7B is merged, the next priority is **Phase 8A — Major Arena Reconstruction**, then **Phase 8B — Visual Polish**.
+- A detailed map design will be reviewed before any rebuilding. No Phase 8 work starts without separate approval.
 
 ## Phase 7B review round 1 correction (2026-11-10)
 
