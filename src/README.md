@@ -46,6 +46,9 @@ These files are exact copies of the WORLD_EXE scripts in the Studio place. Paths
 | `StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/HUDController.luau` | `StarterPlayer.StarterPlayerScripts.WORLD_EXE.Controllers.HUDController` | ModuleScript |
 | `StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/ArchitectController.luau` | `StarterPlayer.StarterPlayerScripts.WORLD_EXE.Controllers.ArchitectController` | ModuleScript |
 | `StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/AbilityController.luau` | `StarterPlayer.StarterPlayerScripts.WORLD_EXE.Controllers.AbilityController` | ModuleScript |
+| `StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/EnvironmentResponseClient.luau` | `StarterPlayer.StarterPlayerScripts.WORLD_EXE.Controllers.EnvironmentResponseClient` | ModuleScript |
+
+Phase 8A-2c: `EnvironmentResponseClient` (client presentation only) applies static environmental responses to ACTIVE patches and running combinations. It subscribes through `MatchStateClient.OnChanged` (MatchStateClient stays the only reader of the Snapshot attribute) and drives hooks tagged `EnvFX_<EFFECT_ID>` with builder-written `Base_*` baselines (see `tools/studio/phase8a2c/`). 43 scripts in total.
 
 Created at runtime by the server (not saved in the place, not in `src/`): `ReplicatedStorage.WORLD_EXE.Remotes` (RemoteEvents), `ReplicatedStorage.WORLD_EXE.MatchState` (one `Snapshot` attribute: versioned JSON of the whole match state), and the runtime folders under `Workspace.WORLD_EXE`. Client UI is built in code by the controllers (no StarterGui instances).
 
