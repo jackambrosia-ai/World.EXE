@@ -242,6 +242,71 @@ local function validateSpawn(pad: SpawnLocation, errors: { string })
 	end
 end
 
+-- Phase 8A spawn safety: every arena spawn stays outside FloodZone footprints (plus a margin) and
+-- SpawnHazardClearance studs from corruption nodes, bounce/slip pads and MAGNETIC crate lanes
+-- (crate to 3.5 studs short of the nearest MagneticPoint in its Zone, as Magnetic moves them).
+local function segmentDistance(p: Vector2, a: Vector2, b: Vector2): number
+	local ab = b - a
+	local t = if ab.Magnitude > 0 then math.clamp((p - a):Dot(ab) / ab:Dot(ab), 0, 1) else 0
+	return (a + ab * t - p).Magnitude
+end
+
+local function flat(v: Vector3): Vector2
+	return Vector2.new(v.X, v.Z)
+end
+
+local function validateSpawnHazards(errors: { string })
+	local clearance = Config.SpawnHazardClearance
+	local lanes: { { a: Vector2, b: Vector2, name: string } } = {}
+	local points = taggedInMap(Config.Tags.MagneticPoint)
+	for _, prop in taggedInMap(Config.Tags.MagneticProp) do
+		if prop:IsA("BasePart") then
+			local best: BasePart? = nil
+			for _, point in points do
+				if point:IsA("BasePart") and point:GetAttribute("Zone") == prop:GetAttribute("Zone") and (best == nil or (point.Position - prop.Position).Magnitude < (best.Position - prop.Position).Magnitude) then
+					best = point
+				end
+			end
+			if best then
+				local a, b = flat(prop.Position), flat(best.Position)
+				local dest = if (a - b).Magnitude > 0.01 then b + (a - b).Unit * 3.5 else a
+				table.insert(lanes, { a = a, b = dest, name = prop:GetFullName() })
+			end
+		end
+	end
+	for _, spawn in taggedInMap(Config.Tags.ArenaSpawn) do
+		if not spawn:IsA("BasePart") then
+			continue
+		end
+		local where = spawn:GetFullName()
+		local p = flat(spawn.Position)
+		for _, zone in taggedInMap(Config.Tags.FloodZone) do
+			if zone:IsA("BasePart") then
+				local margin = Config.SpawnFloodMargin
+				if math.abs(spawn.Position.X - zone.Position.X) < zone.Size.X / 2 + margin and math.abs(spawn.Position.Z - zone.Position.Z) < zone.Size.Z / 2 + margin then
+					table.insert(errors, `{where}: inside or within {margin} studs of flood zone {zone:GetFullName()}`)
+				end
+			end
+		end
+		for _, tag in { Config.Tags.CorruptionNode, Config.Tags.BounceSurface, Config.Tags.SlipSurface } do
+			for _, hazard in taggedInMap(tag) do
+				if hazard:IsA("BasePart") then
+					local d = (flat(hazard.Position) - p).Magnitude - math.max(hazard.Size.X, hazard.Size.Z) / 2
+					if d < clearance then
+						table.insert(errors, `{where}: {string.format("%.1f", d)} studs from {hazard:GetFullName()} (min {clearance})`)
+					end
+				end
+			end
+		end
+		for _, lane in lanes do
+			local d = segmentDistance(p, lane.a, lane.b) - 1.5
+			if d < clearance then
+				table.insert(errors, `{where}: {string.format("%.1f", d)} studs from the crate lane of {lane.name} (min {clearance})`)
+			end
+		end
+	end
+end
+
 function ArenaService.Validate(): ValidationReport
 	assert(map, "ArenaService.Validate called before Init")
 	local errors: { string } = {}
@@ -310,6 +375,7 @@ function ArenaService.Validate(): ValidationReport
 			validateSpawn(inst, errors)
 		end
 	end
+	validateSpawnHazards(errors)
 
 	-- Waypoint graph: links reference known ids, never self, and are symmetric.
 	local linkSets: { [string]: { [string]: boolean } } = {}

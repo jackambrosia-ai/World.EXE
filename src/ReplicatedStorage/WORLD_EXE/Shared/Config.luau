@@ -4,7 +4,7 @@
 
 local Config = {}
 
-Config.Version = "0.7.0-phase7b"
+Config.Version = "0.8.0-phase8a1"
 Config.RootName = "WORLD_EXE"
 
 -- CollectionService tags used by the Studio-owned arena.
@@ -23,22 +23,22 @@ Config.Tags = table.freeze({
 	FloodZone = "FloodZone", -- Phase 7B: FLOOD low-ground footprints
 })
 
--- Phase 1 arena baseline. Server validation reports any drift from these counts.
--- DecayTile covers only the 64 Research Yard tiles; the Skybridge jump steps are deliberately
--- NOT DecayTiles (see docs/PROJECT_STATUS.md, "SkySteps decision").
+-- Arena baseline (Phase 8A-1 arena, ArenaVersion 2; built by tools/studio/phase8a1_build_arena.luau).
+-- Server validation reports any drift from these counts. DecayTile covers only the Research Yard
+-- test grid (10 x 10).
 Config.ExpectedTagCounts = table.freeze({
-	DecayTile = 64,
-	ArenaSpawn = 12,
+	DecayTile = 100,
+	ArenaSpawn = 16,
 	Stabilizer = 3,
-	SupplyLandingPoint = 5,
-	DroneWaypoint = 15,
-	FragmentSpawn = 12,
-	BounceSurface = 4,
-	SlipSurface = 4,
+	SupplyLandingPoint = 8,
+	DroneWaypoint = 30,
+	FragmentSpawn = 24,
+	BounceSurface = 8,
+	SlipSurface = 8,
 	MagneticProp = 8,
 	MagneticPoint = 4,
-	CorruptionNode = 12,
-	FloodZone = 2,
+	CorruptionNode = 18,
+	FloodZone = 3,
 })
 
 -- Instance class each tag must be applied to (checked with IsA).
@@ -120,7 +120,13 @@ Config.AttributeSchema = table.freeze({
 	}),
 }) :: { [string]: { AttributeField } }
 
-Config.Zones = table.freeze({ "CentralCore", "ResearchYard", "Skybridge", "Routes" })
+Config.Zones = table.freeze({ "CentralCore", "ResearchYard", "Skybridge", "Routes", "DataArchive", "CoolantReservoir", "OuterRing" })
+
+-- Phase 8A spawn safety (checked by ArenaService.Validate): arena spawns stay this far outside every
+-- FloodZone footprint and at least SpawnHazardClearance studs (edge to centre) from corruption
+-- nodes, bounce/slip pads and MAGNETIC crate lanes.
+Config.SpawnFloodMargin = 3
+Config.SpawnHazardClearance = 8
 
 -- Spawn pads must rest on anchored, collidable, non-DecayTile floor within this gap (studs).
 Config.SpawnFloorTolerance = 0.05
@@ -207,9 +213,10 @@ Config.MatchSnapshotAttribute = "Snapshot"
 
 Config.LobbySpawnTag = "LobbySpawn"
 Config.OutOfBoundsY = -60 -- characters below this are eliminated and respawn
--- Non-participants found inside this box are returned to the lobby.
-Config.ArenaBoundsMin = Vector3.new(-185, -60, -95)
-Config.ArenaBoundsMax = Vector3.new(175, 90, 70)
+-- Non-participants found inside this box are returned to the lobby (Phase 8A-1: 520 x 520 arena;
+-- the lobby sits outside it at about (0, 160, 420)).
+Config.ArenaBoundsMin = Vector3.new(-275, -40, -275)
+Config.ArenaBoundsMax = Vector3.new(275, 160, 275)
 Config.SpawnProtectionName = "WORLD_EXE_SpawnProtection"
 
 -- Studio-only test controls: attributes on ServerScriptService.WORLD_EXE, ignored on live servers.
