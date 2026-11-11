@@ -15,6 +15,10 @@ These files are exact copies of the WORLD_EXE scripts in the Studio place. Paths
 | `ServerScriptService/WORLD_EXE/Services/CleanupService.luau` | `ServerScriptService.WORLD_EXE.Services.CleanupService` | ModuleScript |
 | `ServerScriptService/WORLD_EXE/Services/WorldModifierService.luau` | `ServerScriptService.WORLD_EXE.Services.WorldModifierService` | ModuleScript |
 | `ServerScriptService/WORLD_EXE/Services/PatchService.luau` | `ServerScriptService.WORLD_EXE.Services.PatchService` | ModuleScript |
+| `ServerScriptService/WORLD_EXE/Services/StabilityService.luau` | `ServerScriptService.WORLD_EXE.Services.StabilityService` | ModuleScript |
+| `ServerScriptService/WORLD_EXE/Services/ScoreService.luau` | `ServerScriptService.WORLD_EXE.Services.ScoreService` | ModuleScript |
+| `ServerScriptService/WORLD_EXE/Services/CollectibleService.luau` | `ServerScriptService.WORLD_EXE.Services.CollectibleService` | ModuleScript |
+| `ServerScriptService/WORLD_EXE/Services/ObjectiveService.luau` | `ServerScriptService.WORLD_EXE.Services.ObjectiveService` | ModuleScript |
 | `ServerScriptService/WORLD_EXE/Patches/ZeroG.luau` | `ServerScriptService.WORLD_EXE.Patches.ZeroG` | ModuleScript |
 | `ServerScriptService/WORLD_EXE/Patches/Decay.luau` | `ServerScriptService.WORLD_EXE.Patches.Decay` | ModuleScript |
 | `ServerScriptService/WORLD_EXE/Patches/DroneSwarm.luau` | `ServerScriptService.WORLD_EXE.Patches.DroneSwarm` | ModuleScript |
@@ -31,7 +35,7 @@ Created at runtime by the server (not saved in the place, not in `src/`): `Repli
 ## Sync procedure (no Rojo — owner decision)
 Claude edits Studio directly through Studio MCP. After every script change, Claude writes the same source here and verifies that the Studio `Source` and the file have the same byte length and polynomial hash (`h = (h*31 + byte) mod 2147483647`). A mismatch blocks the commit.
 
-Geometry is **not** in `src/`; it is Studio-owned. `tools/studio/phase1_build_arena.luau` and `tools/studio/phase2_build_lobby.luau` record how the arena and lobby were generated.
+Geometry is **not** in `src/`; it is Studio-owned. `tools/studio/phase1_build_arena.luau` and `tools/studio/phase2_build_lobby.luau` record how the arena and lobby were generated; `tools/studio/phase5_fragment_spawns.luau` records the 12 FragmentSpawn markers added in Phase 5.
 
 ## Studio-only test controls
 Attributes on `ServerScriptService.WORLD_EXE`, honoured only when `RunService:IsStudio()`:

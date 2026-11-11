@@ -1,5 +1,7 @@
 --!strict
 -- MatchService (Phase 2, server only). The ONLY module that changes match state.
+-- Phase 5: also drives StabilityService, ScoreService, ObjectiveService and CollectibleService from
+-- its enter hooks and its single tick (no second match loop).
 --
 -- LOBBY -> COUNTDOWN -> INITIALIZING -> ACTIVE -> FINAL_PHASE -> RESULTS -> RESET -> LOBBY
 -- Also: COUNTDOWN -> LOBBY (not enough players), INITIALIZING/ACTIVE/FINAL_PHASE -> RESULTS
@@ -26,6 +28,10 @@ local PlayerStateService = require(services:WaitForChild("PlayerStateService"))
 local ArchitectService = require(services:WaitForChild("ArchitectService"))
 local PatchService = require(services:WaitForChild("PatchService"))
 local WorldModifierService = require(services:WaitForChild("WorldModifierService"))
+local StabilityService = require(services:WaitForChild("StabilityService"))
+local ScoreService = require(services:WaitForChild("ScoreService"))
+local CollectibleService = require(services:WaitForChild("CollectibleService"))
+local ObjectiveService = require(services:WaitForChild("ObjectiveService"))
 
 local S = Config.MatchStates
 local Roles = Config.Roles
@@ -119,6 +125,10 @@ local function snapshot(): { [string]: any }
 		LastResetWorldAtBaseline = lastResetWorldAtBaseline,
 		Patches = PatchService.GetSnapshot(),
 		PatchCapacity = Config.Patches.MaxActiveMajor,
+		Stability = StabilityService.Get(),
+		StabilityMax = Config.Stability.Max,
+		Objectives = ObjectiveService.GetSnapshot(),
+		RepairsCompleted = ObjectiveService.GetRepairsCompleted(),
 	}
 end
 
@@ -152,7 +162,10 @@ local function buildResults(): { [string]: any }
 		end
 		table.insert(turns, { Turn = result.Turn, Architect = result.ArchitectName, Outcome = result.Outcome, PatchId = result.PatchId })
 	end
+	local final = ScoreService.Finalize(StabilityService.Get(), ObjectiveService.GetRepairsCompleted())
 	return {
+		Team = final.Team,
+		Players = final.Players,
 		MatchId = matchId,
 		Outcome = outcome,
 		Reason = outcomeReason,
@@ -204,6 +217,18 @@ local function recover(failedState: string, err: any)
 		end,
 		function()
 			PlayerStateService.ReturnAllToLobby()
+		end,
+		function()
+			ObjectiveService.Reset()
+		end,
+		function()
+			CollectibleService.Reset()
+		end,
+		function()
+			ScoreService.Reset()
+		end,
+		function()
+			StabilityService.Reset()
 		end,
 		function()
 			ArenaService.ResetRuntime()
@@ -281,6 +306,8 @@ enter[S.Initializing] = function()
 	end
 	PlayerStateService.SetSpawnProtection(true)
 	PlayerStateService.SpawnParticipants(participants)
+	StabilityService.Reset()
+	ScoreService.Begin(matchId, participants)
 	deadline(Timing.InitializingSeconds)
 end
 
@@ -288,6 +315,8 @@ enter[S.Active] = function()
 	PlayerStateService.SetSpawnProtection(false)
 	activeStartedAt = now()
 	ArchitectService.StartMatch(matchId, participants, timeScale())
+	ObjectiveService.Begin(matchId)
+	CollectibleService.Begin(matchId)
 	deadline(Timing.ActiveSeconds)
 end
 
@@ -304,6 +333,14 @@ enter[S.Results] = function()
 	WorldModifierService.ClearAll()
 	PlayerStateService.SetSpawnProtection(false)
 	PlayerStateService.SetArenaPhase(false)
+	-- Phase 5: freeze objectives and pickups, award accepted Architect patches, then score once.
+	ObjectiveService.Stop()
+	CollectibleService.Stop()
+	for _, result in ArchitectService.GetHistory() do
+		if result.Outcome == "accepted" then
+			ScoreService.Award(result.ArchitectUserId, "architect", ScoreService.Points.Architect, `architect:{matchId}:{result.Turn}`)
+		end
+	end
 	lastResult = buildResults()
 	deadline(Timing.ResultsSeconds)
 end
@@ -318,6 +355,10 @@ enter[S.Reset] = function()
 	if not lastResetWorldAtBaseline then
 		warn("[WORLD_EXE] Reset: shared world properties are not at baseline")
 	end
+	ObjectiveService.Reset()
+	CollectibleService.Reset()
+	ScoreService.Reset()
+	StabilityService.Reset()
 	local removed, problems = ArenaService.ResetRuntime()
 	for _, problem in problems do
 		warn(`[WORLD_EXE] Reset: {problem}`)
@@ -346,6 +387,13 @@ end
 
 local function tick()
 	PatchService.Update()
+	if state == S.Active or state == S.FinalPhase then
+		ScoreService.Update()
+		CollectibleService.Update()
+		if ObjectiveService.Update() then
+			publish()
+		end
+	end
 	local t = now()
 	if state == S.Lobby then
 		if lobbyCount() >= minPlayers() then
@@ -390,6 +438,8 @@ end
 
 local function onPlayerLeft(player: Player)
 	ArchitectService.OnPlayerLeft(player)
+	ScoreService.MarkLeft(player.UserId)
+	CollectibleService.OnPlayerLeft(player)
 	local index = table.find(participants, player)
 	if index then
 		table.remove(participants, index)
@@ -430,8 +480,23 @@ function MatchService.Init(controlFolder: Instance)
 			return id == matchId and (state == S.Active or state == S.FinalPhase)
 		end,
 		onChanged = publish,
+		onActivated = function(patchId: string, id: number)
+			if id == matchId then
+				StabilityService.Adjust(StabilityService.Tuning.PatchActivationCost, `patch:{patchId}`)
+			end
+		end,
 	})
 	ArchitectService.Init(publish)
+	StabilityService.Init(publish)
+	local function isLive(): boolean
+		return state == S.Active or state == S.FinalPhase
+	end
+	for _, problem in ObjectiveService.Init({ isLive = isLive }) do
+		warn(`[WORLD_EXE] Objectives: {problem}`)
+	end
+	for _, problem in CollectibleService.Init({ isLive = isLive }) do
+		warn(`[WORLD_EXE] Collectibles: {problem}`)
+	end
 	PlayerStateService.SetJoinPolicy(function()
 		return if state == S.Lobby or state == S.Countdown then Roles.Lobby else Roles.Spectator
 	end)
@@ -463,6 +528,9 @@ function MatchService.Shutdown()
 	ArchitectService.StopMatch("cancelled")
 	PatchService.CancelAll("shutdown")
 	WorldModifierService.ClearAll()
+	ObjectiveService.Reset()
+	CollectibleService.Reset()
+	ScoreService.Reset()
 	ArenaService.ResetRuntime()
 end
 

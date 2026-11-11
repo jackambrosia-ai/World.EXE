@@ -3,10 +3,10 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 4 COMPLETE — merged to `main`. Multiplayer validation deferred by owner decision to a batched integration milestone (required before public release). Phase 5 not started; it requires separate owner approval Phase 5 not started and requires separate owner approval
-- Current phase: Phase 4 complete; next is Phase 5 — Stability, objectives, collectibles, scoring (awaiting approval)
-- Current branch: `main`
-- Current PR: no WORLD.EXE phase PR open. Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
+- Overall status: PHASE 5 IMPLEMENTED — awaiting ChatGPT technical review; not merged. Multiplayer validation deferred to the batched integration milestone (required before public release). Open owner decision: D3 (stability affecting match flow) not implemented. Phase 6 requires separate approval Phase 5 not started and requires separate owner approval
+- Current phase: Phase 5 — Stability, objectives, collectibles, scoring (in review)
+- Current branch: `phase-05-objectives-scoring` (from `main` `9f760c6`)
+- Current PR: Phase 5 PR targeting `main` (open, not merged). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
 - Studio place: saved by the owner 2026-11-10 17:35:27 (`Place1.rbxl`, 135,464 bytes, SHA-256 `F4DF639AB773961792E97BF2FB305751D64ABAFCF6B11BD0F598C86368FE90FF`). The save is verified from the file itself: all 21 `Source` strings decoded from the saved `.rbxl` are byte-identical (length + hash) to `src/` at `c7f5186` (unchanged in `main` `8d244b9`), and the file has no other scripts. Before the save, the Edit place was checked clean: no test scripts or attributes, 64 DecayTiles, gravity 196.2.
 - Phase 1 merge: squash-merged 2026-11-10 by owner approval as `9b9cbd0` (from PR head `ddc784c`; merged tree identical to that head). The `phase-01-arena` branch still exists on GitHub and can be deleted.
 - Phase 2 merge: squash-merged 2026-11-10 by owner approval as `09d9c2a` (from PR head `2e99b13`; merged tree identical to that head; final gameplay code `9c6de7a`). The `phase-02-match` branch still exists on GitHub and can be deleted.
@@ -22,12 +22,15 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
   - `WorldEXE_pre-phase3_2026-11-10.rbxl` — verified pre-Phase-3 copy (SHA-256 `0F402A70…42B7B204`, identical to the saved place)
   - `WorldEXE_post-phase3_2026-11-10.rbxl` — post-Phase-3 place (SHA-256 `2663A50D…F11FBB98`, identical to the saved `Place1.rbxl`)
   - `WorldEXE_pre-phase4_2026-11-10.rbxl` — verified pre-Phase-4 copy (SHA-256 `2663A50D…F11FBB98`, identical to the saved place)
-  - `WorldEXE_post-phase4_2026-11-10.rbxl` — post-Phase-4 place (SHA-256 `F4DF639A…68FE90FF`, identical to the saved `Place1.rbxl`); current rollback point
+  - `WorldEXE_post-phase4_2026-11-10.rbxl` — post-Phase-4 place (SHA-256 `F4DF639A…68FE90FF`, identical to the saved `Place1.rbxl`)
+  - `WorldEXE_pre-phase5_2026-11-10.rbxl` — verified pre-Phase-5 copy (SHA-256 `F4DF639A…68FE90FF`, identical to the saved place); current rollback point
+- Studio place (Phase 5): the open session has the 25 Phase 5 scripts (hash-identical to the branch) plus the 12 FragmentSpawn markers, and no test leftovers. **It must be saved (Ctrl+S) and a post-Phase-5 backup taken before merge.** The last saved file is the post-Phase-4 place.
 - Studio save: Studio MCP cannot save the place — the owner must press Ctrl+S after each change set. Latest save 2026-11-10 16:35:24 (post-Phase-3 incl. review round 1, backed up).
 - StreamingEnabled: unchanged (enabled), per Phase 0 review
 - Multi-client testing: Phase 2 run with Studio Clients and Servers (1 server + 2 clients) on 2026-11-10 — see the matrix in "Phase 2 review round 2 correction". Phase 1 tests remain solo.
 - Latest technical review: Phase 2 final review (ChatGPT, `9c6de7a`) — no remaining code blockers; two-client acceptance run recorded; merged with owner approval. Phase 3 review round 1 (ChatGPT, `04b734a`): hook yield-safety and non-finite modifiers — corrected. **Phase 3 final review (ChatGPT, `d22939f`): APPROVED, no blocking code issues**; merged with owner approval. **Phase 4 final review (ChatGPT, `c7f5186`): APPROVED, no remaining blocking code issues**; merged with owner approval.
 - Known Phase 3 gaps carried forward (not counted as passed): multi-client (Clients and Servers) run; 3 concurrent patches reached through live Architect play. (The live gravity change was verified in Phase 4, Z1.)
+- Known Phase 5 gaps (not counted as passed): co-op repair, fragment races, departures mid-repair/mid-match, joiner scoring, multi-row results on real clients — deferred to the multiplayer integration milestone.
 - Known Phase 4 gaps (not counted as passed): all multiplayer scenarios, **deferred by owner decision (2026-11-10) to a batched multiplayer integration milestone; comprehensive multiplayer testing is required before public release.** See "Testing policy and deferred multiplayer validation".
 - Testing policy (owner, 2026-11-10): automated and targeted solo tests routinely, chosen by the risk a change introduces; multiplayer batched across phases; owner interaction only when genuinely necessary; full regression suite at milestones and release candidates.
 - Known Phase 2 gaps carried forward (not counted as passed): real mid-match join → Spectator; multiplayer spawn-protection window; > 12 players; streaming at distance; pending-respawn invalidation on departure. Hardening note for Phase 10: server→client remotes have no `OnServerEvent` handler (client spam is queued with warnings).
@@ -41,12 +44,154 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 2 | Match and Architect | **Complete — merged** (solo + two-client Studio tests; gaps listed above) | [PR #2](https://github.com/jackambrosia-ai/World.EXE/pull/2) → `09d9c2a` | Two-client matrix: 19 PASS, 1 split, 1 NOT TESTED |
 | 3 | Patch engine | **Complete — merged** (solo Studio tests; multi-client outstanding) | [PR #3](https://github.com/jackambrosia-ai/World.EXE/pull/3) → `c2ab456` | Original: 25 PASS, 0 FAIL, 3 NOT TESTED. Round 1: 18 PASS, 0 FAIL, 1 NOT TESTED |
 | 4 | Four prototype patches | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #5](https://github.com/jackambrosia-ai/World.EXE/pull/5) → `8d244b9` | Solo: 36 PASS, 0 FAIL, 3 NOT TESTED; round 1: 6 PASS (targeted); multiplayer deferred |
-| 5 | Stability/objectives/scoring | Not started | — | — |
+| 5 | Stability/objectives/scoring | **Implemented — in review, not merged** (solo Studio tests) | branch `phase-05-objectives-scoring` | Targeted solo: 36 PASS, 0 FAIL; multiplayer deferred (see Phase 5 report) |
 | 6 | Initial abilities | Not started | — | — |
 | 7 | Interactions and expansion | Not started | — | — |
 | 8 | UI and visual polish | Not started | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 5 report — Stability, objectives, collectibles, scoring (2026-11-10)
+
+Approved scope: the stability meter, the three stabilizer objectives, data fragments, individual and team scoring, results with placements and match-scoped rewards, and the HUD. The proposed design defaults were used as provisional tuning.
+
+Not included: persistence, DataStores, new patches, abilities, ForgeGUI.
+
+### Pre-checks (all passed)
+- `main` at `9f760c6`, matching Studio on all 21 scripts.
+- Backup `WorldEXE_pre-phase5_2026-11-10.rbxl` is SHA-256 identical to the saved place (`F4DF639A…68FE90FF`).
+- Branch `phase-05-objectives-scoring` created.
+- Reviewed docs 01, 02, 03, 05 and 06, plus MatchService, PlayerStateService, PatchService and Bootstrap.
+
+### Flagged for owner review — deliberately NOT implemented
+- **D3, stability affecting match flow:** the plan proposed that stability ≤ 25 starts FINAL_PHASE early and that stability 0 ends the match as a failure. That changes match length and the victory conditions, so per the approval conditions it is **not implemented**.
+- In Phase 5, stability only affects the team outcome at RESULTS. The match timeline is unchanged.
+- Owner decision needed: enable D3 (and at what values), or keep stability results-only.
+
+### Completed features
+- **StabilityService** (new):
+  - Server-only `Adjust(delta, reason)`, clamped to 0–100; starts at 100 every match.
+  - −8 when any patch goes ACTIVE (via a new optional `PatchService.Init` `onActivated` callback, wrapped in a pcall so it can never affect the patch). +15 per completed repair.
+  - Snapshot fields: `Stability`, `StabilityMax`. No remote can change it.
+- **ObjectiveService** (new): the three existing stabilizers (`STAB_CORE`, `STAB_SKY`, `STAB_YARD`) are discovered from their tags and attributes.
+  - Each match, a ProximityPrompt sits on an invisible anchor part in `RuntimeEffects` at the stabilizer's InteractionPoint. The Map itself is never given new instances; only the StatusRing color changes (visual only, restored at reset).
+  - States: IDLE → REPAIRING ⇄ PAUSED → COOLDOWN → IDLE.
+  - **Start:** a living Participant within InteractionRadius (10) presses the prompt with 3 carried fragments, which are spent. Joining a running or paused repair is free.
+  - **Rate:** 6 s solo; up to 3 contributors, each extra one adding +50% speed.
+  - **Interruption:** every tick, contributors who leave the radius, die, stop being Participants or disconnect are dropped. With none left the repair PAUSES and keeps its progress.
+  - **Completion:** happens exactly once per repair (session counter plus unique score keys). Effects: stability +15, +50 to the player who started it, +25 assist to each other contributor with at least 1 s, then a 60 s cooldown.
+  - **Rings:** green = original/idle, amber = repairing, cyan = repaired.
+  - Snapshot field: `Objectives` (3 entries: Id, Zone, State, Progress %, Contributors) and `RepairsCompleted`.
+- **CollectibleService** (new):
+  - Fragments spawn only at the 12 approved `FragmentSpawn` markers. At most 8 exist at once; the field is topped up every 20 s while the match is live.
+  - Pickup is by touch, validated on the server: match live, fragment present, living Participant, within 8 studs of the server-side position.
+  - The fragment is removed before anything else happens, so it can be collected exactly once.
+  - Each pickup gives +1 carried fragment (`WORLD_EXE_Fragments` attribute) and +10 score.
+  - Carried fragments are kept on death and cleared at match end and on departure.
+  - All fragments are removed at RESULTS and reset.
+- **ScoreService** (new):
+  - Match-scoped ledger per participant UserId; spectators and joiners have no entry.
+  - `Award` with a unique key per event: a duplicate key is a no-op, and awards after finalize are ignored.
+  - Points: fragment +10; repair +50; assist +25; survival +5 per 60 s alive; accepted Architect patch +5.
+  - Running score in the `WORLD_EXE_Score` attribute.
+  - `Finalize` runs once at RESULTS:
+    - Team success if stability ≥ 50 OR at least 3 repairs.
+    - Rewards: participation +20 to every placed player; team success +100 each; placement +50/+30/+15.
+    - Ties: score, then repairs, then fragments, then lower UserId.
+    - Players who left: a "Left" row with their partial score, no placement, no rewards.
+    - At most 16 rows.
+  - Nothing is persisted.
+- **MatchService integration** (no second loop):
+  - INITIALIZING: stability reset, score ledger begins.
+  - ACTIVE: objectives and fragments begin.
+  - Every tick in ACTIVE/FINAL_PHASE: score survival, fragment waves, objective progress (the snapshot is republished on visible changes, at 5% progress steps).
+  - RESULTS: freeze objectives and pickups, award accepted Architect turns, finalize. `LastResult` gains `Team` and `Players`; existing fields are kept.
+  - RESET, recovery and shutdown: idempotent resets of all four services before the runtime-folder clear.
+  - On player departure: `MarkLeft` and carried fragments dropped.
+- **HUD** (backwards compatible):
+  - Lines: `STABILITY n/100 ■■■■□□` (amber below 50); `Stabilizers: CORE repaired · SKY repairing 22% · YARD needs repair`; `Score n · Fragments n`.
+  - The results panel shows the match line, TEAM SUCCESS/FAILED with its reason, and one row per player (placement, points, reward breakdown, total, fragments/repairs/assists).
+- **Arena (documented additive change):**
+  - 12 invisible, anchored, non-colliding, non-queryable, non-touchable `FragmentSpawn` markers under `Map.FragmentSpawns` (4 Yard, 3 Core, 3 Sky, 2 Routes; 2 of them on DECAY tiles for risk/reward).
+  - Each sits 2.5 studs above a raycast-verified floor.
+  - Recorded in `tools/studio/phase5_fragment_spawns.luau`.
+  - Validation counts and schema were added to `Config` and are checked generically by ArenaService.
+  - No existing geometry was moved or edited.
+
+### Provisional tuning (exact values; rationale)
+| Value | Setting | Rationale |
+|---|---|---|
+| Stability initial / min / max | 100 / 0 / 100 | Design doc §6 ("initialized to 100") |
+| Patch activation cost | −8 | About 5–7 patches per match (design hypothesis) → 44–60 without repairs, so the team needs at least some repairs |
+| Repair gain | +15 | One repair offsets about two patches |
+| Team success | stability ≥ 50 OR ≥ 3 repairs | Approved plan D4 "either" |
+| Repair time / co-op | 6 s solo, +50% per extra player, max 3 | Exposes the repairer to hazards briefly; rewards cooperation |
+| Repair cost / cooldown | 3 fragments / 60 s | Links collection to objectives; prevents spam |
+| Interruption | pause, keep progress | Approved plan D6 default; forgiving with drones/DECAY around |
+| Fragments | max 8 at once, top-up every 20 s, pickup range 8 | Bounded and steady supply |
+| Score | fragment 10, repair 50, assist 25, survival 5/60 s, Architect 5 | Approved plan D7; no points for harming players |
+| Rewards | participation 20, team 100, placement 50/30/15 | Match-scoped only; failure keeps participation and placement |
+
+### Changed / added files
+- Added:
+  - `Services/StabilityService.luau`, `Services/ScoreService.luau`, `Services/CollectibleService.luau`, `Services/ObjectiveService.luau`
+  - `tools/studio/phase5_fragment_spawns.luau`
+- Changed:
+  - `Shared/Config.luau` (version 0.5.0-phase5, FragmentSpawn tag/count/class/schema, Score/Fragments attributes, Stability and ObjectiveStates)
+  - `Services/MatchService.luau`, `Services/PatchService.luau` (`onActivated`), `Bootstrap.server.luau` (comment)
+  - `Controllers/HUDController.luau`
+  - `src/README.md`, `docs/PROJECT_STATUS.md`
+- Unchanged: the patch behaviors, ArchitectService, PlayerStateService, ArenaService, WorldModifierService, CleanupService, NetService (no new remotes), the client modules other than the HUD, and all existing geometry.
+- Studio parity: 25/25 scripts hash-identical.
+
+### Tests (solo Studio, targeted per the risk-based policy, 2026-11-10)
+Live tests used a Script injected into the play server with the game's own modules, a real player and the real match loop. S1–S10 used a cloned ScoreService with simulated players (needed for multi-player ledgers).
+
+| # | Test | Result | Evidence |
+|---|---|---|---|
+| B1 | Boot and validation with the new tag | PASS | `Bootstrap ready v0.5.0-phase5 … FragmentSpawn=12 …`, 0 validation errors |
+| B2 | Match start state | PASS | ACTIVE: stability 100/100, 3 stabilizers IDLE, 3 prompt anchors in RuntimeEffects, 8 fragments at markers, score attribute 0 |
+| ST1 | Patch activation lowers stability | PASS | ZERO_G + DECAY active: 100 → 84 (−8 each); snapshot 84 |
+| ST2 | Repair raises stability | PASS | 84 → 99 (+15) |
+| ST3 | Live Architect submissions | PASS | 9 accepted ZERO_G: log shows `patch:ZERO_G:-8` ×9, final 28 = 100 − 8×9; Architect credited 9 patches (+45) |
+| F1 | Real touch pickups | PASS | 3 pickups by moving the character onto fragments: carried 0→1→2→3, score 0→10→20→30 |
+| F2 | Pickup rejections | PASS | Same fragment again → `unavailable`; 150 studs away → `too_far`; Spectator → `not_participant` |
+| F3 | Bounded waves | PASS | Never more than 8; after 3 pickups (5 left) the next top-up restored 8 |
+| F4 | Cleanup | PASS | RESULTS: 0 fragments. After each reset: Collectibles empty, carried attribute cleared |
+| O1 | Fragment cost enforced | PASS | 0 carried → `need_fragments` |
+| O2 | Start, duplicate join | PASS | `started` (carried 3 → 0); pressing again → `already_repairing` |
+| O3 | Leaving the radius pauses and keeps progress | PASS | 49% → PAUSED, still 49% 1 s later; HUD snapshot `PAUSED 49` |
+| O4 | Resume and exactly-once completion | PASS | `resumed` (no cost); completed 3.1 s later → COOLDOWN, repairs 1, score +50, stability +15; join during cooldown → `cooldown`; prompt disabled |
+| O5 | Real ProximityPrompt start | PASS | Client pressed "Repair (3 fragments)" at STAB_SKY → REPAIRING, 3 fragments spent |
+| O6 | Death interrupts | PASS | Killed at 35% → PAUSED, still 35%, 0 contributors |
+| O7 | Match end mid-repair | PASS | Match 2: repair paused at 62% when RESULTS froze it → not counted (repairs 0); clean reset |
+| O8 | Ring states | PASS | Original green → repairing amber → repaired cyan (fixed: cooldown was first also green, the rings' own color); restored to original after every reset |
+| SC1–SC10 | Score rules (cloned module, 4 simulated players) | PASS | Duplicate key ignored; non-participant can't score; tie order B > C > A (score, then repairs, then fragments, then UserId); left player unplaced with no rewards; team failure keeps participation and placement (20+50, 20+15); finalize once; awards after finalize ignored; success by 3 repairs; success by stability 50; reset clears the ledger |
+| R1 | Live results match server state | PASS | Match 1: TEAM SUCCESS (stability 99 ≥ 50); row: place 1, score 130 (= ledger 130), rewards 170 (20+100+50), total 300, fragments 6, repairs 1 |
+| R2 | Live team failure | PASS | Match 3: stability 28, 0 repairs → TEAM FAILED "stability 28 < 50 and 0 repairs < 3" |
+| R3 | Results HUD | PASS | Client: `TEAM SUCCESS — stability 99 >= 50` / `1. amfam1 — 130 pts + 170 rewards (participation 20, team 100, placement 50) = 300 · fragments 6, repairs 1, assists 0` |
+| H1 | Live HUD lines | PASS | `STABILITY 99/100 ■■■■■■■■■■` / `Stabilizers: CORE repaired · SKY repairing 22% · YARD needs repair` / `Score 115 · Fragments 0` |
+| P4 | Phase 4 patches together with objectives | PASS | Repair and pickups ran while ZERO_G (gravity 58.86) and DECAY were active; 9 live ZERO_G patches with clean expiry; 3-patch cap untouched |
+| L1 | Repeated matches, no leftovers | PASS | After resets 1 and 2: Collectibles 0, RuntimeEffects 0, stabilizers IDLE with original rings and no prompts, stability 100, score/fragment attributes cleared, arena baseline true (including the 12 markers) |
+| P1 | Source parity | PASS | 25/25 hash-identical |
+| P2 | Server Output | PASS | Only `[WORLD_EXE]` info lines (including `Stabilizer STAB_CORE repaired`); no errors or warnings |
+| E1 | Edit place clean after play | PASS | No test scripts or attributes; 12 FragmentSpawn and 64 DecayTile intact; gravity 196.2 |
+
+Totals: **36 PASS, 0 FAIL** (SC1–SC10 counted as ten). Not tested (deferred to the multiplayer integration milestone):
+- Co-op repair with two or three real players: speed bonus and assist credit live. Logic is covered by SC rules and code review only.
+- Two players racing for the same fragment.
+- A real player leaving mid-repair or mid-match. MarkLeft is covered by SC4; the departure path itself is unobserved.
+- Mid-match joiner, as a Spectator, has no score.
+- Results with several rows on real clients.
+
+### Outstanding risks / open decisions
+- **D3 (owner):** should stability affect match flow (early FINAL_PHASE or an early end)? Not implemented.
+- **Balance:** with the default cadence (~5–7 patches) and no repairs, stability ends around 44–60, so team success hinges on repairs. Needs playtests.
+- **Touch pickups:** the client can influence touch events, so the server-side 8-stud distance check is the safeguard.
+- **Fragments on DECAY tiles:** they can be briefly unreachable while a tile is collapsed (by design).
+- **Repair credit:** the player who started a repair gets the repair credit even if others finish it (they get assists).
+- **Placeholder visuals:** fragments are cyan neon spheres and prompts are invisible anchors.
+- **Multiplayer:** all multiplayer behavior is untested (see the list above).
 
 ## Phase 4 final review (2026-11-10)
 ChatGPT approved Phase 4 at `c7f5186`: no remaining blocking code issues. All three drone corrections were inspected and accepted, and the risk-based testing documentation was accepted.

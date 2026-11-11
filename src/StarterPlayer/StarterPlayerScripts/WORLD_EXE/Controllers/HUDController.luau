@@ -1,7 +1,8 @@
 --!strict
 -- HUDController (Phase 2): placeholder match HUD — phase + timer, role, Architect turn status,
--- patch announcements, running patches, shield status, and match results. Reads the versioned
--- server snapshot and server-set player attributes only.
+-- patch announcements, running patches, shield status, stability, stabilizer objectives, own score
+-- and fragments (Phase 5), and match results with team outcome and placements. Reads the
+-- versioned server snapshot and server-set player attributes only.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -39,19 +40,63 @@ local function roleText(role: string): string
 	return "In lobby"
 end
 
+local ZONE_SHORT: { [string]: string } = { CentralCore = "CORE", Skybridge = "SKY", ResearchYard = "YARD" }
+
 local function resultsText(data: any): string
 	if typeof(data) ~= "table" then
 		return ""
 	end
-	return string.format(
-		"Match #%s %s (%s) · %ss · patches submitted: %s, skipped turns: %s",
-		tostring(data.MatchId),
-		tostring(data.Outcome),
-		tostring(data.Reason),
-		tostring(data.DurationSeconds),
-		tostring(data.TurnsAccepted),
-		tostring(data.TurnsSkipped)
-	)
+	local lines = {
+		string.format(
+			"Match #%s %s (%s) · %ss · patches submitted: %s, skipped turns: %s",
+			tostring(data.MatchId),
+			tostring(data.Outcome),
+			tostring(data.Reason),
+			tostring(data.DurationSeconds),
+			tostring(data.TurnsAccepted),
+			tostring(data.TurnsSkipped)
+		),
+	}
+	local team = data.Team
+	if typeof(team) == "table" then
+		table.insert(lines, string.format("%s — %s", if team.Success then "TEAM SUCCESS" else "TEAM FAILED", tostring(team.Reason)))
+	end
+	if typeof(data.Players) == "table" then
+		for _, row in data.Players do
+			if typeof(row) == "table" then
+				local stats = string.format("fragments %s, repairs %s, assists %s", tostring(row.Fragments), tostring(row.Repairs), tostring(row.Assists))
+				if row.Left then
+					table.insert(lines, string.format("Left: %s — %s pts (%s)", tostring(row.Name), tostring(row.Score), stats))
+				else
+					local b = if typeof(row.RewardBreakdown) == "table" then row.RewardBreakdown else {}
+					table.insert(lines, string.format(
+						"%s. %s — %s pts + %s rewards (participation %s, team %s, placement %s) = %s · %s",
+						tostring(row.Placement), tostring(row.Name), tostring(row.Score), tostring(row.Rewards),
+						tostring(b.Participation), tostring(b.Team), tostring(b.Placement), tostring(row.Total), stats
+					))
+				end
+			end
+		end
+	end
+	return table.concat(lines, "\n")
+end
+
+local function objectivesText(list: any): string
+	if typeof(list) ~= "table" then
+		return ""
+	end
+	local parts = {}
+	for _, o in list do
+		if typeof(o) == "table" then
+			local name = ZONE_SHORT[tostring(o.Zone)] or tostring(o.Id)
+			local status = if o.State == "REPAIRING" then `repairing {o.Progress}%`
+				elseif o.State == "PAUSED" then `paused {o.Progress}%`
+				elseif o.State == "COOLDOWN" then "repaired"
+				else "needs repair"
+			table.insert(parts, `{name} {status}`)
+		end
+	end
+	return if #parts > 0 then "Stabilizers: " .. table.concat(parts, " · ") else ""
 end
 
 function HUDController.Start(remotes: Instance)
@@ -79,8 +124,15 @@ function HUDController.Start(remotes: Instance)
 	local patchesLine = UIUtil.label("PatchesLabel", "", 14, Palette.AmberWarning, status)
 	patchesLine.LayoutOrder = 4
 	patchesLine.Font = Enum.Font.Gotham
+	local stabilityLine = UIUtil.label("StabilityLabel", "", 14, Palette.NeonCyan, status)
+	stabilityLine.LayoutOrder = 5
+	local objectivesLine = UIUtil.label("ObjectivesLabel", "", 13, Palette.ObjectiveGreen, status)
+	objectivesLine.LayoutOrder = 6
+	objectivesLine.Font = Enum.Font.Gotham
+	local personalLine = UIUtil.label("PersonalLabel", "", 14, Palette.CleanWhite, status)
+	personalLine.LayoutOrder = 7
 	local results = UIUtil.label("ResultsLabel", "", 14, Palette.ObjectiveGreen, status)
-	results.LayoutOrder = 5
+	results.LayoutOrder = 8
 	results.Font = Enum.Font.Gotham
 
 	local banner = UIUtil.panel("Announcement", Palette.AmberWarning, gui)
@@ -149,6 +201,25 @@ function HUDController.Start(remotes: Instance)
 		end
 		patchesLine.Text = if #parts > 0 then `Patches ({#parts}/{tostring(snap.PatchCapacity or "?")}): {table.concat(parts, " · ")}` else ""
 		patchesLine.Visible = patchesLine.Text ~= ""
+
+		-- Phase 5: stability, stabilizers, own score and carried fragments (display only).
+		local inMatch = state == S.Active or state == S.FinalPhase
+		local stability = snap.Stability
+		if inMatch and typeof(stability) == "number" then
+			local max = if typeof(snap.StabilityMax) == "number" and snap.StabilityMax > 0 then snap.StabilityMax else 100
+			local filled = math.clamp(math.floor(stability / max * 10 + 0.5), 0, 10)
+			stabilityLine.Text = string.format("STABILITY %d/%d  %s%s", stability, max, string.rep("■", filled), string.rep("□", 10 - filled))
+			stabilityLine.TextColor3 = if stability >= Config.Stability.SuccessTarget then Palette.NeonCyan else Palette.AmberWarning
+		else
+			stabilityLine.Text = ""
+		end
+		stabilityLine.Visible = stabilityLine.Text ~= ""
+		objectivesLine.Text = if inMatch then objectivesText(snap.Objectives) else ""
+		objectivesLine.Visible = objectivesLine.Text ~= ""
+		local myScore = player:GetAttribute(Config.PlayerAttributes.Score)
+		local myFragments = player:GetAttribute(Config.PlayerAttributes.Fragments)
+		personalLine.Text = if inMatch and typeof(myScore) == "number" then string.format("Score %d · Fragments %d", myScore, if typeof(myFragments) == "number" then myFragments else 0) else ""
+		personalLine.Visible = personalLine.Text ~= ""
 
 		results.Text = if state == S.Results or state == S.Reset then resultsText(snap.LastResult) else ""
 		results.Visible = results.Text ~= ""

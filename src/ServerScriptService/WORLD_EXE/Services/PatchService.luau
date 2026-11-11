@@ -93,6 +93,7 @@ local isMatchLive: (number) -> boolean = function()
 	return false
 end
 local onChanged: () -> () = function() end
+local onActivated: (patchId: string, matchId: number) -> () = function() end
 
 local function now(): number
 	return workspace:GetServerTimeNow()
@@ -303,6 +304,10 @@ function PatchService.Update()
 				continue
 			end
 			print(`[WORLD_EXE] Patch {record.RuntimeId} {record.PatchId} active`)
+			local cbOk, cbErr = pcall(onActivated, record.PatchId, record.MatchId)
+			if not cbOk then
+				warn(`[WORLD_EXE] Patch {record.RuntimeId} onActivated failed: {cbErr}`)
+			end
 			onChanged()
 		elseif record.State == States.Active and t >= record.ExpiresAt then
 			finish(record, "expired")
@@ -380,9 +385,14 @@ end
 
 -- deps.isMatchLive(matchId): true while that match is ACTIVE or FINAL_PHASE.
 -- deps.onChanged(): called after any lifecycle change (MatchService republishes its snapshot).
-function PatchService.Init(deps: { isMatchLive: (number) -> boolean, onChanged: () -> () })
+-- deps.onActivated(patchId, matchId): optional; called once when a patch becomes ACTIVE (Phase 5:
+-- stability cost). Errors in it are caught and never affect the patch.
+function PatchService.Init(deps: { isMatchLive: (number) -> boolean, onChanged: () -> (), onActivated: ((string, number) -> ())? })
 	isMatchLive = deps.isMatchLive
 	onChanged = deps.onChanged
+	if deps.onActivated then
+		onActivated = deps.onActivated
+	end
 	for _, id in PatchCatalog.Ids() do
 		local moduleName = BEHAVIOR_MODULES[id]
 		assert(moduleName, `approved patch {id} has no behaviour module`)
