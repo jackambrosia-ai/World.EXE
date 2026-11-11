@@ -201,7 +201,7 @@ Config.Remotes = table.freeze({
 	RequestPatchSubmission = "RequestPatchSubmission", -- client -> server: { patchId = string }
 	SubmissionResult = "SubmissionResult", -- server -> one client: { ok, reason, patchId? }
 	PatchAnnouncement = "PatchAnnouncement", -- server -> all: accepted / skipped turn
-	MatchStateChanged = "MatchStateChanged", -- server -> all: state snapshot on each transition
+	MatchStateChanged = "MatchStateChanged", -- reserved (still created; not fired since Phase 8A-1: clients read the Snapshot attribute)
 	RequestAbility = "RequestAbility", -- client -> server: { abilityId = string } only (Phase 6)
 	AbilityFeedback = "AbilityFeedback", -- server -> one client: result, cooldown, scanner targets
 })

@@ -3,7 +3,7 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 8A-1 IN REVIEW — new arena greybox and gameplay migration on branch `phase-08a1-arena-layout`; PR open for ChatGPT review. Phase 8A-2 and 8B not started. D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
+- Overall status: PHASE 8A-1 IN REVIEW — review round 1 correction (redundant MatchStateChanged firing removed) pushed to PR #12 for final review. Phase 8A-2 and 8B not started. D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
 - Current phase: Phase 8A-1 — Arena greybox and gameplay migration (in review)
 - Current branch: `phase-08a1-arena-layout`
 - Current PR: Phase 8A-1 in review: [jackambrosia-ai/World.EXE#12](https://github.com/jackambrosia-ai/World.EXE/pull/12); Phase 8A design PR #11 (draft, separate). Phase 7B merged via [jackambrosia-ai/World.EXE#10](https://github.com/jackambrosia-ai/World.EXE/pull/10). Phase 7A merged via [jackambrosia-ai/World.EXE#9](https://github.com/jackambrosia-ai/World.EXE/pull/9). Phase 6 merged via [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
@@ -53,7 +53,7 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 - Known Phase 2 gaps carried forward (not counted as passed): real mid-match join → Spectator; multiplayer spawn-protection window; > 12 players; streaming at distance; pending-respawn invalidation on departure. Hardening note for Phase 10: server→client remotes have no `OnServerEvent` handler (client spam is queued with warnings).
 - Known Phase 7A gaps (not counted as passed): a real failing combination activation (shared RunHook path covered by E1/E2); combination cap 5 unreachable with 2 combinations; departure/recovery during a combination (code paths only); BLACKOUT on a real client; all multiplayer behaviour — deferred to the multiplayer integration milestone.
 - Known Phase 7B gaps (not counted as passed): recovery, shutdown or departure while a 7B patch runs (code paths only); all multiplayer behaviour (crate replication, several players pausing crates, flood slow and corruption damage on several players) — deferred to the multiplayer integration milestone.
-- Known Phase 8A-1 gaps (not counted as passed): multiplayer behaviour on the larger map; device performance (mobile FPS/memory); pre-existing `MatchStateChanged` unhandled-event warning in long sessions (finding, fix proposed).
+- Known Phase 8A-1 gaps (not counted as passed): multiplayer behaviour on the larger map; device performance (mobile FPS/memory); a meaningful foreground desktop client FPS measurement (requested before Phase 8A-2 approval). The `MatchStateChanged` warning was fixed in review round 1.
 - Last updated: 2026-11-10
 
 ## Phase tracker
@@ -68,11 +68,37 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 6 | Initial abilities | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #8](https://github.com/jackambrosia-ai/World.EXE/pull/8) → `16cef23` | Targeted solo: 27 PASS, 0 FAIL; multiplayer deferred (see Phase 6 report) |
 | 7A | Interactions + BOUNCY/SLIPPERY/BLACKOUT | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #9](https://github.com/jackambrosia-ai/World.EXE/pull/9) → `059f191` | Targeted solo: 35 PASS, 0 FAIL; round 1: 9 PASS (targeted live Architect runs) |
 | 7B | MAGNETIC/CORRUPTION/FLOOD + 3 combinations | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #10](https://github.com/jackambrosia-ai/World.EXE/pull/10) → `f9e4707` | Targeted solo: 30 PASS, 0 FAIL; round 1: 7 PASS (safe crate restore) |
-| 8A-1 | Arena greybox and gameplay migration | **In review** (solo Studio tests; multiplayer deferred) | [PR #12](https://github.com/jackambrosia-ai/World.EXE/pull/12) (`b1cbbc7`) | Targeted solo: 40 PASS, 0 FAIL, 1 finding; see Phase 8A-1 report |
+| 8A-1 | Arena greybox and gameplay migration | **In review** (solo Studio tests; multiplayer deferred) | [PR #12](https://github.com/jackambrosia-ai/World.EXE/pull/12) (`b1cbbc7`) | Targeted solo: 40 PASS, 0 FAIL; finding fixed in round 1 (4 PASS) |
 | 8A-2 | Architectural identity | Not started (requires approval) | — | — |
 | 8B | Visual polish | Not started (requires approval) | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 8A-1 review round 1 correction (2026-11-10)
+
+ChatGPT reviewed PR #12 at `f213753`: CHANGES REQUESTED, with one small correction. The arena, the migration, spawn validation, rollback preservation and the 40 passing tests were accepted, and so were the layout deviations.
+
+### Change
+- **`MatchService.publish()` no longer fires `MatchStateChanged`.**
+  - It had no client listener, so in long sessions its events filled Roblox's queue for unhandled events and produced the warning.
+  - Clients already read the replicated, versioned `Snapshot` attribute. That attribute and its `Version` are unchanged.
+  - Match lifecycle and HUD behaviour are unchanged.
+- **The remote definition is kept.** `Config.Remotes.MatchStateChanged` is still created by NetService and marked "reserved", to avoid unnecessary compatibility changes.
+- **Files:** `Services/MatchService.luau` (one line removed, comment added), `Shared/Config.luau` (comment).
+
+### Focused tests (solo Studio)
+| # | Test | Result | Evidence |
+|---|---|---|---|
+| Q1 | No queue warning under heavy publishing | PASS | 341 extra snapshot publishes (Version 4 → 446; the old warning appeared after about 256 unhandled events). Client log: 0 "queue exhausted", 0 warnings, 0 errors. Server log: 448 entries, 0 "queue exhausted", 0 warnings, 0 errors |
+| Q2 | Snapshot updates reach the real client | PASS | The client's latest Version equals the server's (446). The client saw 443 change events, because Roblox coalesces rapid attribute updates; `MatchStateClient` already ignores older versions |
+| Q3 | Full lifecycle on the real client and HUD | PASS | Snapshot: COUNTDOWN → INITIALIZING → ACTIVE → FINAL_PHASE → RESULTS → RESET → LOBBY → COUNTDOWN. HUD label: MATCH STARTING → INITIALIZING SIMULATION → SIMULATION ACTIVE → FINAL PHASE → RESULTS → RESETTING → LOBBY → MATCH STARTING. 0 warnings or errors on client and server |
+| Q4 | Parity and Edit place | PASS | 42/42 hash-identical; Edit place clean |
+
+Totals: **4 PASS, 0 FAIL.** The 40 arena tests were not repeated, per the review.
+
+Non-blocking items carried forward:
+- A meaningful foreground desktop client FPS measurement, before Phase 8A-2 approval.
+- Mobile performance and multiplayer integration, mandatory before release.
 
 ## Phase 8A-1 report — Arena greybox and gameplay migration (2026-11-10)
 

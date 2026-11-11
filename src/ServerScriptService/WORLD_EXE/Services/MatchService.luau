@@ -139,6 +139,8 @@ local function snapshot(): { [string]: any }
 end
 
 -- Publishes one consistent, versioned snapshot (skipped mid-transition; the transition publishes).
+-- Clients read the replicated Snapshot attribute; the MatchStateChanged remote is no longer fired
+-- (it had no client listener, so its events only queued up; Phase 8A-1 review round 1).
 local function publish()
 	if inTransition or stateFolder == nil then
 		return
@@ -146,7 +148,6 @@ local function publish()
 	version += 1
 	local snap = snapshot()
 	stateFolder:SetAttribute(Config.MatchSnapshotAttribute, HttpService:JSONEncode(snap))
-	NetService.Get(Config.Remotes.MatchStateChanged):FireAllClients(snap)
 end
 
 local function lobbyCount(): number
