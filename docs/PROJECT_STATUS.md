@@ -3,10 +3,10 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 6 IMPLEMENTED — awaiting ChatGPT technical review; not merged. D3 still unimplemented pending a design decision. Multiplayer validation deferred to the integration milestone (required before public release). Phase 7 requires separate approval Multiplayer validation deferred to the batched integration milestone (required before public release). Open owner decision: D3 (stability affecting match flow) not implemented. Phase 6 requires separate approval Phase 5 not started and requires separate owner approval
-- Current phase: Phase 6 — Initial player abilities (in review)
+- Overall status: PHASE 6 APPROVED BY CHATGPT (review at `03f9cab`) — saved and backed up; awaiting the owner's merge approval. D3 still unimplemented pending a design decision. Multiplayer validation deferred to the integration milestone (required before public release). Phase 7 requires separate approval Multiplayer validation deferred to the batched integration milestone (required before public release). Open owner decision: D3 (stability affecting match flow) not implemented. Phase 6 requires separate approval Phase 5 not started and requires separate owner approval
+- Current phase: Phase 6 — Initial player abilities (approved, not merged)
 - Current branch: `phase-06-abilities` (from `main` `d648807`)
-- Current PR: [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8) targeting `main` (open, not merged). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
+- Current PR: [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8) targeting `main` (open, approved, not merged). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
 - Studio place: saved by the owner 2026-11-10 17:35:27 (`Place1.rbxl`, 135,464 bytes, SHA-256 `F4DF639AB773961792E97BF2FB305751D64ABAFCF6B11BD0F598C86368FE90FF`). The save is verified from the file itself: all 21 `Source` strings decoded from the saved `.rbxl` are byte-identical (length + hash) to `src/` at `c7f5186` (unchanged in `main` `8d244b9`), and the file has no other scripts. Before the save, the Edit place was checked clean: no test scripts or attributes, 64 DecayTiles, gravity 196.2.
 - Phase 1 merge: squash-merged 2026-11-10 by owner approval as `9b9cbd0` (from PR head `ddc784c`; merged tree identical to that head). The `phase-01-arena` branch still exists on GitHub and can be deleted.
 - Phase 2 merge: squash-merged 2026-11-10 by owner approval as `09d9c2a` (from PR head `2e99b13`; merged tree identical to that head; final gameplay code `9c6de7a`). The `phase-02-match` branch still exists on GitHub and can be deleted.
@@ -27,8 +27,9 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
   - `WorldEXE_post-phase4_2026-11-10.rbxl` — post-Phase-4 place (SHA-256 `F4DF639A…68FE90FF`, identical to the saved `Place1.rbxl`)
   - `WorldEXE_pre-phase5_2026-11-10.rbxl` — verified pre-Phase-5 copy (SHA-256 `F4DF639A…68FE90FF`, identical to the saved place)
   - `WorldEXE_post-phase5_2026-11-10.rbxl` — post-Phase-5 place (SHA-256 `13CDA584…FEC74635`, identical to the saved `Place1.rbxl`)
-  - `WorldEXE_pre-phase6_2026-11-10.rbxl` — verified pre-Phase-6 copy (SHA-256 `13CDA584…FEC74635`, identical to the saved place); current rollback point
-- Studio place (Phase 6): the open session has the 28 Phase 6 scripts (hash-identical to the branch) and no test leftovers. **It must be saved (Ctrl+S) and a post-Phase-6 backup taken before merge.** The last saved file is the post-Phase-5 place.
+  - `WorldEXE_pre-phase6_2026-11-10.rbxl` — verified pre-Phase-6 copy (SHA-256 `13CDA584…FEC74635`, identical to the saved place)
+  - `WorldEXE_post-phase6_2026-11-10.rbxl` — post-Phase-6 place (SHA-256 `B2252755…B397F3B2`, identical to the saved `Place1.rbxl`); current rollback point
+- Studio place (Phase 6): saved by the owner 2026-11-10 19:11:29 (`Place1.rbxl`, 150,191 bytes, SHA-256 `B2252755CFA1DA6FCE1BCC34D64BCEAEF49BAAB88B117A9E4E07A37BB397F3B2`). Verified from the file itself: all 28 decoded script sources are byte-identical (length + hash) to `src/` at `03f9cab`, with no other scripts. Before the save, the Edit place was checked clean: no test scripts or attributes, 64/64 DecayTiles collidable, 12 FragmentSpawn markers, stabilizer rings at their original colour, gravity 196.2.
 - Studio place (Phase 5): saved by the owner 2026-11-10 18:16:45 (`Place1.rbxl`, 144,480 bytes, SHA-256 `13CDA584FCF8C65F22044D67DF9CFCD45043F2669F21F8456304ADCCFEC74635`). Verified from the file itself: all 25 decoded script sources are byte-identical (length + hash) to `src/` at `6e7ed2e` (unchanged in `main` `66374fe`), the file has no other scripts, and the 12 FragmentSpawn marker ids are present. Before the save, the Edit place was checked clean: no test scripts or attributes, stabilizer rings at their original colour, 64 DecayTiles, gravity 196.2.
 - Studio save: Studio MCP cannot save the place — the owner must press Ctrl+S after each change set. Latest save 2026-11-10 16:35:24 (post-Phase-3 incl. review round 1, backed up).
 - StreamingEnabled: unchanged (enabled), per Phase 0 review
@@ -51,11 +52,29 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 3 | Patch engine | **Complete — merged** (solo Studio tests; multi-client outstanding) | [PR #3](https://github.com/jackambrosia-ai/World.EXE/pull/3) → `c2ab456` | Original: 25 PASS, 0 FAIL, 3 NOT TESTED. Round 1: 18 PASS, 0 FAIL, 1 NOT TESTED |
 | 4 | Four prototype patches | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #5](https://github.com/jackambrosia-ai/World.EXE/pull/5) → `8d244b9` | Solo: 36 PASS, 0 FAIL, 3 NOT TESTED; round 1: 6 PASS (targeted); multiplayer deferred |
 | 5 | Stability/objectives/scoring | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #6](https://github.com/jackambrosia-ai/World.EXE/pull/6) → `66374fe` | Targeted solo: 36 PASS, 0 FAIL; round 1: 10 PASS (targeted); multiplayer deferred |
-| 6 | Initial abilities | **Implemented — in review, not merged** (solo Studio tests) | [PR #8](https://github.com/jackambrosia-ai/World.EXE/pull/8), branch `phase-06-abilities` | Targeted solo: 27 PASS, 0 FAIL; multiplayer deferred (see Phase 6 report) |
+| 6 | Initial abilities | **Approved (review `03f9cab`) — awaiting owner merge** (solo Studio tests; multiplayer deferred) | [PR #8](https://github.com/jackambrosia-ai/World.EXE/pull/8), branch `phase-06-abilities` | Targeted solo: 27 PASS, 0 FAIL; multiplayer deferred (see Phase 6 report) |
 | 7 | Interactions and expansion | Not started | — | — |
 | 8 | UI and visual polish | Not started | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 6 final review (2026-11-10)
+ChatGPT approved PR #8 at `03f9cab`: no merge-blocking defects. No additional test round was required.
+
+Notes recorded at the reviewer's request:
+- **ANCHOR lowers jumps (tuning consideration).** While ANCHOR is active under ZERO_G, jumps are lower than normal: apex 4.9 studs vs 7.3, airtime 0.45 s vs 0.55 s. Roblox's jump-height mode sets launch speed from the reduced world gravity, while ANCHOR restores full downward acceleration. This is accepted for now as part of being "planted". Revisit during tuning, for example by temporarily adjusting the anchored Humanoid's jump. That would be a separate, approved change.
+- **Cooldown attribute timing (clarification).** At RESULTS, `AbilityService.Stop()` ends running effects and clears the `WORLD_EXE_AbilityActive_*` attributes. The `WORLD_EXE_AbilityReady_*` cooldown attributes and server cooldowns are cleared at RESET (and in recovery and shutdown) by `AbilityService.Reset()`, and again when the next match's ACTIVE begins. Requests are refused (`not_live`) throughout RESULTS, so the remaining ready attributes have no gameplay effect.
+
+Closeout (completed):
+1. Studio ↔ GitHub parity: 28/28 hash-identical to `03f9cab`.
+2. Edit place clean (see "Current state").
+3. The owner saved `Place1.rbxl` (2026-11-10 19:11:29). Verified from the file: 28 decoded script sources match `src/`.
+4. Backup `WorldEXE_post-phase6_2026-11-10.rbxl` created. Its SHA-256 matches the saved place: `B2252755CFA1DA6FCE1BCC34D64BCEAEF49BAAB88B117A9E4E07A37BB397F3B2`.
+5. This document and PR #8 were updated.
+
+Still open, by design:
+- D3 remains unimplemented.
+- Phase 6 multiplayer scenarios stay NOT TESTED and are assigned to the pre-release multiplayer integration milestone.
 
 ## Phase 6 report — Initial player abilities (2026-11-10)
 
@@ -165,7 +184,7 @@ Tests used a script injected into the play server that calls `AbilityService.Req
 | S1 | Scanner targets | PASS | 3 fragment highlights (farthest 36 studs). With DRONE_SWARM and DECAY active: 8 highlights (2 fragments, 3 drones, 3 DECAY tiles), farthest 46 studs (range 60, cap 20) |
 | S2 | Out-of-order and expired feedback | PASS | An older-seq result and an already-expired result were both ignored (highlights stayed 3); `cancelled` cleared them (0) |
 | S3 | Expiry | PASS | Rescan → 3 highlights → 0 after 6 s |
-| L1 | RESULTS cancels everything | PASS | ANCHOR and SCANNER active right before the end (2 effects, 2 force instances, 4 attributes) → at RESULTS: 0 effects, 0 forces, attributes cleared, request → `not_live`; client: 0 highlights, bar hidden |
+| L1 | RESULTS cancels everything | PASS | ANCHOR and SCANNER active right before the end (2 effects, 2 force instances, 4 attributes) → at RESULTS: 0 effects, 0 forces, active-until attributes cleared, request → `not_live`; client: 0 highlights, bar hidden. (Cooldown/ready attributes are cleared at RESET, not RESULTS; see L2.) |
 | L2 | Reset and next match | PASS | After RESET: 0 effects, forces and attributes; lobby request → `not_live`. Match 2: everything ready, SCANNER works again; bar shown again |
 | K1 | Real keyboard input | PASS | Real key presses Q, F, R, Q in the client: dash, anchor and scanner activated (ready 14.9 / 22.7 / 20.6 s), the second Q showed "On cooldown", bar `[Q] Phase Dash 15s | [F] Anchor ACTIVE 2 | [R] Scanner ACTIVE 5` |
 | P1 | Source parity | PASS | 28/28 hash-identical |
