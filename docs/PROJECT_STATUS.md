@@ -3,7 +3,7 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 8A-2a IN RE-REVIEW — review-correction pass complete (strict AC2 reported; roof/lighting A/B; polish; read-only final audit; post-correction FPS valid). Awaiting ChatGPT re-review and owner decisions (AC2 repair/waiver; roof/daylight deviation). 8A-2b not started. D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
+- Overall status: PHASE 8A-2a TECHNICAL REVIEW COMPLETE (ChatGPT, PR #14 at 6fa695c). Owner decisions recorded 2026-11-11: limited strict-AC2 waiver for RES_1, RES_2, ARCH_1, ARCH_2, ARCH_3 APPROVED; roof/lighting A′ APPROVED. PR #14 stays draft; merge and Phase 8A-2b await separate authorization. D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
 - Current phase: Phase 8A-2a — in review (implementation PR #14); design approved in draft PR #13 at `f623a4e`
 - Current branch: `phase-08a2a-hall`
 - Current PR: Phase 8A-2a in review: [jackambrosia-ai/World.EXE#14](https://github.com/jackambrosia-ai/World.EXE/pull/14) (draft); Phase 8A-2 design [jackambrosia-ai/World.EXE#13](https://github.com/jackambrosia-ai/World.EXE/pull/13) (draft). Phase 8A-1 merged via [jackambrosia-ai/World.EXE#12](https://github.com/jackambrosia-ai/World.EXE/pull/12); Phase 8A design PR #11 (draft, separate). Phase 7B merged via [jackambrosia-ai/World.EXE#10](https://github.com/jackambrosia-ai/World.EXE/pull/10). Phase 7A merged via [jackambrosia-ai/World.EXE#9](https://github.com/jackambrosia-ai/World.EXE/pull/9). Phase 6 merged via [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
@@ -81,6 +81,23 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 8B | Visual polish | Not started (requires approval) | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 8A-2a owner decisions (2026-11-11)
+
+ChatGPT completed the technical re-review of PR #14 at `6fa695c`; no further implementation corrections requested.
+
+Owner decision (verbatim): "Both are approved"
+
+1. **Strict-AC2 waiver: APPROVED (limited).** The waiver covers exactly five spawns: Spawn_RES_1, Spawn_RES_2, Spawn_ARCH_1, Spawn_ARCH_2, Spawn_ARCH_3.
+   - The strict AC2 results stay documented as measured (`docs/phase8a2a/audit_round2_final.json`).
+   - No gameplay geometry changes: Ring_N, Ring_S, the ring ramps, rack decks and spawns are unchanged.
+   - The waiver does not extend to any other viewpoint or to future geometry.
+2. **Roof/lighting option A′: APPROVED.** The tinted translucent roof glass (Transparency 0.35) and the daytime-sun lighting preset with the correction fill/exposure/bloom values become the approved 8A-2a roof and lighting, replacing the open-roof night identity in PR #13 for this phase.
+
+Not changed by these decisions:
+- PR #14 stays DRAFT. No merge, and no Phase 8A-2b or other phase, until separately authorized.
+- No geometry, script or place changes. The saved place (SHA-256 CF21106D…) and the backups are unchanged.
+- No publishing, asset generation or credit spending.
 
 ## Phase 8A-2a final technical corrections (round 2, 2026-11-11)
 
