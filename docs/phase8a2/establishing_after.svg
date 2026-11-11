@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" font-family="Segoe UI, Arial, sans-serif">
+  <!-- Phase 8A-2 mockup: establishing perspective from a high SE viewpoint inside the containment hall. Schematic, not a render. Three layers: L1 playable (light navy + cyan edges), L2 structure/machinery (mid navy), L3 megastructure (dark, hazy). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#04060c"/><stop offset="0.55" stop-color="#0d1530"/><stop offset="1" stop-color="#05080f"/></linearGradient>
+    <linearGradient id="hz" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#26345e" stop-opacity="0"/><stop offset="1" stop-color="#26345e" stop-opacity="0.7"/></linearGradient>
+  </defs>
+  <rect width="1200" height="700" fill="url(#bg)"/>
+  <text x="24" y="34" fill="#f5f7ff" font-size="20" font-weight="700">AFTER — establishing view of the Simulation Containment Hall (proposed)</text>
+  <text x="24" y="54" fill="#9aa6c8" font-size="12">High south-east viewpoint. L3 megastructure (back) · L2 structure &amp; machinery (middle) · L1 playable architecture (front, unchanged layout)</text>
+
+  <!-- L3: outer machinery silhouettes beyond hall -->
+  <g fill="#0c1228">
+    <rect x="60" y="120" width="60" height="300"/><rect x="140" y="170" width="40" height="250"/><rect x="1040" y="110" width="70" height="310"/><rect x="980" y="180" width="40" height="240"/>
+    <path d="M220 420 Q205 300 230 240 L280 240 Q305 300 290 420 Z"/><path d="M900 420 Q885 310 905 260 L950 260 Q970 310 955 420 Z"/>
+  </g>
+  <!-- L3: hall back wall in perspective -->
+  <polygon points="100,170 1100,170 1100,430 100,430" fill="#111936"/>
+  <g stroke="#00e1ff" stroke-opacity="0.3" stroke-width="2">
+    <line x1="180" y1="170" x2="180" y2="430"/><line x1="300" y1="170" x2="300" y2="430"/><line x1="420" y1="170" x2="420" y2="430"/><line x1="540" y1="170" x2="540" y2="430"/>
+    <line x1="660" y1="170" x2="660" y2="430"/><line x1="780" y1="170" x2="780" y2="430"/><line x1="900" y1="170" x2="900" y2="430"/><line x1="1020" y1="170" x2="1020" y2="430"/>
+  </g>
+  <rect x="100" y="330" width="1000" height="5" fill="#8a2be2" opacity="0.55"/>
+  <g fill="#070b18"><rect x="310" y="210" width="100" height="80"/><rect x="790" y="210" width="100" height="80"/></g>
+  <!-- rev 2: terrace plinth (Y 60) in front of the set-back upper wall, with terrace machinery towers -->
+  <rect x="100" y="372" width="1000" height="58" fill="#1a2348"/>
+  <rect x="100" y="368" width="1000" height="5" fill="#26345e"/>
+  <g fill="#141c3c" stroke="#26345e"><rect x="140" y="310" width="36" height="58"/><rect x="380" y="325" width="30" height="43"/><rect x="760" y="318" width="34" height="50"/><rect x="1010" y="305" width="38" height="63"/></g>
+  <text x="110" y="300" fill="#9aa6c8" font-size="10">terrace plinth Y 60 · upper wall set back to ±400, top Y 180</text>
+  <!-- side walls -->
+  <polygon points="0,90 100,170 100,430 0,520" fill="#0e1530"/><polygon points="1200,90 1100,170 1100,430 1200,520" fill="#0e1530"/>
+  <!-- ceiling ribs to hub -->
+  <g stroke="#1a2348" stroke-width="16"><line x1="0" y1="90" x2="600" y2="70"/><line x1="1200" y1="90" x2="600" y2="70"/><line x1="100" y1="170" x2="600" y2="70"/><line x1="1100" y1="170" x2="600" y2="70"/><line x1="600" y1="170" x2="600" y2="70"/></g>
+  <ellipse cx="600" cy="70" rx="70" ry="12" fill="none" stroke="#26345e" stroke-width="8"/>
+  <rect x="0" y="300" width="1200" height="200" fill="url(#hz)"/>
+
+  <!-- shaft floor grid far below -->
+  <polygon points="0,700 0,600 1200,600 1200,700" fill="#060a16"/>
+  <g stroke="#00e1ff" stroke-opacity="0.18"><line x1="0" y1="630" x2="1200" y2="630"/><line x1="0" y1="665" x2="1200" y2="665"/><line x1="300" y1="600" x2="150" y2="700"/><line x1="600" y1="600" x2="600" y2="700"/><line x1="900" y1="600" x2="1050" y2="700"/></g>
+
+  <!-- L2: support columns from shaft floor -->
+  <g fill="#18224a">
+    <rect x="200" y="470" width="14" height="140"/><rect x="330" y="480" width="14" height="130"/><rect x="460" y="500" width="14" height="110"/>
+    <rect x="730" y="500" width="14" height="110"/><rect x="860" y="480" width="14" height="130"/><rect x="990" y="470" width="14" height="140"/>
+  </g>
+  <g stroke="#1f2c5c" stroke-width="4"><line x1="207" y1="540" x2="337" y2="560"/><line x1="337" y1="560" x2="467" y2="570"/><line x1="737" y1="570" x2="867" y2="560"/><line x1="867" y1="560" x2="997" y2="540"/></g>
+
+  <!-- L1 + L2 districts -->
+  <!-- Research Yard (left): hangar portal frames -->
+  <polygon points="130,470 380,470 360,500 110,500" fill="#3b4a7a"/><line x1="110" y1="500" x2="360" y2="500" stroke="#00e1ff" stroke-width="2"/>
+  <g fill="none" stroke="#26345e" stroke-width="7"><path d="M140 470 L140 390 Q245 360 350 390 L350 470"/><path d="M170 470 L170 400 Q245 375 320 400 L320 470"/></g>
+  <line x1="150" y1="420" x2="340" y2="420" stroke="#8a2be2" stroke-width="3"/>
+  <text x="245" y="355" fill="#f5f7ff" font-size="12" text-anchor="middle">RESEARCH YARD · test hangar + crane</text>
+
+  <!-- Data Archive (back centre): vault -->
+  <polygon points="420,430 600,430 600,360 510,330 420,360" fill="#1a2348"/>
+  <g stroke="#00e1ff" stroke-opacity="0.5"><line x1="440" y1="365" x2="440" y2="425"/><line x1="465" y1="355" x2="465" y2="425"/><line x1="490" y1="345" x2="490" y2="425"/><line x1="555" y1="350" x2="555" y2="425"/><line x1="580" y1="358" x2="580" y2="425"/></g>
+  <ellipse cx="520" cy="338" rx="22" ry="6" fill="#05080f"/>
+  <text x="236" y="452" fill="#f5f7ff" font-size="12">DATA ARCHIVE · vault + oculus →</text>
+
+  <!-- Skybridge (right): spires + control room + hanging pods -->
+  <polygon points="820,440 1070,440 1050,465 800,465" fill="#3b4a7a"/><line x1="800" y1="465" x2="1050" y2="465" stroke="#00e1ff" stroke-width="2"/>
+  <rect x="870" y="250" width="16" height="190" fill="#1f2c5c" stroke="#8a2be2" stroke-width="1.5"/><rect x="960" y="300" width="12" height="140" fill="#1f2c5c" stroke="#8a2be2" stroke-width="1.5"/>
+  <rect x="880" y="405" width="90" height="35" fill="#9fdcff" opacity="0.18" stroke="#9fdcff" stroke-opacity="0.6"/>
+  <g stroke="#9aa6c8" stroke-opacity="0.6"><line x1="878" y1="260" x2="1010" y2="380"/><line x1="966" y1="310" x2="1060" y2="390"/></g>
+  <rect x="995" y="380" width="40" height="10" fill="#26345e"/><rect x="1045" y="390" width="34" height="9" fill="#26345e"/>
+  <circle cx="878" cy="246" r="4" fill="#8a2be2"/>
+  <text x="935" y="236" fill="#f5f7ff" font-size="12" text-anchor="middle">SKYBRIDGE · control spires, hung pods</text>
+
+  <!-- Central Core reactor (centre, dominant) -->
+  <polygon points="470,560 730,560 700,520 500,520" fill="#3b4a7a"/><line x1="470" y1="560" x2="730" y2="560" stroke="#00e1ff" stroke-width="2"/>
+  <polygon points="520,520 580,250 590,252 545,520" fill="#1f2c5c"/><polygon points="680,520 620,250 610,252 655,520" fill="#1f2c5c"/>
+  <rect x="585" y="100" width="30" height="420" fill="#2a3a6a" opacity="0.6"/>
+  <rect x="594" y="100" width="12" height="420" fill="#00e1ff"/>
+  <line x1="600" y1="100" x2="600" y2="70" stroke="#00e1ff" stroke-width="3"/>
+  <g fill="none">
+    <ellipse cx="600" cy="170" rx="42" ry="10" stroke="#1f2c5c" stroke-width="10"/><ellipse cx="600" cy="170" rx="36" ry="7" stroke="#8a2be2" stroke-width="2"/>
+    <ellipse cx="600" cy="260" rx="54" ry="13" stroke="#1f2c5c" stroke-width="12"/><ellipse cx="600" cy="260" rx="46" ry="9" stroke="#8a2be2" stroke-width="2"/>
+    <ellipse cx="600" cy="350" rx="66" ry="15" stroke="#1f2c5c" stroke-width="14"/><ellipse cx="600" cy="350" rx="56" ry="11" stroke="#8a2be2" stroke-width="2"/>
+  </g>
+  <rect x="570" y="96" width="60" height="8" fill="#26345e"/>
+  <text x="660" y="130" fill="#f5f7ff" font-size="13" font-weight="600">CENTRAL CORE · Simulation Core reactor (crown Y 190)</text>
+
+  <!-- Coolant Reservoir (front): basin + cooling towers + pipes -->
+  <polygon points="760,640 1020,640 1050,600 790,600" fill="#26345e"/><polygon points="800,630 1000,630 1020,608 820,608" fill="#0a3a4a"/>
+  <path d="M1060 640 Q1045 560 1068 520 L1110 520 Q1132 560 1118 640 Z" fill="#1f2c5c" stroke="#00e1ff" stroke-opacity="0.5"/>
+  <path d="M1000 600 Q990 540 1008 512 L1040 512 Q1058 540 1050 600 Z" fill="#1f2c5c" stroke="#00e1ff" stroke-opacity="0.5" opacity="0.9"/>
+  <g stroke="#3b4a7a" stroke-width="8"><line x1="760" y1="620" x2="700" y2="620"/><line x1="700" y1="620" x2="700" y2="680"/></g>
+  <text x="900" y="595" fill="#f5f7ff" font-size="12" text-anchor="middle">COOLANT RESERVOIR · cooling towers, pipe racks</text>
+
+  <!-- Outer ring arc with pylons -->
+  <path d="M60 540 Q600 470 1140 540" fill="none" stroke="#3b4a7a" stroke-width="8"/>
+  <path d="M60 540 Q600 470 1140 540" fill="none" stroke="#00e1ff" stroke-width="1.5" stroke-opacity="0.7"/>
+
+  <!-- legend -->
+  <g font-size="11" fill="#c9d1ea">
+    <rect x="24" y="660" width="14" height="10" fill="#3b4a7a"/><text x="44" y="669">L1 playable (unchanged layout)</text>
+    <rect x="240" y="660" width="14" height="10" fill="#1f2c5c"/><text x="260" y="669">L2 structure &amp; machinery</text>
+    <rect x="430" y="660" width="14" height="10" fill="#111936"/><text x="450" y="669">L3 megastructure (decorative)</text>
+    <rect x="640" y="660" width="14" height="10" fill="#00e1ff"/><text x="660" y="669">cyan = system</text>
+    <rect x="760" y="660" width="14" height="10" fill="#8a2be2"/><text x="780" y="669">violet = simulation energy</text>
+  </g>
+</svg>
