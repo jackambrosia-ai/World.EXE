@@ -33,6 +33,12 @@ These files are exact copies of the WORLD_EXE scripts in the Studio place. Paths
 | `ServerScriptService/WORLD_EXE/Patches/Blackout.luau` | `ServerScriptService.WORLD_EXE.Patches.Blackout` | ModuleScript |
 | `ServerScriptService/WORLD_EXE/Patches/SuperBounce.luau` | `ServerScriptService.WORLD_EXE.Patches.SuperBounce` | ModuleScript |
 | `ServerScriptService/WORLD_EXE/Patches/HunterScan.luau` | `ServerScriptService.WORLD_EXE.Patches.HunterScan` | ModuleScript |
+| `ServerScriptService/WORLD_EXE/Patches/Magnetic.luau` | `ServerScriptService.WORLD_EXE.Patches.Magnetic` | ModuleScript |
+| `ServerScriptService/WORLD_EXE/Patches/Corruption.luau` | `ServerScriptService.WORLD_EXE.Patches.Corruption` | ModuleScript |
+| `ServerScriptService/WORLD_EXE/Patches/Flood.luau` | `ServerScriptService.WORLD_EXE.Patches.Flood` | ModuleScript |
+| `ServerScriptService/WORLD_EXE/Patches/FloatingDebris.luau` | `ServerScriptService.WORLD_EXE.Patches.FloatingDebris` | ModuleScript |
+| `ServerScriptService/WORLD_EXE/Patches/RapidDecay.luau` | `ServerScriptService.WORLD_EXE.Patches.RapidDecay` | ModuleScript |
+| `ServerScriptService/WORLD_EXE/Patches/SlideField.luau` | `ServerScriptService.WORLD_EXE.Patches.SlideField` | ModuleScript |
 | `ServerScriptService/WORLD_EXE/Patches/TestBehaviors.luau` | `ServerScriptService.WORLD_EXE.Patches.TestBehaviors` | ModuleScript |
 | `StarterPlayer/StarterPlayerScripts/WORLD_EXE/ClientBootstrap.client.luau` | `StarterPlayer.StarterPlayerScripts.WORLD_EXE.ClientBootstrap` | LocalScript |
 | `StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/UIUtil.luau` | `StarterPlayer.StarterPlayerScripts.WORLD_EXE.Controllers.UIUtil` | ModuleScript |
@@ -46,7 +52,7 @@ Created at runtime by the server (not saved in the place, not in `src/`): `Repli
 ## Sync procedure (no Rojo — owner decision)
 Claude edits Studio directly through Studio MCP. After every script change, Claude writes the same source here and verifies that the Studio `Source` and the file have the same byte length and polynomial hash (`h = (h*31 + byte) mod 2147483647`). A mismatch blocks the commit.
 
-Geometry is **not** in `src/`; it is Studio-owned. `tools/studio/phase1_build_arena.luau` and `tools/studio/phase2_build_lobby.luau` record how the arena and lobby were generated; `tools/studio/phase5_fragment_spawns.luau` records the 12 FragmentSpawn markers added in Phase 5; `tools/studio/phase7a_surfaces.luau` records the 8 BounceSurface/SlipSurface pads added in Phase 7A.
+Geometry is **not** in `src/`; it is Studio-owned. `tools/studio/phase1_build_arena.luau` and `tools/studio/phase2_build_lobby.luau` record how the arena and lobby were generated; `tools/studio/phase5_fragment_spawns.luau` records the 12 FragmentSpawn markers added in Phase 5; `tools/studio/phase7a_surfaces.luau` records the 8 BounceSurface/SlipSurface pads added in Phase 7A; `tools/studio/phase7b_markers.luau` records the Phase 7B content under `Map.PatchMarkers` (8 MagneticProp crates, 4 MagneticPoint, 12 CorruptionNode and 2 FloodZone markers).
 
 ## Studio-only test controls
 Attributes on `ServerScriptService.WORLD_EXE`, honoured only when `RunService:IsStudio()`:

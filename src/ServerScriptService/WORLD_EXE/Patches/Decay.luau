@@ -10,6 +10,8 @@
 --   the group ends and again (idempotently) when the patch ends for any reason. Geometry is never
 --   moved or deleted. A missing or destroyed tile is skipped, never an error.
 -- * Overlapping DECAY patches share one claim table, so two patches never fight over one tile.
+-- * Phase 7B (RAPID_DECAY): a speed-up token shortens the time between groups; warnings, collapse
+--   time and MAX_UNSAFE are unchanged.
 -- The server owns tile state; clients see the replicated tile properties.
 
 local CollectionService = game:GetService("CollectionService")
@@ -36,6 +38,17 @@ type Original = {
 
 -- Tile -> RuntimeId of the DECAY patch currently using it (warned or collapsed).
 local claimed: { [BasePart]: string } = {}
+local speedups: { [string]: number } = {} -- token -> factor (strongest wins)
+
+local CHECK_SECONDS = 0.25
+
+local function cycleSeconds(): number
+	local factor = 1
+	for _, f in speedups do
+		factor = math.max(factor, f)
+	end
+	return CYCLE_SECONDS / factor
+end
 
 local function decayTiles(): { BasePart }
 	local root = workspace:FindFirstChild(Config.RootName)
@@ -144,13 +157,29 @@ function Decay.Activate(ctx: any)
 
 	startGroup() -- the first group is warned immediately (no yielding here)
 	ctx.Spawn(function()
+		local elapsed = 0
 		while ctx.IsLive() do
-			task.wait(CYCLE_SECONDS)
-			if ctx.IsLive() then
+			elapsed += task.wait(CHECK_SECONDS)
+			if ctx.IsLive() and elapsed >= cycleSeconds() then
+				elapsed = 0
 				startGroup()
 			end
 		end
 	end)
+end
+
+-- RAPID_DECAY hooks (token = the combination's RuntimeId).
+function Decay.AddSpeedup(token: string, factor: number)
+	speedups[token] = factor
+end
+
+function Decay.RemoveSpeedup(token: string)
+	speedups[token] = nil
+end
+
+-- Seconds between new tile groups right now.
+function Decay.GetCycleSeconds(): number
+	return cycleSeconds()
 end
 
 -- Tiles currently warned or collapsed by any DECAY patch (for tests and diagnostics).

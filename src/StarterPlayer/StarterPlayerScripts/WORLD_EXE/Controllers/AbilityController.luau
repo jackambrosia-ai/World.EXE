@@ -31,6 +31,8 @@ local KIND_COLORS: { [string]: Color3 } = {
 	crate = Palette.ObjectiveGreen,
 	drone = Color3.fromRGB(255, 70, 70),
 	decay = Palette.AmberWarning,
+	corrupt = Color3.fromRGB(255, 40, 200),
+	prop = Color3.fromRGB(90, 170, 255),
 }
 local REASON_TEXT: { [string]: string } = {
 	cooldown = "On cooldown",

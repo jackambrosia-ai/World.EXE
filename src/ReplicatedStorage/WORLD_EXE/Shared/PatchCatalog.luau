@@ -3,7 +3,7 @@
 -- Player input only ever selects one of these ids; keywords are aliases for approved ids.
 -- Timings are initial proposals from docs/03_PATCH_CATALOG.md. Each id's server behaviour lives in
 -- ServerScriptService.WORLD_EXE.Patches (ZeroG, Decay, DroneSwarm, SupplyDrop, Bouncy, Slippery,
--- Blackout). Severity drives the stability cost and the "at most 2 severe cards" rotation rule;
+-- Blackout, Magnetic, Corruption, Flood). Severity drives the stability cost and the "at most 2 severe cards" rotation rule;
 -- Weight is the relative chance of being offered (Phase 7A provisional tuning).
 
 export type PatchDefinition = {
@@ -103,6 +103,42 @@ local definitions: { PatchDefinition } = {
 		Severity = "mild",
 		Weight = 3,
 		Aliases = { "DARK", "LIGHTSOUT", "POWER" },
+	},
+	{
+		Id = "MAGNETIC",
+		DisplayName = "Magnetic",
+		Category = "Physics",
+		Warning = "MAGNETIC FIELD — Crates are sliding along the floor. Keep clear of their lanes!",
+		Effect = "Up to 8 crates are pulled toward magnetic points, then pushed back.",
+		WarningSeconds = 4.5,
+		DurationSeconds = 35,
+		Severity = "standard",
+		Weight = 3,
+		Aliases = { "MAGNET", "MAGNETS", "MAGNETISM" },
+	},
+	{
+		Id = "CORRUPTION",
+		DisplayName = "Corruption",
+		Category = "Hazard",
+		Warning = "DATA CORRUPTION — A glitch trail is spreading. Step off amber marks before they turn magenta!",
+		Effect = "A damaging trail spreads node by node along a path.",
+		WarningSeconds = 4.5,
+		DurationSeconds = 35,
+		Severity = "severe",
+		Weight = 2,
+		Aliases = { "CORRUPT", "GLITCH", "VIRUS" },
+	},
+	{
+		Id = "FLOOD",
+		DisplayName = "Flood",
+		Category = "Environment",
+		Warning = "COOLANT FLOOD — Low ground is flooding. Take the ramps to stay fast!",
+		Effect = "Water rises over low ground and slows anyone wading in it.",
+		WarningSeconds = 4.5,
+		DurationSeconds = 35,
+		Severity = "severe",
+		Weight = 2,
+		Aliases = { "WATER", "FLOODING", "RISINGWATER" },
 	},
 }
 

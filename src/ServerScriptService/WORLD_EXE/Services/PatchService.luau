@@ -43,6 +43,9 @@ local BEHAVIOR_MODULES: { [string]: string } = {
 	BOUNCY = "Bouncy",
 	SLIPPERY = "Slippery",
 	BLACKOUT = "Blackout",
+	MAGNETIC = "Magnetic",
+	CORRUPTION = "Corruption",
+	FLOOD = "Flood",
 }
 
 local States = Config.PatchStates
