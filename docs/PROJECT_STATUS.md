@@ -3,8 +3,8 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 7A IN REVIEW — review round 1 correction (Architect cadence 45 → 25 s so combinations occur in normal play) pushed to PR #9 for final review. Phase 7B not started (requires the 7A review). D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
-- Current phase: Phase 7A — Patch interactions and first catalog expansion (in review)
+- Overall status: PHASE 7A APPROVED — ChatGPT final review approved PR #9 at `0ecbfa4`; closeout done (parity, clean place, saved place verified, post-7A backup). Awaiting explicit owner approval to squash-merge. Phase 7B not started. D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
+- Current phase: Phase 7A — approved; awaiting owner merge decision
 - Current branch: `phase-07a-interactions`
 - Current PR: Phase 7A in review: [jackambrosia-ai/World.EXE#9](https://github.com/jackambrosia-ai/World.EXE/pull/9). Phase 6 merged via [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
 - Studio place: saved by the owner 2026-11-10 17:35:27 (`Place1.rbxl`, 135,464 bytes, SHA-256 `F4DF639AB773961792E97BF2FB305751D64ABAFCF6B11BD0F598C86368FE90FF`). The save is verified from the file itself: all 21 `Source` strings decoded from the saved `.rbxl` are byte-identical (length + hash) to `src/` at `c7f5186` (unchanged in `main` `8d244b9`), and the file has no other scripts. Before the save, the Edit place was checked clean: no test scripts or attributes, 64 DecayTiles, gravity 196.2.
@@ -30,7 +30,9 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
   - `WorldEXE_post-phase5_2026-11-10.rbxl` — post-Phase-5 place (SHA-256 `13CDA584…FEC74635`, identical to the saved `Place1.rbxl`)
   - `WorldEXE_pre-phase6_2026-11-10.rbxl` — verified pre-Phase-6 copy (SHA-256 `13CDA584…FEC74635`, identical to the saved place)
   - `WorldEXE_post-phase6_2026-11-10.rbxl` — post-Phase-6 place (SHA-256 `B2252755…B397F3B2`, identical to the saved `Place1.rbxl`)
-  - `WorldEXE_pre-phase7a_2026-11-10.rbxl` — verified pre-Phase-7A copy (SHA-256 `B2252755…B397F3B2`, identical to the saved place); current rollback point
+  - `WorldEXE_pre-phase7a_2026-11-10.rbxl` — verified pre-Phase-7A copy (SHA-256 `B2252755…B397F3B2`, identical to the saved place)
+  - `WorldEXE_post-phase7a_2026-11-10.rbxl` — post-Phase-7A place (SHA-256 `3198C186…93625552`, identical to the saved `Place1.rbxl`); current rollback point
+- Studio place (Phase 7A): `Place1.rbxl` last written 2026-11-10 20:41:38 (158,802 bytes, SHA-256 `3198C186DEEFA561873DB5C00672EB5AD0C4EB7AEE0A085D40A07EF393625552`). Verified from the file itself: all 36 decoded script sources are byte-identical (length + hash) to `src/` at `0ecbfa4`, the 8 Phase 7A pads (`Map.PatchSurfaces`, BounceSurface/SlipSurface tags) are present, and there are no `ZZ_` test leftovers. The Edit place was checked clean: no test scripts or attributes, pads at build state, 64/64 DecayTiles solid, 12 FragmentSpawn, Lighting 3.00/0.00, gravity 196.2.
 - Studio place (Phase 6): saved by the owner 2026-11-10 19:11:29 (`Place1.rbxl`, 150,191 bytes, SHA-256 `B2252755CFA1DA6FCE1BCC34D64BCEAEF49BAAB88B117A9E4E07A37BB397F3B2`). Verified from the file itself: all 28 decoded script sources are byte-identical (length + hash) to `src/` at `03f9cab` (unchanged in `main` `16cef23`), with no other scripts. Before the save, the Edit place was checked clean: no test scripts or attributes, 64/64 DecayTiles collidable, 12 FragmentSpawn markers, stabilizer rings at their original colour, gravity 196.2.
 - Studio place (Phase 5): saved by the owner 2026-11-10 18:16:45 (`Place1.rbxl`, 144,480 bytes, SHA-256 `13CDA584FCF8C65F22044D67DF9CFCD45043F2669F21F8456304ADCCFEC74635`). Verified from the file itself: all 25 decoded script sources are byte-identical (length + hash) to `src/` at `6e7ed2e` (unchanged in `main` `66374fe`), the file has no other scripts, and the 12 FragmentSpawn marker ids are present. Before the save, the Edit place was checked clean: no test scripts or attributes, stabilizer rings at their original colour, 64 DecayTiles, gravity 196.2.
 - Studio save: Studio MCP cannot save the place — the owner must press Ctrl+S after each change set. Latest save 2026-11-10 16:35:24 (post-Phase-3 incl. review round 1, backed up).
@@ -56,11 +58,30 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 4 | Four prototype patches | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #5](https://github.com/jackambrosia-ai/World.EXE/pull/5) → `8d244b9` | Solo: 36 PASS, 0 FAIL, 3 NOT TESTED; round 1: 6 PASS (targeted); multiplayer deferred |
 | 5 | Stability/objectives/scoring | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #6](https://github.com/jackambrosia-ai/World.EXE/pull/6) → `66374fe` | Targeted solo: 36 PASS, 0 FAIL; round 1: 10 PASS (targeted); multiplayer deferred |
 | 6 | Initial abilities | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #8](https://github.com/jackambrosia-ai/World.EXE/pull/8) → `16cef23` | Targeted solo: 27 PASS, 0 FAIL; multiplayer deferred (see Phase 6 report) |
-| 7A | Interactions + BOUNCY/SLIPPERY/BLACKOUT | **In review** (solo Studio tests; multiplayer deferred) | [PR #9](https://github.com/jackambrosia-ai/World.EXE/pull/9) (`e7a46cd`) | Targeted solo: 35 PASS, 0 FAIL; round 1: 9 PASS (targeted live Architect runs) |
+| 7A | Interactions + BOUNCY/SLIPPERY/BLACKOUT | **Approved — awaiting owner merge** (solo Studio tests; multiplayer deferred) | [PR #9](https://github.com/jackambrosia-ai/World.EXE/pull/9) (`e7a46cd`) | Targeted solo: 35 PASS, 0 FAIL; round 1: 9 PASS (targeted live Architect runs) |
 | 7B | FLOOD, CORRUPTION, remaining combinations | Not started (after 7A review) | — | — |
 | 8 | UI and visual polish | Not started | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 7A final review (2026-11-10)
+ChatGPT approved PR #9 at `0ecbfa4`: no remaining blocking issues. The Architect cadence correction is accepted. Both combinations were demonstrated through normal Architect turns. The 25 s interval, the 35 s BLACKOUT duration and the reduced severity costs are approved as provisional tuning. No additional test round was required.
+
+Closeout (completed):
+1. Studio ↔ GitHub parity: 36/36 hash-identical to `0ecbfa4`.
+2. Edit place clean (see "Current state").
+3. Saved place verified from the file: `Place1.rbxl` (2026-11-10 20:41:38) contains all 36 current script sources and the 8 pads, with no test leftovers.
+4. Backup `WorldEXE_post-phase7a_2026-11-10.rbxl` created. Its SHA-256 matches the saved place: `3198C186DEEFA561873DB5C00672EB5AD0C4EB7AEE0A085D40A07EF393625552`.
+5. This document and PR #9 were updated.
+
+Carried forward as balancing considerations (not blockers):
+- **Short combinations:** at the 25 s cadence a combination lasts about 6–10 s.
+- **Higher patch frequency:** 12–13 activations per match, above the design doc's first hypothesis of 5–7. Stability pressure was kept about equal through lower costs.
+
+Still open, by design:
+- D3 remains unimplemented.
+- Phase 7A multiplayer scenarios stay NOT TESTED and are assigned to the pre-release multiplayer integration milestone.
+- Phase 7B requires separate owner approval.
 
 ## Phase 7A review round 1 correction (2026-11-10)
 
