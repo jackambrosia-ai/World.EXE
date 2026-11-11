@@ -19,6 +19,11 @@
 --      occlusion against every BasePart in Map + Lobby (decor included; parts with
 --      Transparency >= 0.5 and the reactor's own parts do not occlude; cylinders as boxes).
 --      Pass per viewpoint: >= 30% of 40 samples visible, incl. >= 1 crown and >= 4 column.
+--      Reported as a STRICT acceptance result (with walk-out distance as separate mitigation).
+--      It never triggers the restore; only C1..C11 failures do.
+-- Correction (2026-11-11): earlier versions downgraded strict AC2 failures to "notes" when the
+-- reactor became readable within 30 studs of walking. That conflated mitigation with acceptance.
+-- For a read-only check of an existing build (no builder state, no restore path) use 6_audit.
 local W = assert(_G.W8A2A, "run steps 0-4 first")
 local CS = game:GetService("CollectionService")
 local map, lobby = W.map, W.lobby
@@ -336,6 +341,7 @@ for _, s in spawns do
 end
 table.insert(viewpoints, { name = "LobbyCentre", eye = Vector3.new(0, 164.5, 420) })
 local vis = {}
+local ac2StrictFail = {}
 local tests = 0
 for vi, v in viewpoints do
 	local visible, crown, column = 0, 0, 0
@@ -361,7 +367,10 @@ for vi, v in viewpoints do
 	end
 	local frac = visible / #samples
 	local ok = frac >= 0.3 and crown >= 1 and column >= 4
-	local line = string.format("%s %d%% (crown %d, column %d)", v.name, math.floor(frac * 100 + 0.5), crown, column)
+	local line = string.format("%s %s %d%% (crown %d, column %d)", v.name, if ok then "PASS" else "STRICT FAIL", math.floor(frac * 100 + 0.5), crown, column)
+	if not ok then
+		table.insert(ac2StrictFail, v.name)
+	end
 	if not ok and v.ignore then
 		-- Walk-out check: step toward the core (4 studs at a time, up to 40) until the reactor reads.
 		local flat = Vector3.new(-v.eye.X, 0, -v.eye.Z).Unit
@@ -391,16 +400,8 @@ for vi, v in viewpoints do
 				break
 			end
 		end
-		if walked and walked <= 30 then
-			line ..= string.format(" -> DEVIATION: blocked at the spawn eye by pre-existing geometry; readable after walking %d studs toward the core", walked)
-			table.insert(notes, "AC2 deviation for review: " .. v.name .. " readable after " .. walked .. " studs")
-		else
-			line ..= " FAIL"
-			err("AC2 reactor not readable from " .. v.name .. " (walk-out " .. tostring(walked) .. ")")
-		end
-	elseif not ok then
-		line ..= " FAIL"
-		err("AC2 reactor not readable from " .. v.name)
+		-- Mitigation only: never changes the strict result above.
+		line ..= if walked then string.format(" | walk-out mitigation: readable after %d studs toward the core", walked) else " | walk-out: none within 40 studs"
 	end
 	table.insert(vis, line)
 	if vi % 3 == 0 then
@@ -419,11 +420,15 @@ local report = {
 	totals = string.format("map parts=%d collidable=%d lights=%d shadowLights=%d beams=%d", totalParts, totalSolid, totalLights, totalShadows, W.beams or 0),
 	visibility = vis,
 	occlusionTests = tests,
+	AC2_strict = if #ac2StrictFail == 0 then "PASS" else "FAIL at " .. table.concat(ac2StrictFail, ", ") .. " (acceptance criterion; awaiting owner decision; does NOT trigger rollback)",
 }
+-- Only gameplay-safety and budget failures (C1..C11) roll the build back. AC2 is a visual
+-- acceptance criterion: a strict AC2 failure is reported, never "downgraded", and never destroys
+-- the build.
 if #errors == 0 then
 	W.root:SetAttribute("ArenaVersion", 3)
-	report.result = "PASS: finalized (ArenaVersion 3). Rollback store kept at ServerStorage.WORLD_EXE_Rollback8A2A."
+	report.result = "GAMEPLAY CHECKS PASS: finalized (ArenaVersion 3). Rollback store kept at ServerStorage.WORLD_EXE_Rollback8A2A. AC2 strict: " .. report.AC2_strict
 else
-	report.result = "FAIL: " .. W.Restore("validation failed")
+	report.result = "GAMEPLAY CHECK FAILURE: " .. W.Restore("validation failed")
 end
 return game:GetService("HttpService"):JSONEncode(report)

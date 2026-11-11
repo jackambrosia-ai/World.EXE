@@ -1,0 +1,5 @@
+{"run":"Focused Play regression after 7_correction (solo, StudioTimeScale 0.15)",
+"ArenaService.Validate":"ok, 0 errors; Bootstrap marker counts unchanged",
+"BLACKOUT":"base 1.8 / 0.3 -> applied 0.5 / -0.9 -> restored exactly 1.8 / 0.3",
+"match":"LOBBY->COUNTDOWN->INITIALIZING->ACTIVE->FINAL_PHASE->RESULTS->RESET->LOBBY, match 2 initialized",
+"baselineAfterReset":true,"console":"0 warnings, 0 errors"}
