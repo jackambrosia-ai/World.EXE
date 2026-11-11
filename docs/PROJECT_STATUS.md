@@ -3,7 +3,7 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 7A IN REVIEW — implemented on branch `phase-07a-interactions`; PR open for ChatGPT technical review. Phase 7B not started (requires the 7A review). D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
+- Overall status: PHASE 7A IN REVIEW — review round 1 correction (Architect cadence 45 → 25 s so combinations occur in normal play) pushed to PR #9 for final review. Phase 7B not started (requires the 7A review). D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
 - Current phase: Phase 7A — Patch interactions and first catalog expansion (in review)
 - Current branch: `phase-07a-interactions`
 - Current PR: Phase 7A in review: [jackambrosia-ai/World.EXE#9](https://github.com/jackambrosia-ai/World.EXE/pull/9). Phase 6 merged via [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
@@ -56,11 +56,75 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 4 | Four prototype patches | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #5](https://github.com/jackambrosia-ai/World.EXE/pull/5) → `8d244b9` | Solo: 36 PASS, 0 FAIL, 3 NOT TESTED; round 1: 6 PASS (targeted); multiplayer deferred |
 | 5 | Stability/objectives/scoring | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #6](https://github.com/jackambrosia-ai/World.EXE/pull/6) → `66374fe` | Targeted solo: 36 PASS, 0 FAIL; round 1: 10 PASS (targeted); multiplayer deferred |
 | 6 | Initial abilities | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #8](https://github.com/jackambrosia-ai/World.EXE/pull/8) → `16cef23` | Targeted solo: 27 PASS, 0 FAIL; multiplayer deferred (see Phase 6 report) |
-| 7A | Interactions + BOUNCY/SLIPPERY/BLACKOUT | **In review** (solo Studio tests; multiplayer deferred) | [PR #9](https://github.com/jackambrosia-ai/World.EXE/pull/9) (`e7a46cd`) | Targeted solo: 35 PASS, 0 FAIL; see Phase 7A report |
+| 7A | Interactions + BOUNCY/SLIPPERY/BLACKOUT | **In review** (solo Studio tests; multiplayer deferred) | [PR #9](https://github.com/jackambrosia-ai/World.EXE/pull/9) (`e7a46cd`) | Targeted solo: 35 PASS, 0 FAIL; round 1: 9 PASS (targeted live Architect runs) |
 | 7B | FLOOD, CORRUPTION, remaining combinations | Not started (after 7A review) | — | — |
 | 8 | UI and visual polish | Not started | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 7A review round 1 correction (2026-11-10)
+
+ChatGPT reviewed PR #9 at `daab8ac` and returned CHANGES REQUESTED with one gameplay blocker. The rest of the architecture was accepted.
+
+### Finding
+**Natural combinations were not reachable.**
+- The Architect interval (45 s after each turn ends) was longer than the source patches' lifetimes (30–35 s).
+- So two consecutive Architect patches never overlapped.
+- In the original 7A tests, combinations were only reached by calling PatchService directly.
+
+### Timing decision
+Three provisional tuning values changed. The match timeline, the 3-patch cap, the warnings and submission validation are all unchanged.
+
+| Setting | Before | After | Why |
+|---|---|---|---|
+| `Config.Architect.TurnIntervalSeconds` | 45 | **25** | The main fix: a modest cadence change instead of changing every patch duration. The next patch now arrives 25 s + decision time after the previous one, which is less than the 35 s source lifetime, so consecutive patches overlap. |
+| BLACKOUT `DurationSeconds` | 30 | **35** | The same lifetime as the other combination sources, so HUNTER_SCAN works in both orders. (At 30 s, BLACKOUT → DRONE_SWARM needed a decision in under 5 s.) |
+| Stability cost per activation (mild / standard / severe) | −6 / −8 / −10 | **−4 / −5 / −6** | About 1.5× more activations now fit in ACTIVE, so per-activation costs were scaled down to keep total stability pressure per match about the same. The combination cost (−4, approved P4) is unchanged. |
+
+How the overlap works:
+- When the next patch becomes ACTIVE, the previous one has 35 − (25 + decision time) seconds left.
+- With a 4 s decision, that is about 6 s of combination. A 1 s decision gives about 9 s.
+- A combination still needs its two sources accepted in consecutive turns.
+
+Unchanged:
+- ACTIVE 420 s + FINAL_PHASE 90 s.
+- Architect turns only in ACTIVE.
+- The 12 s submission window.
+- The 4.5 s warnings.
+- `MaxActiveMajor = 3`.
+- Every server-side submission check.
+
+### Targeted regressions (solo Studio, 2026-11-10)
+Live matches at normal speed (time scale 1). The real client submitted through the real `RequestPatchSubmission` remote with full server validation. No test code called PatchService in T1–T5.
+
+| # | Test | Result | Evidence |
+|---|---|---|---|
+| T1 | Combinations through normal Architect turns | PASS | Match 1, a deliberate Architect (prefers partner cards, submits after 4 s): **SUPER_BOUNCE** started at 76 s (ZERO_G at 47 s, BOUNCY at 76 s) and **HUNTER_SCAN** at 134 s (BLACKOUT at 105 s, DRONE_SWARM at 134 s). Each ended `source_ended:expired` when its first source expired. Both happened once in the match and paid Discovery once. |
+| T2 | Ordinary (random) Architect | PASS (no excess) | Match 2, random cards after 3–10 s: 13 activations, 0 combinations. No consecutive partner pair was drawn, which is valid. Combinations need a deliberate choice. |
+| T3 | Activations and stability | PASS | Match 1: 14 turns, 12 activations, stability 100 → 37. Match 2: 14 turns, 13 activations, 100 → 42. No repairs in either (worst case). For comparison, the old cadence with a 4 s decision allows 9 turns in ACTIVE; at the old costs that is about −60 to −70 (an estimate, not measured). |
+| T4 | Slots and warnings | PASS | Max patch slots used: 2 of 3 in both matches. At least 2 patches were active for 56 s (match 1) and 43 s (match 2) of 420 s. A new patch is announced at most every ~29 s, with the 4.5 s warning intact. |
+| T5 | Match timeline | PASS | Match 2 state watcher: ACTIVE 420 s, FINAL_PHASE 90.2 s, then RESULTS. A turn still open at ACTIVE → FINAL_PHASE was `cancelled`. (The match 1 monitor's 496 s total is a measuring artefact of that script, which polled the snapshot; the transitions were unchanged.) |
+| T6 | Cap enforcement | PASS | Match 3: 3 patches requested → accepted; 4th → `capacity_full`. While all 3 slots were full, no Architect turn was offered (deferred). The next turn started only after the slots were freed. |
+| T7 | Match cleanup | PASS | After 2 matches, at LOBBY: pads restored, Lighting exact, gravity 196.2000, world at baseline, 0 scan cones, 0 patches, 0 interactions, arena baseline, 0 runtime objects |
+| T8 | Server Output | PASS | Only `[WORLD_EXE]` info lines; no errors or warnings |
+| T9 | Parity and Edit place | PASS | 36/36 hash-identical. Edit place clean: no test scripts or attributes, pads at build state, Lighting 3.00/0.00, gravity 196.2 |
+
+Totals: **9 PASS, 0 FAIL.** The full 35-test 7A suite was not repeated, per the review.
+
+Observed, not a code defect:
+- Match 1 turn 1 timed out although the test client sent a submission. The result listener was attached only later, so the server's reply reason was not captured.
+- Every later submission (27) was accepted or correctly refused: `no_open_turn` once after the Architect had died, and once after ACTIVE had ended.
+
+### Notes for review
+- **Short combinations.** At this cadence a combination lasts about 6–10 s. Discovery is paid at the start. If longer combinations are wanted, a 20 s interval gives about 11–14 s, at the cost of more activations. This is tuning for 7B or later.
+- **Activations exceed the design's first hypothesis.** 12–13 activations per match is above the "roughly 5–7" in `01_GAME_DESIGN.md`, which the old cadence also exceeded (about 9). Stability pressure was kept about equal through the lower costs. Revisit in playtests.
+- More accepted patches also mean more Architect score (+5 each). This is provisional.
+
+### Changed files
+- `Shared/Config.luau` (TurnIntervalSeconds)
+- `Shared/PatchCatalog.luau` (BLACKOUT duration)
+- `Services/StabilityService.luau` (severity costs)
+- this document
 
 ## Phase 7A report — Patch interactions and the first catalog expansion (2026-11-10)
 
@@ -113,7 +177,7 @@ The match timeline is unchanged.
   |---|---|---|---|---|---|
   | BOUNCY | mild / 3 | 35 s | The 4 `BounceSurface` pads glow and launch living Participants up at 55 studs/s (rise ≈15 studs) with a LinearVelocity held for 0.12 s; cooldown 1 s per character | Avoid the glowing pads; ANCHOR blocks launches (P5) | Pad colour and material restored; constraints destroyed |
   | SLIPPERY | mild / 3 | 35 s | The 4 `SlipSurface` pads become ice: friction 0.02 with friction weight 100 | Walk slowly or go around; ANCHOR damps sliding on an active pad (P5) | CustomPhysicalProperties, colour and material restored |
-  | BLACKOUT | mild / 3 | 30 s | Lighting Brightness set to 0.5 and ExposureCompensation −1.2, through WorldModifierService tokens | Hazards glow (Neon); SCANNER | Exact baseline restored when the last token is removed |
+  | BLACKOUT | mild / 3 | 30 s (round 1: 35 s) | Lighting Brightness set to 0.5 and ExposureCompensation −1.2, through WorldModifierService tokens | Hazards glow (Neon); SCANNER | Exact baseline restored when the last token is removed |
 
 - **Combinations:**
   - **SUPER_BOUNCE:** launch boost ×1.5. Every launch is clamped so the total rise (hold distance plus ballistic rise) stays at most 35 studs under the current gravity.
@@ -145,7 +209,7 @@ The match timeline is unchanged.
   - `ArchitectService.ChooseCards` is a weighted draw without replacement. It allows at most 2 severe cards per offer.
   - It excludes running patches and patches accepted in the last 2 turns of the same match.
   - On a shortage it offers fewer cards. With 0 eligible cards the turn is deferred.
-  - The stability cost depends on severity: mild −6, standard −8, severe −10. A combination costs −4.
+  - The stability cost depends on severity: mild −6, standard −8, severe −10. A combination costs −4. (Round 1: now −4 / −5 / −6; the combination cost is unchanged.)
 - **Arena content:** `Workspace.WORLD_EXE.Map.PatchSurfaces` holds the new pads, tagged with `SurfaceId` and `Zone` attributes. Floor and clearance were verified at every corner.
   - 4 BounceSurface pads, 6×0.4×6: `BOUNCE_CORE_NW`, `BOUNCE_CORE_SE`, `BOUNCE_YARD_S`, `BOUNCE_YARD_N`.
   - 4 SlipSurface pads: `SLIP_CORE_W`, `SLIP_ANNEX`, `SLIP_YARD_E`, `SLIP_YARD_W`.

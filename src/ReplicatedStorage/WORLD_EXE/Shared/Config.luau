@@ -130,7 +130,9 @@ Config.Match = table.freeze({
 
 Config.Architect = table.freeze({
 	FirstTurnDelaySeconds = 15, -- after ACTIVE starts
-	TurnIntervalSeconds = 45, -- gap between the end of one turn and the start of the next
+	-- Gap between the end of one turn and the start of the next. Phase 7A review round 1: 45 -> 25 so
+	-- consecutive Architect patches (35 s) overlap and combinations can occur in normal play.
+	TurnIntervalSeconds = 25,
 	SubmissionWindowSeconds = 12,
 	CardsOffered = 4,
 	NoEligibleRetrySeconds = 3,
