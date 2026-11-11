@@ -4,7 +4,7 @@
 
 local Config = {}
 
-Config.Version = "0.5.0-phase5"
+Config.Version = "0.6.0-phase6"
 Config.RootName = "WORLD_EXE"
 
 -- CollectionService tags used by the Studio-owned arena.
@@ -138,6 +138,8 @@ Config.PlayerAttributes = table.freeze({
 	Shield = "WORLD_EXE_ShieldUntil", -- server time the SUPPLY_DROP shield expires (absent = none)
 	Score = "WORLD_EXE_Score", -- Phase 5: this match's score so far (absent outside a match)
 	Fragments = "WORLD_EXE_Fragments", -- Phase 5: data fragments carried and not yet spent
+	AbilityReadyPrefix = "WORLD_EXE_AbilityReady_", -- Phase 6: + ability id = server time it is ready
+	AbilityActivePrefix = "WORLD_EXE_AbilityActive_", -- Phase 6: + ability id = server time it ends
 })
 
 -- RemoteEvents created by the server under ReplicatedStorage.WORLD_EXE.Remotes.
@@ -146,6 +148,8 @@ Config.Remotes = table.freeze({
 	SubmissionResult = "SubmissionResult", -- server -> one client: { ok, reason, patchId? }
 	PatchAnnouncement = "PatchAnnouncement", -- server -> all: accepted / skipped turn
 	MatchStateChanged = "MatchStateChanged", -- server -> all: state snapshot on each transition
+	RequestAbility = "RequestAbility", -- client -> server: { abilityId = string } only (Phase 6)
+	AbilityFeedback = "AbilityFeedback", -- server -> one client: result, cooldown, scanner targets
 })
 
 -- Replicated match state: ReplicatedStorage.WORLD_EXE.MatchState carries ONE attribute holding a

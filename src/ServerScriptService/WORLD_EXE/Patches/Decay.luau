@@ -158,6 +158,15 @@ function Decay.GetClaimedCount(): number
 	return claimedCount()
 end
 
+-- The tiles currently warned or collapsed (read-only list; Phase 6 SCANNER).
+function Decay.GetClaimedTiles(): { BasePart }
+	local list = {}
+	for tile in claimed do
+		table.insert(list, tile)
+	end
+	return list
+end
+
 Decay.Tuning = table.freeze({
 	CycleSeconds = CYCLE_SECONDS,
 	GroupSize = GROUP_SIZE,
