@@ -2,6 +2,7 @@
 -- MatchService (Phase 2, server only). The ONLY module that changes match state.
 -- Phase 5: also drives StabilityService, ScoreService, ObjectiveService and CollectibleService from
 -- its enter hooks and its single tick (no second match loop).
+-- Phase 6: opens, stops and resets AbilityService with the match.
 --
 -- LOBBY -> COUNTDOWN -> INITIALIZING -> ACTIVE -> FINAL_PHASE -> RESULTS -> RESET -> LOBBY
 -- Also: COUNTDOWN -> LOBBY (not enough players), INITIALIZING/ACTIVE/FINAL_PHASE -> RESULTS
@@ -32,6 +33,7 @@ local StabilityService = require(services:WaitForChild("StabilityService"))
 local ScoreService = require(services:WaitForChild("ScoreService"))
 local CollectibleService = require(services:WaitForChild("CollectibleService"))
 local ObjectiveService = require(services:WaitForChild("ObjectiveService"))
+local AbilityService = require(services:WaitForChild("AbilityService"))
 
 local S = Config.MatchStates
 local Roles = Config.Roles
@@ -219,6 +221,9 @@ local function recover(failedState: string, err: any)
 			PlayerStateService.ReturnAllToLobby()
 		end,
 		function()
+			AbilityService.Reset()
+		end,
+		function()
 			ObjectiveService.Reset()
 		end,
 		function()
@@ -317,6 +322,7 @@ enter[S.Active] = function()
 	ArchitectService.StartMatch(matchId, participants, timeScale())
 	ObjectiveService.Begin(matchId)
 	CollectibleService.Begin(matchId)
+	AbilityService.Begin()
 	deadline(Timing.ActiveSeconds)
 end
 
@@ -334,6 +340,7 @@ enter[S.Results] = function()
 	PlayerStateService.SetSpawnProtection(false)
 	PlayerStateService.SetArenaPhase(false)
 	-- Phase 5: freeze objectives and pickups, award accepted Architect patches, then score once.
+	AbilityService.Stop()
 	ObjectiveService.Stop()
 	CollectibleService.Stop()
 	for _, result in ArchitectService.GetHistory() do
@@ -355,6 +362,7 @@ enter[S.Reset] = function()
 	if not lastResetWorldAtBaseline then
 		warn("[WORLD_EXE] Reset: shared world properties are not at baseline")
 	end
+	AbilityService.Reset()
 	ObjectiveService.Reset()
 	CollectibleService.Reset()
 	ScoreService.Reset()
@@ -440,6 +448,7 @@ local function onPlayerLeft(player: Player)
 	ArchitectService.OnPlayerLeft(player)
 	ScoreService.MarkLeft(player.UserId)
 	CollectibleService.OnPlayerLeft(player)
+	AbilityService.OnPlayerLeft(player)
 	local index = table.find(participants, player)
 	if index then
 		table.remove(participants, index)
@@ -497,6 +506,7 @@ function MatchService.Init(controlFolder: Instance)
 	for _, problem in CollectibleService.Init({ isLive = isLive }) do
 		warn(`[WORLD_EXE] Collectibles: {problem}`)
 	end
+	AbilityService.Init({ isLive = isLive })
 	PlayerStateService.SetJoinPolicy(function()
 		return if state == S.Lobby or state == S.Countdown then Roles.Lobby else Roles.Spectator
 	end)
@@ -528,6 +538,7 @@ function MatchService.Shutdown()
 	ArchitectService.StopMatch("cancelled")
 	PatchService.CancelAll("shutdown")
 	WorldModifierService.ClearAll()
+	AbilityService.Reset()
 	ObjectiveService.Reset()
 	CollectibleService.Reset()
 	ScoreService.Reset()

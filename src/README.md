@@ -6,6 +6,7 @@ These files are exact copies of the WORLD_EXE scripts in the Studio place. Paths
 |---|---|---|
 | `ReplicatedStorage/WORLD_EXE/Shared/Config.luau` | `ReplicatedStorage.WORLD_EXE.Shared.Config` | ModuleScript |
 | `ReplicatedStorage/WORLD_EXE/Shared/PatchCatalog.luau` | `ReplicatedStorage.WORLD_EXE.Shared.PatchCatalog` | ModuleScript |
+| `ReplicatedStorage/WORLD_EXE/Shared/AbilityCatalog.luau` | `ReplicatedStorage.WORLD_EXE.Shared.AbilityCatalog` | ModuleScript |
 | `ServerScriptService/WORLD_EXE/Bootstrap.server.luau` | `ServerScriptService.WORLD_EXE.Bootstrap` | Script |
 | `ServerScriptService/WORLD_EXE/Services/ArenaService.luau` | `ServerScriptService.WORLD_EXE.Services.ArenaService` | ModuleScript |
 | `ServerScriptService/WORLD_EXE/Services/NetService.luau` | `ServerScriptService.WORLD_EXE.Services.NetService` | ModuleScript |
@@ -19,6 +20,7 @@ These files are exact copies of the WORLD_EXE scripts in the Studio place. Paths
 | `ServerScriptService/WORLD_EXE/Services/ScoreService.luau` | `ServerScriptService.WORLD_EXE.Services.ScoreService` | ModuleScript |
 | `ServerScriptService/WORLD_EXE/Services/CollectibleService.luau` | `ServerScriptService.WORLD_EXE.Services.CollectibleService` | ModuleScript |
 | `ServerScriptService/WORLD_EXE/Services/ObjectiveService.luau` | `ServerScriptService.WORLD_EXE.Services.ObjectiveService` | ModuleScript |
+| `ServerScriptService/WORLD_EXE/Services/AbilityService.luau` | `ServerScriptService.WORLD_EXE.Services.AbilityService` | ModuleScript |
 | `ServerScriptService/WORLD_EXE/Patches/ZeroG.luau` | `ServerScriptService.WORLD_EXE.Patches.ZeroG` | ModuleScript |
 | `ServerScriptService/WORLD_EXE/Patches/Decay.luau` | `ServerScriptService.WORLD_EXE.Patches.Decay` | ModuleScript |
 | `ServerScriptService/WORLD_EXE/Patches/DroneSwarm.luau` | `ServerScriptService.WORLD_EXE.Patches.DroneSwarm` | ModuleScript |
@@ -29,6 +31,7 @@ These files are exact copies of the WORLD_EXE scripts in the Studio place. Paths
 | `StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/MatchStateClient.luau` | `StarterPlayer.StarterPlayerScripts.WORLD_EXE.Controllers.MatchStateClient` | ModuleScript |
 | `StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/HUDController.luau` | `StarterPlayer.StarterPlayerScripts.WORLD_EXE.Controllers.HUDController` | ModuleScript |
 | `StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/ArchitectController.luau` | `StarterPlayer.StarterPlayerScripts.WORLD_EXE.Controllers.ArchitectController` | ModuleScript |
+| `StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/AbilityController.luau` | `StarterPlayer.StarterPlayerScripts.WORLD_EXE.Controllers.AbilityController` | ModuleScript |
 
 Created at runtime by the server (not saved in the place, not in `src/`): `ReplicatedStorage.WORLD_EXE.Remotes` (RemoteEvents), `ReplicatedStorage.WORLD_EXE.MatchState` (one `Snapshot` attribute: versioned JSON of the whole match state), and the runtime folders under `Workspace.WORLD_EXE`. Client UI is built in code by the controllers (no StarterGui instances).
 
