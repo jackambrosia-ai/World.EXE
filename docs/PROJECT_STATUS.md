@@ -3,11 +3,11 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 8A-2b IN PROGRESS (district architecture; owner construction authorization 2026-11-11). Phase 8A-2a merged as `1773f13` with the owner-approved five-spawn strict-AC2 waiver (RES_1, RES_2, ARCH_1, ARCH_2, ARCH_3) and roof/lighting A′. D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
+- Overall status: PHASE 8A-2b IN REVIEW (district architecture built, validated and saved; draft PR open). Phase 8A-2a merged as `1773f13` with the owner-approved five-spawn strict-AC2 waiver and roof/lighting A′. D3 stays unimplemented. Multiplayer validation is deferred to the pre-release integration milestone.
 - Current phase: Phase 8A-2b — district architecture (Research Yard, Skybridge, Data Archive, Coolant Reservoir, Outer Ring, shared supports); design approved in draft PR #13 at `f623a4e`, with the 8A-2a decisions taking precedence
 - Current branch: `phase-08a2b-districts` (from `main` `1773f13`)
-- Current PR: Phase 8A-2b: draft PR to follow; Phase 8A-2 design [jackambrosia-ai/World.EXE#13](https://github.com/jackambrosia-ai/World.EXE/pull/13) (draft). Phase 8A-2a merged via [jackambrosia-ai/World.EXE#14](https://github.com/jackambrosia-ai/World.EXE/pull/14). Phase 8A-1 merged via [jackambrosia-ai/World.EXE#12](https://github.com/jackambrosia-ai/World.EXE/pull/12); Phase 8A design PR #11 (draft, separate). Phase 7B merged via [jackambrosia-ai/World.EXE#10](https://github.com/jackambrosia-ai/World.EXE/pull/10). Phase 7A merged via [jackambrosia-ai/World.EXE#9](https://github.com/jackambrosia-ai/World.EXE/pull/9). Phase 6 merged via [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
-- Studio place (authoritative, pre-8A-2b): `Place1.rbxl` re-saved by the owner 2026-11-11 04:02:50 (201,873 bytes, SHA-256 `F8E0C7B14FBBE0E02E56633A8C1B3D2B7917F32BF1A41AE90C7A76DE2C851708`). A decompressed chunk-by-chunk comparison with the verified round-2 save (`CF21106D…`) differs only in the Studio editor camera (`Camera.CFrame`/`Focus`); all geometry, properties and scripts are byte-identical. 42/42 script sources identical to `src/` on `main` `1773f13`. ArenaVersion 3; 1,233 map parts / 285 collidable / 21 lights; no `ZZ_` leftovers.
+- Current PR: Phase 8A-2b in review: draft PR on `phase-08a2b-districts`; Phase 8A-2 design [jackambrosia-ai/World.EXE#13](https://github.com/jackambrosia-ai/World.EXE/pull/13) (draft). Phase 8A-2a merged via [jackambrosia-ai/World.EXE#14](https://github.com/jackambrosia-ai/World.EXE/pull/14). Phase 8A-1 merged via [jackambrosia-ai/World.EXE#12](https://github.com/jackambrosia-ai/World.EXE/pull/12); Phase 8A design PR #11 (draft, separate). Phase 7B merged via [jackambrosia-ai/World.EXE#10](https://github.com/jackambrosia-ai/World.EXE/pull/10). Phase 7A merged via [jackambrosia-ai/World.EXE#9](https://github.com/jackambrosia-ai/World.EXE/pull/9). Phase 6 merged via [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
+- Studio place (authoritative, post-8A-2b): `Place1.rbxl` saved by the owner 2026-11-11 08:34:46 (210,248 bytes, SHA-256 `A7500044236F2D381CB55253114CD695458AE029331BC25FF95DA963CC8A2C8F`). Verified from the file: 42/42 script sources identical to `src/`; 572 `Arch8A2B` parts in six district models; `WORLD_EXE_Rollback8A2B` and `Phase8A2B` present; no `ZZ_` leftovers. ArenaVersion 3; 1,805 map parts / 370 collidable / 47 lights. Pre-8A-2b save: `F8E0C7B1…` (content-identical to the 8A-2a round-2 save `CF21106D…` except the editor camera).
 - Phase 1 merge: squash-merged 2026-11-10 by owner approval as `9b9cbd0` (from PR head `ddc784c`; merged tree identical to that head). The `phase-01-arena` branch still exists on GitHub and can be deleted.
 - Phase 2 merge: squash-merged 2026-11-10 by owner approval as `09d9c2a` (from PR head `2e99b13`; merged tree identical to that head; final gameplay code `9c6de7a`). The `phase-02-match` branch still exists on GitHub and can be deleted.
 - Phase 3 merge: squash-merged 2026-11-10 by owner approval as `c2ab456` (from PR head `27c3599`; merged tree identical to that head; final code reviewed at `d22939f`). The `phase-03-patch-engine` branch still exists on GitHub and can be deleted.
@@ -44,7 +44,8 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
   - `WorldEXE_post-phase8a2a_2026-11-11.rbxl` — post-Phase-8A-2a place (SHA-256 `36776D23…F9969DEE`, identical to the saved `Place1.rbxl`)
   - `WorldEXE_post-phase8a2a-corrections_2026-11-11.rbxl` — after the 8A-2a review corrections (SHA-256 `C69A4704…4E927C5E`, identical to the saved `Place1.rbxl`)
   - `WorldEXE_post-phase8a2a-corrections-r2_2026-11-11.rbxl` — final Phase 8A-2a place (SHA-256 `CF21106D…ADF7C0FD`, identical to the round-2 save)
-  - `WorldEXE_pre-phase8a2b_2026-11-11.rbxl` — verified pre-Phase-8A-2b copy (SHA-256 `F8E0C7B1…2C851708`, identical to the saved `Place1.rbxl`; content-identical to round 2 except the editor camera); current rollback point
+  - `WorldEXE_pre-phase8a2b_2026-11-11.rbxl` — verified pre-Phase-8A-2b copy (SHA-256 `F8E0C7B1…2C851708`, identical to the saved `Place1.rbxl`; content-identical to round 2 except the editor camera)
+  - `WorldEXE_post-phase8a2b_2026-11-11.rbxl` — post-Phase-8A-2b place (SHA-256 `A7500044…CC8A2C8F`, identical to the saved `Place1.rbxl`); current rollback point
 - Studio place (Phase 8A-2a corrections): saved by the owner 2026-11-11 03:09:04 (`Place1.rbxl`, 200,214 bytes, SHA-256 `C69A4704D04D46219FFF45F19F708E902D4925E2ACE1A1796428681E4E927C5E`). Verified from the file: 42/42 sources identical to `src/`; corrected reactor present; no `ZZ_` leftovers. 1,141 map parts / 285 collidable / 21 lights.
 - Studio place (Phase 8A-2a): saved by the owner 2026-11-11 02:27:09 (`Place1.rbxl`, 198,201 bytes, SHA-256 `36776D238C25A1E671CBC6531F842B259F0EDE1F6BAB553C40105E40F9969DEE`). Verified from the file: 42/42 script sources identical to `src/`; Map.Architecture, Map.Megastructure, ReactorSilhouette, roof, LobbyBay present; `ServerStorage.WORLD_EXE_Rollback8A2A` and `WORLD_EXE_RollbackArena_v1` present; no `ZZ_` leftovers. ArenaVersion 3, 1,223 map parts.
 - Studio place (Phase 8A-1): saved by the owner 2026-11-10 23:58:16 (`Place1.rbxl`, 174,847 bytes, SHA-256 `E0B955F4A30672F5FFE2D0E508D31E068E27E749B45B4FE8F081D02314714745`). Verified from the file itself: all 42 decoded script sources are byte-identical (length + hash) to `src/` at `e614194`; the new arena is present (CorePlaza, ReactorDrum, OuterRing, DataArchive racks, reservoir basin, SkyDeck and islands, 100-tile grid, all marker names) together with `ServerStorage.WORLD_EXE_RollbackArena_v1`; no `ZZ_` test leftovers. Immediately before the save, Studio showed ArenaVersion 2, 522 map parts, all 12 marker counts as expected, 8/8 crates at build state, no test scripts or attributes, gravity 196.2 and Lighting 3.00/0.00.
@@ -80,10 +81,151 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 7A | Interactions + BOUNCY/SLIPPERY/BLACKOUT | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #9](https://github.com/jackambrosia-ai/World.EXE/pull/9) → `059f191` | Targeted solo: 35 PASS, 0 FAIL; round 1: 9 PASS (targeted live Architect runs) |
 | 7B | MAGNETIC/CORRUPTION/FLOOD + 3 combinations | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #10](https://github.com/jackambrosia-ai/World.EXE/pull/10) → `f9e4707` | Targeted solo: 30 PASS, 0 FAIL; round 1: 7 PASS (safe crate restore) |
 | 8A-1 | Arena greybox and gameplay migration | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #12](https://github.com/jackambrosia-ai/World.EXE/pull/12) → `44e8f1d` | Targeted solo: 40 PASS, 0 FAIL; finding fixed in round 1 (4 PASS) |
-| 8A-2 | Architectural identity | 8A-2a merged (`1773f13`); 8A-2b in progress; 8A-2c not started | [PR #14](https://github.com/jackambrosia-ai/World.EXE/pull/14) (8A-2a) | 8A-2a: validation PASS, five-spawn AC2 waiver, A′ approved; FPS valid |
+| 8A-2 | Architectural identity | 8A-2a merged (`1773f13`); 8A-2b in review (districts); 8A-2c not started | [PR #14](https://github.com/jackambrosia-ai/World.EXE/pull/14) (8A-2a); 8A-2b draft PR | 8A-2b: audit C1–C13 PASS, AC2 only the 5 waived spawns, patch/combination/reset regression PASS, FPS valid (targets met) |
 | 8B | Visual polish | Not started (requires approval) | — | — |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 8A-2b report — District architecture (2026-11-11)
+
+Owner construction authorization 2026-11-11. Built from PR #13 design `f623a4e`, with the 8A-2a decisions taking precedence (five-spawn AC2 waiver, roof/lighting A′).
+
+- Branch `phase-08a2b-districts` from `main` `1773f13`.
+- Draft PR, not merged; stopped for ChatGPT technical and creative review.
+- No `src/` changes. No grapple, audio, VFX, ForgeGUI, generated assets, publishing, persistence or spending.
+- PR #13, #11 and #4 are untouched. No branches were deleted.
+
+### Pre-construction
+- `main` = `1773f13` (verified).
+- The saved place had been re-saved at 04:02:50 (`F8E0C7B1…`). A decompressed chunk-by-chunk comparison with the verified 8A-2a round-2 save (`CF21106D…`) differs only in `Camera.CFrame`/`Focus`; geometry and scripts are byte-identical.
+- 42/42 parity; ArenaVersion 3; 1,233 / 285 / 21.
+- Backup `WorldEXE_pre-phase8a2b_2026-11-11.rbxl` (SHA-256 `F8E0C7B1…`, identical to the saved place).
+- PROJECT_STATUS updated for the 8A-2a merge (`abdf3f5`).
+
+### Districts (`Map.Architecture.*`, every part tagged `Arch8A2B`)
+| District (model) | Identity | Parts / collidable / lights | Cap |
+|---|---|---|---|
+| Research Yard (`TestHangar`) | 4 trussed portal frames over the DecayTile grid (top Y 50), glazed skylight, gantry crane at Y 40, lab-pod fit-out (roof, observation window, console desk, status display, amber warning module, instrument mast), catwalk columns, west silo cluster. Steel truss, light lab panels, restrained violet. Ring_W hangs from the frames. | 100 / 16 / 5 | 120 / 24 / 6 |
+| Skybridge (`ControlFacility`) | Two lattice command spires (Y 110 / 92), raised glass control room (open west side, displays), overhead trusses with a hanger rod to every stepping block, Beam cables to the relay islands, thruster nacelles, counterweight, deck knee braces, pylons to the shaft. Silver-grey, glass, violet beacons. | 95 / 10 / 5 | 100 / 20 / 5 |
+| Data Archive (`ServerCanyons`) | Vault walls to Y 70 (Ring_N passes through arched openings), ribbed roof, open oculus over SUP_ARCHIVE, two hung lamps. The flat cyan rack strips are hidden (visual only) and replaced by dark face plates, segmented light bars, static monitors and four magenta corrupted-data blocks. Cable trays at Y 42, cooling stacks. Ring_N and ArchiveWalk_S hang from the ribs. | 147 / 19 / 7 | 170 / 24 / 8 |
+| Coolant Reservoir (`PumpStation`) | Two part-built cooling towers (±150, 298; Y −90..70) with a dark throat and teal glow. Pump hall on the east rim: cantilevered roof, 3 turbines, crane rail, service panels, open front. Pipe runs at Y 32, valves and flanges, pump dressing, basin intake grates, bridge braces, void-edge rim rails. | 84 / 16 / 4 | 140 / 18 / 6 |
+| Outer Ring (`TransitRing`) | Box girders and pylons where the ring crosses the void; carried by hangar frames, vault ribs, pump towers and rim columns elsewhere. Five signal arches with dark signs and cyan chevrons. Long single-part void-edge rails (1.2 high, jumpable). | 107 / 24 / 5 | 120 / 42 / 5 |
+| Shared supports (`SharedSupports`) | Girders and pylons under the T0 slabs, spokes and sky landings (decorative). | 39 / 0 / 0 | 250 / 0 / 0 |
+
+**Totals:** +572 parts, +85 collidable, +26 lights, 0 new shadow lights. Map 1,233 → **1,805** parts (design cap 2,252; ceiling 4,000); collidable 285 → **370** (900); lights 21 → **47** (80); shadow lights 1 (12).
+
+**Grapple affordance:** trusses, spires and arches give believable silhouettes only. No anchors, tags, code or equipment were added.
+
+### Collision model and validators
+- New collidables exist only in three audited roles:
+  - `FloorStructure`: within 4 studs of its floor's edge or within 1.5 of an existing wall/rack; at least 2 studs from every marker; outside the spoke corridors.
+  - `EdgeRail`: only on edges that drop to the void; C13 re-checks every rail against drop-downs.
+  - `BoundaryWall`: outside walkable footprints, on void edges (archive vault, pump-hall back wall).
+- Decorative parts have collide, query, touch and shadow off.
+- The 8A-2a core-only rule now applies only to 8A-2a parts (C9).
+- New checks:
+  - C6b: no new collidable intersects an existing one.
+  - C8 now covers every waypoint instance (duplicate ids included).
+  - C12: zero-G gaps.
+  - C13: drop-downs.
+  - AC6 span support for every elevated 8A-1 slab.
+
+### Read-only final audit (`docs/phase8a2b/audit_8a2b_final.json`, final geometry)
+- **C1–C13 all PASS.**
+  - Flood, bounce apex to Y 40, 8 supply columns to Y 160, 16 spawns, stabilizers.
+  - Headroom, rails and structures (C6 checked 60 structures, 43 rails, 6 boundary walls).
+  - No intersections; 12 crate lanes; 40 drone links.
+  - Roles, budgets and neon pass (179 neon parts, none over 4×4).
+  - Both zero-G gap sets clear (9 gaps); 31 rails all face the void.
+- Marker counts are unchanged.
+- **Streaming:** district models Default; significant assemblies Atomic (frames, spires, room, trusses, vault walls/roof, hangers, towers, pump hall, pylons); dressing Default; Persistent unchanged.
+- **AC1:** 0/45 open-sky rays from every G-camera. Sky through translucent surfaces: G1 8, G2 9 (was 11), G3 0, G4 0, G5 6, G6 7.
+- **AC3:** CrownFin Y 192 is the tallest element; the tallest non-reactor element is a Cap at Y 150 (≤ 150 ✔); EnergyCore is the strongest light.
+- **AC6:**
+  - 0 unapproved reserved hues; three amber parts are declared warnings (crane, two lab warning modules).
+  - Every elevated slab has a support within 30 studs of each edge midpoint. Largest gaps: Ring_N 29, ArchiveWalk_S 29, SkyLanding 26; 8A-2a core decks 0–5.
+
+**Strict AC2 (benchmark unchanged):** PASS except the five waived spawns. No new failing viewpoint.
+
+| Viewpoint | Before 8A-2b | After 8A-2b |
+|---|---|---|
+| RES_1 (waived) | 23% crown 0 col 5 | 23% crown 0 col 5 (unchanged) |
+| RES_2 (waived) | 23% crown 0 col 5 | 23% crown 0 col 5 (unchanged) |
+| ARCH_1 (waived) | 40% crown 0 col 9 | 40% crown 0 col 9 (unchanged) |
+| ARCH_2 (waived) | 13% crown 0 col 3 | 13% crown 0 col 3 (unchanged) |
+| ARCH_3 (waived) | 13% crown 0 col 3 | 13% crown 0 col 3 (unchanged) |
+| YARD_1 | 60% crown 7 col 9 PASS | **53% crown 7 col 6 PASS** (hangar truss; still passes) |
+| YARD_3 | 68% crown 7 col 11 PASS | **60% crown 7 col 8 PASS** |
+| Other 9 spawns, lobby (60/83/93%) | — | unchanged |
+
+Corrected during construction (decorative only, found by the audit; no gameplay geometry touched):
+- The first build made YARD_1/YARD_3 **new strict-AC2 failures** (ring box girders over the yard). Girders are now limited to the void sections.
+- The north arch post had cut ARCH_1 to 8%; the arch moved to x −150.
+- A collidable pipe post sat on the MAGNETIC lane; it is now decorative.
+- Spire legs moved to within 4 studs of the deck edges.
+- Two column sets overlapped racks by 0.4; the pump-hall wall overlapped Rim_E. Both were repositioned.
+
+SELF self-occlusion (informational): YARD_1 core 7→5/16, YARD_3 8→6/16; everything else unchanged.
+
+### Gameplay regression (solo Play, `8_regression_server.luau`)
+- `ArenaService.Validate` ok, 0 errors; baseline matches at the start.
+- **All 10 patches**: accepted → ACTIVE → ended (expired, resources released).
+- **All 5 combinations**: SUPER_BOUNCE, HUNTER_SCAN, FLOATING_DEBRIS, RAPID_DECAY and SLIDE_FIELD each started from both sources and ended cleanly.
+- Baseline matches after the patches.
+- Match 1 → FINAL_PHASE → RESULTS → RESET → LOBBY: baseline at LOBBY matches (0 differences). Match 2 reached ACTIVE with Validate ok.
+- Console: 0 warnings, 0 errors across both matches.
+- Traversal (real character, `Humanoid:MoveTo`):
+  - Yard grid, frames, ramp and catwalk: PASS.
+  - Skybridge deck under spires and room, DeckRamp, landing, Ring_E: PASS.
+  - Archive aisles, atrium, under RackDecks and west aisle: PASS.
+  - Reservoir rim, through the pump hall between ramp and turbines, into the basin and out by BasinRamp_N: PASS.
+  - Full Outer Ring loop through all five arches: PASS.
+  - Stops were only route-planning artifacts: long-leg timeouts (re-run in shorter legs and passed), and lines through an 8A-1 rack or the MAGNETIC crate at (85, 170).
+  - One first-attempt reservoir route walked into a turbine casing; the hall leaves the 45-stud rim strip between ramp and turbines open, and the corrected route passed.
+- **Test objects:** Edit verified clean after Play — 0 `ZZ_`, no test attributes, Lighting 1.80/0.30, StudioTimeScale cleared.
+
+### BLACKOUT (Brightness 0.5, Exposure −0.9, restored exactly)
+- G1, G6 and lobby: walkable edges, rails, arch chevrons and the reactor stay readable; the reactor remains the anchor.
+- **G3 Archive is still the weakest view.** The large neon rack faces are gone by design, so the canyon is darker than before 8A-2b.
+  - The first lights at tray height did not reach the floor. They were moved to mid-rack aisle lights, and two lamps were hung from the ribs.
+  - The floor now shows a pool of light and readable edges, but it remains dark between lamps.
+- Screenshots: `screens/blackout_*.jpg`.
+
+### Performance (`docs/phase8a2b/fps_post_8a2b.json`, VALID, owner-focused, same scripts and server hash 7029:1166573979)
+| | Stage 0 | After 8A-2b | Target |
+|---|---|---|---|
+| Pass A avg / 1% low | 60.00 / 53.86 | 60.00 / 54.94 | ≥ 85% avg; 1% low ≥ 45 |
+| Pass B avg / 1% low (3 patches active throughout) | 60.00 / 54.38 | 60.00 / 54.80 | — |
+| Server Heartbeat p99 | 18.10 ms | 18.05 ms | within 10% |
+
+The 60 FPS cap prevents measuring headroom; no gain is claimed. A first attempt timed out at arming (no click) and is excluded.
+
+### Evidence (`docs/phase8a2b/`)
+- `screens/`: before/after **G2–G6**, before/after interiors (yard, sky deck, archive aisle, reservoir rim, ring east), lobby head height and lobby → cooling tower, and BLACKOUT G1/G3/G6/lobby.
+- Audit JSON and FPS JSON.
+
+### Save, parity, backups
+- The owner saved `Place1.rbxl` at 2026-11-11 08:34:46 (210,248 bytes), SHA-256 `A7500044236F2D381CB55253114CD695458AE029331BC25FF95DA963CC8A2C8F`.
+- Verified from the file:
+  - 42/42 sources identical to `src/`;
+  - 572 `Arch8A2B` parts and all six district models;
+  - 12 `Orig8A2B_Transparency` records;
+  - `WORLD_EXE_Rollback8A2B` and `Phase8A2B` present;
+  - 0 `ZZ_` leftovers.
+- New backup `WorldEXE_post-phase8a2b_2026-11-11.rbxl`, SHA-256 identical. This is now the rollback point.
+- Kept: the pre-8A-2b backup (`F8E0C7B1…`) and all earlier backups.
+- **Builder reproducibility:** the Studio state was built from the committed builder code. Normalized code hashes are identical for 0–5 and 6_audit. Restore/rebuild was exercised on the working session (never against the saved place); each restore returned exactly to 1,233 / 285 / 21.
+
+### Remaining shortcomings (honest)
+- Archive under BLACKOUT is dark between lamps (above).
+- YARD_1/YARD_3 reactor visibility is lower (still PASS). The hangar truss frames the reactor in G2.
+- The tall Skybridge truss end pylons are prominent in G6.
+- The Ring E rails sit close to the megastructure plinth wall (harmless, partly redundant there).
+- Lobby view of the reactor is unchanged (small at 420 studs); the cooling towers read only when looking down to the sides.
+- Glitch motifs are static and modest by design (no animated VFX in this phase).
+- Not tested (deferred to the integration milestone): multiplayer, mobile and other devices.
+
+Stopped for ChatGPT technical and creative review.
 
 ## Phase 8A-2a owner decisions (2026-11-11)
 
