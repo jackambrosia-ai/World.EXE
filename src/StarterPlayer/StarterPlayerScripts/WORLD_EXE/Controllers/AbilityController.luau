@@ -7,9 +7,12 @@
 --   on-screen buttons (click / tap). Gamepad presses are ignored while a GUI element has gamepad
 --   focus (for example the Architect chips), so they cannot conflict. E stays free for
 --   ProximityPrompts.
--- * Layout: a bottom-centre bar on desktop; on touch devices three 56 px buttons arranged around
+-- * Layout: a bottom-centre bar on desktop; on touch devices three 60 px buttons arranged around
 --   Roblox's native jump button (computed from its documented geometry, never overlapping it or
---   the thumbstick zone). The native joystick and jump button are not replaced.
+--   the thumbstick zone). The native joystick and jump button are not replaced. Every button carries
+--   a short 11 px label (DASH / ANCHOR / SCAN) so new players can identify it. The buttons' bounding
+--   rectangle (with the jump button) is published as UITheme reserved "abilities" so the HUD and
+--   the Architect tray stay clear of it.
 -- * Slots show READY, ACTIVE (time left) or the cooldown (fill + seconds) from server-set player
 --   attributes. Shown only to Participants while the match is ACTIVE or FINAL_PHASE.
 -- * SCANNER: highlights are client-only and temporary. Feedback carries a per-player sequence
@@ -37,6 +40,7 @@ local TOAST_SECONDS = 2
 local MAX_HIGHLIGHTS = 20
 local GAMEPAD_KEYS = { [Enum.KeyCode.ButtonX] = true, [Enum.KeyCode.ButtonY] = true, [Enum.KeyCode.DPadUp] = true }
 local GLYPH: { [string]: string } = { PHASE_DASH = "»", ANCHOR = "▼", SCANNER = "◉" }
+local SHORT: { [string]: string } = { PHASE_DASH = "DASH", ANCHOR = "ANCHOR", SCANNER = "SCAN" }
 local KIND_COLORS: { [string]: Color3 } = {
 	fragment = Palette.NeonCyan,
 	bounce = Palette.ElectricPurple,
@@ -102,8 +106,8 @@ function AbilityController.Start(remotes: Instance)
 		local stroke = UIUtil.stroke(button, C.Cyan, 1)
 		local shade = UIUtil.create("Frame", { Name = "Cooldown", BackgroundColor3 = C.Navy, BackgroundTransparency = 0.3, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 0), ZIndex = 2 }, button)
 		local glyph = UIUtil.text("Glyph", button, GLYPH[id] or "•", 22, C.Cyan, F.Title, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.42, 0), ZIndex = 3 })
-		local key = UIUtil.text("Key", button, def.Key.Name, 10, C.Muted, F.Label, { Position = UDim2.fromOffset(5, 3), ZIndex = 3 })
-		local name = UIUtil.text("Name", button, string.upper(def.DisplayName), 9, C.Muted, F.Label, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -4), ZIndex = 3 })
+		local key = UIUtil.text("Key", button, def.Key.Name, 11, C.Muted, F.Label, { Position = UDim2.fromOffset(5, 3), ZIndex = 3 })
+		local name = UIUtil.text("Name", button, SHORT[id] or string.upper(def.DisplayName), 11, C.Muted, F.Label, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -4), ZIndex = 3 })
 		local status = UIUtil.text("Status", button, "", 16, C.Text, F.Mono, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.42, 0), ZIndex = 4 })
 		button.Activated:Connect(function()
 			fire(id)
@@ -136,9 +140,10 @@ function AbilityController.Start(remotes: Instance)
 		local ids = AbilityCatalog.Ids()
 		if layout.Mode == "touch" then
 			local jump = jumpRect(size)
-			local b = 56
+			local b = 60
 			local gap = 12
 			local jcx, jcy = (jump.Min.X + jump.Max.X) / 2, (jump.Min.Y + jump.Max.Y) / 2
+			local bounds = jump
 			local centres = {
 				Vector2.new(jump.Min.X - gap - b / 2, jcy + 4), -- left of jump
 				Vector2.new(jump.Min.X - gap - b / 2 + 6, jump.Min.Y - gap - b / 2 + 4), -- up-left
@@ -155,10 +160,22 @@ function AbilityController.Start(remotes: Instance)
 					corner.CornerRadius = UDim.new(0.5, 0)
 				end
 				slot.Key.Visible = false
-				slot.Name.Visible = false
+				slot.Name.Visible = true
+				slot.Name.Position = UDim2.new(0.5, 0, 1, -11) -- inside the circle's widest band
+				slot.Glyph.Position = UDim2.new(0.5, 0, 0.36, 0)
+				slot.Status.Position = UDim2.new(0.5, 0, 0.36, 0)
+				local half = b / 2
+				bounds = Rect.new(
+					math.min(bounds.Min.X, math.floor(c.X) - half),
+					math.min(bounds.Min.Y, math.floor(c.Y) - half),
+					math.max(bounds.Max.X, math.floor(c.X) + half),
+					math.max(bounds.Max.Y, math.floor(c.Y) + half)
+				)
 			end
-			toast.Position = UDim2.new(1, -110, 1, -(size.Y - jump.Min.Y) - b - 40)
+			UITheme.setReserved("abilities", bounds)
+			-- Rejection toast: just left of the buttons, never over them or the Architect tray.
 			toast.AnchorPoint = Vector2.new(1, 1)
+			toast.Position = UDim2.fromOffset(bounds.Min.X - 8, bounds.Max.Y)
 		else
 			local s = if layout.Mode == "desktop" then 64 else 58
 			local gap = 8
@@ -174,12 +191,17 @@ function AbilityController.Start(remotes: Instance)
 				end
 				slot.Key.Visible = true
 				slot.Name.Visible = true
+				slot.Name.Position = UDim2.new(0.5, 0, 1, -4)
+				slot.Glyph.Position = UDim2.new(0.5, 0, 0.42, 0)
+				slot.Status.Position = UDim2.new(0.5, 0, 0.42, 0)
 			end
+			UITheme.setReserved("abilities", nil)
 			toast.AnchorPoint = Vector2.new(0.5, 1)
 			toast.Position = UDim2.new(0.5, 0, 1, -(s + 22))
 		end
 	end
 	root:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyLayout)
+	UITheme.PreviewChanged:Connect(applyLayout)
 	player:WaitForChild("PlayerGui").ChildAdded:Connect(function(child: Instance)
 		if child.Name == "TouchGui" then
 			task.delay(0.5, applyLayout) -- re-place once Roblox's touch controls exist
@@ -307,7 +329,7 @@ function AbilityController.Start(remotes: Instance)
 						slot.Glyph.Visible = false
 						slot.Status.Text = tostring(math.ceil(readyAt - t))
 						slot.Status.TextColor3 = C.Muted
-						slot.Name.Text = string.upper(def.DisplayName)
+						slot.Name.Text = SHORT[id] or string.upper(def.DisplayName)
 						slot.Name.TextColor3 = C.Muted
 					else
 						slot.Stroke.Color = C.Cyan
@@ -315,7 +337,7 @@ function AbilityController.Start(remotes: Instance)
 						slot.Shade.Size = UDim2.new(1, 0, 0, 0)
 						slot.Glyph.Visible = true
 						slot.Status.Text = ""
-						slot.Name.Text = string.upper(def.DisplayName)
+						slot.Name.Text = SHORT[id] or string.upper(def.DisplayName)
 						slot.Name.TextColor3 = C.Muted
 					end
 				end

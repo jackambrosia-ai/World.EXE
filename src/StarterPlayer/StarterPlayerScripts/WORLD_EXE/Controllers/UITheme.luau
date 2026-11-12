@@ -161,6 +161,56 @@ function UITheme.nativeTouchZones(size: Vector2): { Jump: Rect, Move: Rect }
 end
 
 ---------------------------------------------------------------------------------------------------
+-- Reserved rectangles (root-relative pixels) that the controllers publish so their touch layouts
+-- avoid each other:
+--   "hudTop"     the HUD's top row (pill, stability, patch chips; on portrait also the alerts)
+--   "abilities"  the touch ability buttons together with the native jump button
+--   "architect"  the open Architect tray
+local reservedRects: { [string]: Rect } = {}
+local reservedChanged = Instance.new("BindableEvent")
+UITheme.ReservedChanged = reservedChanged.Event
+
+local function sameRect(a: Rect?, b: Rect?): boolean
+	if a == nil or b == nil then
+		return a == b
+	end
+	return math.abs(a.Min.X - b.Min.X) < 1 and math.abs(a.Min.Y - b.Min.Y) < 1
+		and math.abs(a.Max.X - b.Max.X) < 1 and math.abs(a.Max.Y - b.Max.Y) < 1
+end
+
+function UITheme.setReserved(name: string, rect: Rect?)
+	if not sameRect(reservedRects[name], rect) then
+		reservedRects[name] = rect
+		reservedChanged:Fire(name)
+	end
+end
+
+function UITheme.reserved(name: string): Rect?
+	return reservedRects[name]
+end
+
+-- Root-relative rectangle of a GUI object.
+function UITheme.rectOf(obj: GuiObject, root: GuiObject): Rect
+	local p = obj.AbsolutePosition - root.AbsolutePosition
+	return Rect.new(p.X, p.Y, p.X + obj.AbsoluteSize.X, p.Y + obj.AbsoluteSize.Y)
+end
+
+-- Bounding rectangle of the right-hand touch controls (ability buttons + native jump button).
+function UITheme.touchControlsRect(size: Vector2): Rect
+	return reservedRects.abilities or UITheme.nativeTouchZones(size).Jump
+end
+
+-- Free area for touch panels (the Architect tray): right of the native thumbstick zone, below the
+-- HUD's top row, above the ability buttons and the native jump button. Root-relative pixels.
+function UITheme.touchPanelRegion(size: Vector2): Rect
+	local zones = UITheme.nativeTouchZones(size)
+	local hud = reservedRects.hudTop
+	local top = (if hud then hud.Max.Y else 54) + 6
+	local controls = UITheme.touchControlsRect(size)
+	return Rect.new(zones.Move.Max.X + 8, top, size.X - 10, math.min(controls.Min.Y, zones.Jump.Min.Y) - 8)
+end
+
+---------------------------------------------------------------------------------------------------
 -- Reduced Effects (session-only; there is no persistence)
 
 local reduced = false

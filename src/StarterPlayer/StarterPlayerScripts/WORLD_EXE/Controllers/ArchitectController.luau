@@ -11,8 +11,10 @@
 --
 -- Chip states: default, focus (mouse hover / gamepad selection), selected, disabled (while a
 -- submission is pending or after one was accepted), pending, submitted, rejected.
--- Layout: right-side panel (desktop/compact); a top strip below the HUD on touch landscape
--- (clear of the native thumbstick, jump button and ability arc); a 2x2 grid on portrait.
+-- Layout: right-side panel (desktop/compact); on touch a tray in the free region right of the
+-- native thumbstick zone, below the HUD and above the ability buttons / jump button (one chip row
+-- on landscape, a 2x2 grid on portrait). The open tray is published as UITheme reserved
+-- "architect" so the Details panel moves out of its way.
 -- Gamepad: chips and CONFIRM are Selectable; focus moves to the first chip when the turn opens
 -- (only if a gamepad is the last input). Ability bindings ignore gamepad input while a GUI element
 -- has gamepad focus (see AbilityController), so ButtonX / ButtonY / DPadUp cannot fire abilities
@@ -22,6 +24,7 @@ local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
 local shared = ReplicatedStorage:WaitForChild("WORLD_EXE"):WaitForChild("Shared")
@@ -162,7 +165,8 @@ function ArchitectController.Start(remotes: Instance)
 	local focus: { [string]: boolean } = {}
 	local chips: { [string]: Chip } = {}
 	local chipOrder: { string } = {}
-	local compactChips = false
+	local compactChips = false -- touch chips (smaller, no decorative serial, effect in the info line)
+	local shortLabels = false -- touch: short CONFIRM labels that fit the narrow button
 
 	local function stateOf(id: string): string
 		if submitted == id then
@@ -192,7 +196,7 @@ function ArchitectController.Start(remotes: Instance)
 			elseif st == "selected" then
 				strokeColor, thickness, label, labelColor, pinColor = C.VioletText, 2, "✓ SELECTED", C.VioletText, C.Cyan
 			elseif st == "pending" then
-				strokeColor, thickness, label, labelColor, pinColor = C.Amber, 2, "UPLOADING…", C.Amber, C.Amber
+				strokeColor, thickness, label, labelColor, pinColor = C.Amber, 2, if compactChips then "SENDING…" else "UPLOADING…", C.Amber, C.Amber
 			elseif st == "submitted" then
 				strokeColor, thickness, label, labelColor, pinColor = C.Green, 2, "✓ UPLOADED", C.Green, C.Green
 			elseif st == "rejected" then
@@ -224,21 +228,27 @@ function ArchitectController.Start(remotes: Instance)
 			confirm.TextColor3 = C.Green
 			confirmStroke.Color = C.Green
 		elseif pending then
-			confirm.Text = "UPLOADING…"
+			confirm.Text = if shortLabels then "SENDING…" else "UPLOADING…"
 			confirm.BackgroundColor3 = C.Surface2
 			confirm.TextColor3 = C.Amber
 			confirmStroke.Color = C.Amber
 		elseif def then
-			confirm.Text = "CONFIRM " .. string.upper(def.DisplayName)
+			confirm.Text = if shortLabels then "CONFIRM" else "CONFIRM " .. string.upper(def.DisplayName)
 			confirm.BackgroundColor3 = C.Violet
 			confirm.TextColor3 = C.Text
 			confirmStroke.Color = C.VioletText
 		else
-			confirm.Text = "SELECT A CHIP"
+			confirm.Text = if shortLabels then "PICK A CHIP" else "SELECT A CHIP"
 			confirm.BackgroundColor3 = C.Surface2
 			confirm.TextColor3 = C.Muted
 			confirmStroke.Color = C.Steel
 		end
+	end
+
+	-- Touch chips show no effect text, so the empty info line explains the two-step flow.
+	local function idleInfo()
+		feedback.Text = if shortLabels then "Tap a chip to see what it does, then CONFIRM." else ""
+		feedback.TextColor3 = C.Muted
 	end
 
 	local function select(id: string?)
@@ -253,7 +263,7 @@ function ArchitectController.Start(remotes: Instance)
 			feedback.Text = `{string.upper(def.DisplayName)}: {def.Effect}{if hint ~= "" then "  ·  Counter: " .. hint else ""}`
 			feedback.TextColor3 = C.Text
 		else
-			feedback.Text = ""
+			idleInfo()
 		end
 		renderChips()
 	end
@@ -265,7 +275,7 @@ function ArchitectController.Start(remotes: Instance)
 		rejected = nil
 		table.clear(focus)
 		keywordBox.Text = ""
-		feedback.Text = ""
+		idleInfo()
 	end
 
 	-- One data chip (original hardware-module look built from native frames)
@@ -294,10 +304,12 @@ function ArchitectController.Start(remotes: Instance)
 		end
 		cornerMark(UDim2.fromOffset(5, 5), -45)
 		cornerMark(UDim2.new(1, -5, 1, -5), -45)
-		-- Serial marking + severity pips
-		local top = if compactChips then 18 else 22 -- icon / name row
-		local effectY = if compactChips then 46 else 56
-		UIUtil.text("Serial", button, `{UITheme.ChipSerial[id] or "WX-00"} · {cat.Code}`, 9, C.Muted, F.Label, { Position = UDim2.fromOffset(12, 4) })
+		-- Serial marking (decorative; omitted on compact touch chips) + severity pips
+		local top = if compactChips then 8 else 22 -- icon / name row
+		local effectY = 56
+		if not compactChips then
+			UIUtil.text("Serial", button, `{UITheme.ChipSerial[id] or "WX-00"} · {cat.Code}`, 10, C.Muted, F.Label, { Position = UDim2.fromOffset(12, 4) })
+		end
 		local pips = UIUtil.create("Frame", { Name = "Severity", BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -8, 0, 7), Size = UDim2.fromOffset(26, 6) }, button)
 		local level = UITheme.Severity[def.Severity] or 1
 		for i = 1, 3 do
@@ -313,29 +325,44 @@ function ArchitectController.Start(remotes: Instance)
 		local icon = UIUtil.create("TextLabel", {
 			Name = "Icon",
 			BackgroundColor3 = C.Navy,
-			Position = UDim2.fromOffset(9, top),
-			Size = UDim2.fromOffset(if compactChips then 26 else 30, if compactChips then 26 else 30),
+			Position = UDim2.fromOffset(if compactChips then 10 else 9, top),
+			Size = UDim2.fromOffset(if compactChips then 24 else 30, if compactChips then 24 else 30),
 			Text = UITheme.PatchIcon[id] or "•",
-			TextSize = 18,
+			TextSize = if compactChips then 16 else 18,
 			Font = F.Title,
 			TextColor3 = cat.Text,
 		}, button) :: TextLabel
 		UIUtil.corner(icon, 4)
 		UIUtil.stroke(icon, cat.Color, 1, 0.3)
-		local textX = if compactChips then 42 else 46
-		local name = UIUtil.text("Name", button, string.upper(def.DisplayName), if compactChips then 12 else 13, C.Text, F.Title, { Position = UDim2.fromOffset(textX, top) })
-		local stateLabel = UIUtil.text("State", button, "", 9, C.Muted, F.Label, { Position = UDim2.fromOffset(textX, top + 16) })
-		local effect = UIUtil.text("Effect", button, def.Effect, if compactChips then 10 else 11, C.Muted, F.Body, {
-			AutomaticSize = Enum.AutomaticSize.None,
-			Position = UDim2.fromOffset(9, effectY),
-			Size = UDim2.new(1, -18, 0, if compactChips then 24 else 28),
-			TextWrapped = true,
-			TextTruncate = Enum.TextTruncate.AtEnd,
-			TextYAlignment = Enum.TextYAlignment.Top,
-		})
-		-- Circuit trace from the icon to the contact pins
-		UIUtil.create("Frame", { Name = "Trace", BackgroundColor3 = cat.Color, BackgroundTransparency = 0.7, BorderSizePixel = 0, Position = UDim2.fromOffset(23, top + 30), Size = UDim2.new(0, 1, 1, -(top + 36)) }, button)
-		UIUtil.create("Frame", { Name = "Trace2", BackgroundColor3 = cat.Color, BackgroundTransparency = 0.7, BorderSizePixel = 0, Position = UDim2.new(0, 23, 1, -7), Size = UDim2.new(0.5, -23, 0, 1) }, button)
+		local name, stateLabel, effect
+		if compactChips then
+			-- Compact touch chip: icon row, full-width name (12 px, 11 px when the name is long),
+			-- state label. The effect and counterplay show in the tray's info line on selection.
+			name = UIUtil.text("Name", button, string.upper(def.DisplayName), 12, C.Text, F.Title, {
+				AutomaticSize = Enum.AutomaticSize.None,
+				Position = UDim2.fromOffset(4, 36),
+				Size = UDim2.new(1, -8, 0, 14),
+				TextScaled = true,
+			})
+			UIUtil.create("UITextSizeConstraint", { MinTextSize = 11, MaxTextSize = 12 }, name)
+			stateLabel = UIUtil.text("State", button, "", 11, C.Muted, F.Label, { Position = UDim2.fromOffset(4, 53) })
+			effect = UIUtil.text("Effect", button, def.Effect, 11, C.Muted, F.Body, { Visible = false })
+		else
+			local textX = 46
+			name = UIUtil.text("Name", button, string.upper(def.DisplayName), 13, C.Text, F.Title, { Position = UDim2.fromOffset(textX, top) })
+			stateLabel = UIUtil.text("State", button, "", 11, C.Muted, F.Label, { Position = UDim2.fromOffset(textX, top + 16) })
+			effect = UIUtil.text("Effect", button, def.Effect, 11, C.Muted, F.Body, {
+				AutomaticSize = Enum.AutomaticSize.None,
+				Position = UDim2.fromOffset(9, effectY),
+				Size = UDim2.new(1, -18, 0, 28),
+				TextWrapped = true,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+				TextYAlignment = Enum.TextYAlignment.Top,
+			})
+			-- Circuit trace from the icon to the contact pins
+			UIUtil.create("Frame", { Name = "Trace", BackgroundColor3 = cat.Color, BackgroundTransparency = 0.7, BorderSizePixel = 0, Position = UDim2.fromOffset(23, top + 30), Size = UDim2.new(0, 1, 1, -(top + 36)) }, button)
+			UIUtil.create("Frame", { Name = "Trace2", BackgroundColor3 = cat.Color, BackgroundTransparency = 0.7, BorderSizePixel = 0, Position = UDim2.new(0, 23, 1, -7), Size = UDim2.new(0.5, -23, 0, 1) }, button)
+		end
 		-- Contact pins along the bottom edge
 		local pins = {}
 		for i = 1, 7 do
@@ -371,7 +398,32 @@ function ArchitectController.Start(remotes: Instance)
 		return { Button = button, Stroke = stroke, State = stateLabel, Pins = pins, Corners = corners, Name = name, Effect = effect, Icon = icon }
 	end
 
+	-- Gamepad: move focus to the first chip when the turn opens (only if a gamepad is the last input).
+	local function focusFirstChip()
+		local last = UserInputService:GetLastInputType()
+		if last.Name:find("Gamepad") and chipOrder[1] and chips[chipOrder[1]] then
+			GuiService.SelectedObject = chips[chipOrder[1]].Button
+		end
+	end
+
+	local buildSerial = 0
 	local function buildChips(offered: { string })
+		-- New chips sit on the first grid cell until the next layout pass. The grid stays hidden for
+		-- that moment so the chips never flash stacked on one cell and a resting mouse cursor never
+		-- gets hover events from chips that are about to move.
+		grid.Visible = false
+		buildSerial += 1
+		local serial = buildSerial
+		task.spawn(function()
+			RunService.Heartbeat:Wait()
+			RunService.Heartbeat:Wait()
+			if serial == buildSerial then
+				grid.Visible = true
+				if gui.Enabled then
+					focusFirstChip()
+				end
+			end
+		end)
 		for _, child in grid:GetChildren() do
 			if child:IsA("TextButton") then
 				child:Destroy()
@@ -390,6 +442,13 @@ function ArchitectController.Start(remotes: Instance)
 	end
 
 	-- Responsive placement
+	-- Touch: the tray fills the free region right of the native thumbstick zone, below the HUD's top
+	-- row and above the ability buttons and the jump button (UITheme.touchPanelRegion). A wide
+	-- region gets one row of four chips with a side column (timer + CONFIRM); a tall one (portrait)
+	-- a 2x2 grid with a footer. Every height is fixed and derived from the region, so no state
+	-- (selected, pending, rejected) can grow into the movement controls; the info line holds three
+	-- lines of 12 px text (five on portrait), enough for every catalog effect + counterplay text.
+	-- Desktop/compact: right-side panel with header, grid, keyword search and footer.
 	local function applyLayout()
 		-- A disabled ScreenGui reports a zero size; fall back to the preview / viewport size.
 		local size = root.AbsoluteSize
@@ -398,56 +457,87 @@ function ArchitectController.Start(remotes: Instance)
 		end
 		local layout = UITheme.layout(size)
 		local touch = layout.Mode == "touch"
-		local strip = touch and not layout.Portrait
+		local region = UITheme.touchPanelRegion(size)
+		local strip = touch and region.Width >= region.Height * 1.8
+		shortLabels = touch
 		keywordBox.Visible = not touch
-		-- Touch landscape: one compact row (chips + a side column with the timer and CONFIRM) that
-		-- ends above the native thumbstick zone (top 45 % of the screen only). Elsewhere: header,
-		-- grid and a footer with CONFIRM / CLEAR.
 		header.Visible = not strip
+		subtitle.Visible = not touch
 		footer.Visible = not strip
 		side.Visible = strip
-		timeTrack.Visible = not strip
+		timeTrack.Visible = not touch
 		clear.Visible = not strip
 		confirm.Parent = if strip then side else footer
-		confirm.Size = if strip then UDim2.new(1, 0, 0, 56) else UDim2.new(1, -56, 1, 0)
 		confirm.TextSize = if strip then 12 else 14
 		confirm.TextWrapped = strip
 		timer.Parent = if strip then side else header
-		timer.AnchorPoint = if strip then Vector2.new(0, 0) else Vector2.new(1, 0)
-		timer.Position = if strip then UDim2.new() else UDim2.new(1, 0, 0, 0)
-		feedback.TextSize = if strip then 11 else 12
-		panelList.Padding = UDim.new(0, if strip then 6 else 8)
-		if compactChips ~= strip then
-			compactChips = strip
+		timer.AnchorPoint = if strip then Vector2.new(0.5, 0) else Vector2.new(1, 0)
+		timer.Position = if strip then UDim2.new(0.5, 0, 0, 0) else UDim2.new(1, 0, 0, 0)
+		feedback.TextSize = 12
+		feedback.TextYAlignment = Enum.TextYAlignment.Top
+		feedback.LayoutOrder = if touch then 5 else 6
+		footer.LayoutOrder = if touch then 6 else 5
+		panelList.Padding = UDim.new(0, if touch then 6 else 8)
+		if compactChips ~= touch then
+			compactChips = touch
 			if #chipOrder > 0 then
 				buildChips(table.clone(chipOrder))
 			end
 		end
-		if strip then
-			local cellW = math.clamp(math.floor((size.X - 210) / 4) - 6, 104, 132)
-			gridLayout.CellSize = UDim2.fromOffset(cellW, 80)
-			gridLayout.CellPadding = UDim2.fromOffset(6, 6)
-			gridLayout.FillDirectionMaxCells = 4
-			local gridW = 4 * cellW + 3 * 6
-			grid.Size = UDim2.fromOffset(gridW, 0)
-			panel.Size = UDim2.fromOffset(gridW + 6 + 84 + 16, 0)
-			panel.AnchorPoint = Vector2.new(0.5, 0)
-			panel.Position = UDim2.new(0.5, 0, 0, 56)
-			subtitle.Visible = false
-		elseif touch then
-			local cellW = math.clamp(math.floor((size.X - 64) / 2), 130, 170)
-			gridLayout.CellSize = UDim2.fromOffset(cellW, 96)
-			gridLayout.CellPadding = UDim2.fromOffset(8, 8)
-			gridLayout.FillDirectionMaxCells = 2
-			grid.Size = UDim2.fromOffset(2 * cellW + 8, 0)
-			panel.Size = UDim2.fromOffset(2 * cellW + 8 + 24, 0)
-			panel.AnchorPoint = Vector2.new(0.5, 0)
-			panel.Position = UDim2.new(0.5, 0, 0, 130)
-			subtitle.Visible = true
-			footer.Size = UDim2.new(1, 0, 0, 48)
+		local p = if touch then 8 else 12
+		local padding = panel:FindFirstChildOfClass("UIPadding")
+		if padding then
+			padding.PaddingTop = UDim.new(0, p)
+			padding.PaddingBottom = UDim.new(0, p)
+			padding.PaddingLeft = UDim.new(0, p)
+			padding.PaddingRight = UDim.new(0, p)
+		end
+		if touch then
+			local innerW = region.Width - 2 * p
+			panel.AutomaticSize = Enum.AutomaticSize.None
+			body.AutomaticSize = Enum.AutomaticSize.None
+			grid.AutomaticSize = Enum.AutomaticSize.None
+			feedback.AutomaticSize = Enum.AutomaticSize.None
+			panel.AnchorPoint = Vector2.new(0, 0)
+			panel.Position = UDim2.fromOffset(region.Min.X, region.Min.Y)
+			if strip then
+				local infoH = 36
+				local sideW, gap = 74, 4
+				local cellW = math.floor((innerW - sideW - 6 - 3 * gap) / 4)
+				local cellH = math.clamp(region.Height - 2 * p - 6 - infoH, 60, 80)
+				gridLayout.CellSize = UDim2.fromOffset(cellW, cellH)
+				gridLayout.CellPadding = UDim2.fromOffset(gap, gap)
+				gridLayout.FillDirectionMaxCells = 4
+				grid.Size = UDim2.fromOffset(4 * cellW + 3 * gap, cellH)
+				side.Size = UDim2.fromOffset(sideW, cellH)
+				body.Size = UDim2.new(1, 0, 0, cellH)
+				confirm.Size = UDim2.new(1, 0, 0, cellH - 22) -- under the 18 px timer
+				feedback.Size = UDim2.new(1, 0, 0, infoH)
+				panel.Size = UDim2.fromOffset(region.Width, 2 * p + cellH + 6 + infoH)
+			else
+				local infoH = 60
+				local gap, cellH = 6, 76
+				local cellW = math.floor((innerW - gap) / 2)
+				gridLayout.CellSize = UDim2.fromOffset(cellW, cellH)
+				gridLayout.CellPadding = UDim2.fromOffset(gap, gap)
+				gridLayout.FillDirectionMaxCells = 2
+				grid.Size = UDim2.fromOffset(2 * cellW + gap, 2 * cellH + gap)
+				body.Size = UDim2.new(1, 0, 0, 2 * cellH + gap)
+				header.Size = UDim2.new(1, 0, 0, 20)
+				footer.Size = UDim2.new(1, 0, 0, 48)
+				confirm.Size = UDim2.new(1, -56, 1, 0)
+				feedback.Size = UDim2.new(1, 0, 0, infoH)
+				panel.Size = UDim2.fromOffset(region.Width, 2 * p + 20 + 6 + (2 * cellH + gap) + 6 + infoH + 6 + 48)
+			end
 		else
 			local compact = layout.Mode == "compact"
 			local cellW = if compact then 146 else 156
+			panel.AutomaticSize = Enum.AutomaticSize.Y
+			body.AutomaticSize = Enum.AutomaticSize.Y
+			grid.AutomaticSize = Enum.AutomaticSize.Y
+			feedback.AutomaticSize = Enum.AutomaticSize.Y
+			feedback.Size = UDim2.new(1, 0, 0, 0)
+			body.Size = UDim2.new(1, 0, 0, 0)
 			gridLayout.CellSize = UDim2.fromOffset(cellW, if compact then 98 else 104)
 			gridLayout.CellPadding = UDim2.fromOffset(8, 8)
 			gridLayout.FillDirectionMaxCells = 2
@@ -455,20 +545,19 @@ function ArchitectController.Start(remotes: Instance)
 			panel.Size = UDim2.fromOffset(2 * cellW + 8 + 24, 0)
 			panel.AnchorPoint = Vector2.new(1, 0.5)
 			panel.Position = UDim2.new(1, -12, 0.5, if compact then 10 else 0)
-			subtitle.Visible = true
+			header.Size = UDim2.new(1, 0, 0, 34)
 			footer.Size = UDim2.new(1, 0, 0, 44)
+			confirm.Size = UDim2.new(1, -56, 1, 0)
 		end
-		header.Size = UDim2.new(1, 0, 0, if subtitle.Visible then 34 else 20)
-		local padding = panel:FindFirstChildOfClass("UIPadding")
-		if padding then
-			local p = if strip then 8 else 12
-			padding.PaddingTop = UDim.new(0, p)
-			padding.PaddingBottom = UDim.new(0, p)
-			padding.PaddingLeft = UDim.new(0, p)
-			padding.PaddingRight = UDim.new(0, p)
-		end
+		renderChips()
 	end
 	root:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyLayout)
+	UITheme.PreviewChanged:Connect(applyLayout)
+	UITheme.ReservedChanged:Connect(function(name: string)
+		if name ~= "architect" then
+			applyLayout() -- the HUD's top row or the touch controls moved
+		end
+	end)
 	applyLayout()
 
 	-- Input
@@ -561,6 +650,7 @@ function ArchitectController.Start(remotes: Instance)
 			end
 			gui:SetAttribute("TurnKey", shownKey)
 			gui.Enabled = mine
+			UITheme.setReserved("architect", if mine and panel.AbsoluteSize.X > 0 then UITheme.rectOf(panel, root) else nil)
 			if mine then
 				local left = (turnEndsAt :: number) - t
 				timer.Text = UIUtil.formatTime(left)
@@ -573,9 +663,8 @@ function ArchitectController.Start(remotes: Instance)
 			if mine and not wasOpen then
 				applyLayout() -- lay out for the current screen before the first frame is shown
 				bindClear(true)
-				local last = UserInputService:GetLastInputType()
-				if last.Name:find("Gamepad") and chipOrder[1] and chips[chipOrder[1]] then
-					GuiService.SelectedObject = chips[chipOrder[1]].Button
+				if grid.Visible then
+					focusFirstChip() -- otherwise the chips' reveal does it
 				end
 			elseif not mine and wasOpen then
 				bindClear(false)

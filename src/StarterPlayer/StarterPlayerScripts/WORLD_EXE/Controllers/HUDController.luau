@@ -1,13 +1,19 @@
 --!strict
 -- HUDController (Phase 8B-1B): compact match HUD. Presentation only; it reads the accepted
 -- Snapshot (MatchStateClient), server-set player attributes and the PatchAnnouncement remote.
---   * Top centre: phase + timer pill, slim stability bar (with a target tick and its number),
---     then the patch WARNING strip (for the server-defined warning period), combination strip
---     and short toasts. Nothing is placed over the screen centre during play.
+--   * Top centre: phase + timer pill and a slim stability bar (with a target tick and its number).
+--   * Alerts: the patch WARNING strip (for the full server-defined warning period), the
+--     combination strip and short toasts. Desktop: under the pill. Touch landscape: a top-left
+--     column above the native thumbstick zone, so the Architect tray (right of the thumbstick) can
+--     never cover a warning. Touch portrait: under the patch chips. Nothing is placed over the
+--     screen centre during play.
+--   * The HUD publishes its top row as UITheme reserved "hudTop"; touch panels lay out below it.
 --   * Top right: one compact chip per running patch / combination (category colour + glyph +
 --     code + time-left bar), a personal SHIELD chip, and the Details button.
 --   * Details (hidden by default): score, fragments, stabilizer progress, expanded patch list and
---     the session-only Reduced Effects switch. Opened by the Details button, G (Tab is Roblox's
+--     the session-only Reduced Effects switch. Its height is capped to the free area and its
+--     content scrolls; on touch it sits right of the thumbstick zone and left of (or above) the
+--     ability buttons, and below an open Architect tray. Opened by the Details button, G (Tab is Roblox's
 --     player list) or gamepad DPadDown (ignored while a GUI element has gamepad focus).
 --   * RESULTS / RESET: a structured results card built only from Snapshot.LastResult.
 
@@ -81,8 +87,12 @@ function HUDController.Start(remotes: Instance)
 	local stabTick = UIUtil.create("Frame", { Name = "TargetTick", BackgroundColor3 = C.Text, BorderSizePixel = 0, Size = UDim2.new(0, 2, 0, 12), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0) }, stabTrack)
 	local stabValue = UIUtil.text("Value", stab, "", 12, C.Cyan, F.Mono, { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0) })
 
+	-- Alerts column: warning strip, combination strip, toast (placed per layout in applyLayout)
+	local alerts = UIUtil.create("Frame", { Name = "Alerts", BackgroundTransparency = 1, Size = UDim2.fromOffset(0, 0), AutomaticSize = Enum.AutomaticSize.XY, LayoutOrder = 3 }, top)
+	local alertsList = UIUtil.list(alerts, Enum.FillDirection.Vertical, 6, Enum.HorizontalAlignment.Center)
+
 	-- Warning strip (one at a time: the soonest WARNING patch)
-	local warn, warnStroke = UIUtil.surface("WarningStrip", top, { Size = UDim2.fromOffset(440, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 3, Visible = false })
+	local warn, warnStroke = UIUtil.surface("WarningStrip", alerts, { Size = UDim2.fromOffset(440, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 3, Visible = false })
 	UIUtil.pad(warn, 8, 10)
 	local warnAccent = UIUtil.create("Frame", { Name = "Accent", BackgroundColor3 = C.Amber, BorderSizePixel = 0, Size = UDim2.new(0, 4, 1, 0), Position = UDim2.new(0, -10, 0, -8) }, warn)
 	warnAccent.Size = UDim2.new(0, 4, 1, 16)
@@ -98,7 +108,7 @@ function HUDController.Start(remotes: Instance)
 	local warnCountStroke = UIUtil.stroke(warnCount, C.Amber, 2)
 
 	-- Combination strip
-	local combo, comboStroke = UIUtil.surface("CombinationStrip", top, { Size = UDim2.fromOffset(440, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 4, Visible = false })
+	local combo, comboStroke = UIUtil.surface("CombinationStrip", alerts, { Size = UDim2.fromOffset(440, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 4, Visible = false })
 	comboStroke.Color = C.Violet
 	comboStroke.Thickness = 2
 	UIUtil.pad(combo, 8, 12)
@@ -108,7 +118,7 @@ function HUDController.Start(remotes: Instance)
 	local comboSerial = 0
 
 	-- Toast (short, low priority)
-	local toast, _ = UIUtil.surface("Toast", top, { AutomaticSize = Enum.AutomaticSize.XY, LayoutOrder = 5, Visible = false })
+	local toast, _ = UIUtil.surface("Toast", alerts, { AutomaticSize = Enum.AutomaticSize.XY, LayoutOrder = 5, Visible = false })
 	UIUtil.corner(toast, 12)
 	UIUtil.pad(toast, 4, 12)
 	local toastText = UIUtil.text("Text", toast, "", 12, C.Text, F.Label)
@@ -162,7 +172,7 @@ function HUDController.Start(remotes: Instance)
 		end
 		local frame, stroke = UIUtil.surface("Chip_" .. key, chipRow, { Size = UDim2.fromOffset(44, 44) })
 		local glyph = UIUtil.text("Glyph", frame, "", 18, C.Text, F.Title, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 3), AutomaticSize = Enum.AutomaticSize.None, Size = UDim2.new(1, 0, 0, 22), TextXAlignment = Enum.TextXAlignment.Center })
-		local code = UIUtil.text("Code", frame, "", 10, C.Muted, F.Label, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 24), AutomaticSize = Enum.AutomaticSize.None, Size = UDim2.new(1, 0, 0, 11), TextXAlignment = Enum.TextXAlignment.Center })
+		local code = UIUtil.text("Code", frame, "", 11, C.Muted, F.Label, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 24), AutomaticSize = Enum.AutomaticSize.None, Size = UDim2.new(1, 0, 0, 12), TextXAlignment = Enum.TextXAlignment.Center })
 		local track, fill = UIUtil.bar("Time", frame, 3, C.Text)
 		track.AnchorPoint = Vector2.new(0.5, 1)
 		track.Position = UDim2.new(0.5, 0, 1, -4)
@@ -177,20 +187,32 @@ function HUDController.Start(remotes: Instance)
 	local details, _ = UIUtil.surface("Details", root, {
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -10, 0, 58),
-		Size = UDim2.fromOffset(300, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
+		Size = UDim2.fromOffset(300, 200),
 		Visible = false,
 		BackgroundTransparency = 0.08,
 	})
 	UIUtil.pad(details, 10, 12)
-	UIUtil.list(details, Enum.FillDirection.Vertical, 8)
-	UIUtil.text("Header", details, "SIMULATION DETAILS", 12, C.Cyan, F.Label, { LayoutOrder = 1 })
-	local dPersonal = UIUtil.text("Personal", details, "", 14, C.Text, F.Title, { LayoutOrder = 2 })
-	local dStabHead = UIUtil.text("StabilizersHeader", details, "STABILIZERS", 11, C.Muted, F.Label, { LayoutOrder = 3 })
-	local dStab = UIUtil.create("Frame", { Name = "Stabilizers", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 4 }, details)
+	-- Content scrolls when the free area is shorter than the content (nothing is clipped away).
+	local dScroll = UIUtil.create("ScrollingFrame", {
+		Name = "Content",
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Size = UDim2.fromScale(1, 1),
+		CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		ScrollBarThickness = 4,
+		ScrollBarImageColor3 = C.Steel,
+		VerticalScrollBarInset = Enum.ScrollBarInset.Always,
+	}, details)
+	local dList = UIUtil.list(dScroll, Enum.FillDirection.Vertical, 8)
+	UIUtil.text("Header", dScroll, "SIMULATION DETAILS", 12, C.Cyan, F.Label, { LayoutOrder = 1 })
+	local dPersonal = UIUtil.text("Personal", dScroll, "", 14, C.Text, F.Title, { LayoutOrder = 2 })
+	local dStabHead = UIUtil.text("StabilizersHeader", dScroll, "STABILIZERS", 11, C.Muted, F.Label, { LayoutOrder = 3 })
+	local dStab = UIUtil.create("Frame", { Name = "Stabilizers", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 4 }, dScroll)
 	UIUtil.list(dStab, Enum.FillDirection.Vertical, 6)
-	local dPatchHead = UIUtil.text("PatchesHeader", details, "ACTIVE PATCHES", 11, C.Muted, F.Label, { LayoutOrder = 5 })
-	local dPatches = UIUtil.text("Patches", details, "", 12, C.Text, F.Body, { LayoutOrder = 6, AutomaticSize = Enum.AutomaticSize.Y, Size = UDim2.new(1, 0, 0, 0), TextWrapped = true })
+	local dPatchHead = UIUtil.text("PatchesHeader", dScroll, "ACTIVE PATCHES", 11, C.Muted, F.Label, { LayoutOrder = 5 })
+	local dPatches = UIUtil.text("Patches", dScroll, "", 12, C.Text, F.Body, { LayoutOrder = 6, AutomaticSize = Enum.AutomaticSize.Y, Size = UDim2.new(1, 0, 0, 0), TextWrapped = true })
 	local reducedButton = UIUtil.create("TextButton", {
 		Name = "ReducedEffects",
 		LayoutOrder = 7,
@@ -200,10 +222,10 @@ function HUDController.Start(remotes: Instance)
 		TextSize = 12,
 		Font = F.Label,
 		TextColor3 = C.Text,
-	}, details) :: TextButton
+	}, dScroll) :: TextButton
 	UIUtil.corner(reducedButton, 6)
 	UIUtil.stroke(reducedButton, C.Steel, 1)
-	UIUtil.text("Close", details, "Close: ≡ / G", 11, C.Muted, F.Body, { LayoutOrder = 8 })
+	UIUtil.text("Close", dScroll, "Close: ≡ / G", 11, C.Muted, F.Body, { LayoutOrder = 8 })
 	local stabRows: { [string]: { Label: TextLabel, Fill: Frame } } = {}
 	local function stabRow(id: string, order: number)
 		local existing = stabRows[id]
@@ -229,9 +251,13 @@ function HUDController.Start(remotes: Instance)
 		UITheme.setReducedEffects(not UITheme.reducedEffects())
 		renderReduced()
 	end)
+	local placeDetails: () -> () = function() end
 	local function setDetails(open: boolean)
 		detailsOpen = open
 		details.Visible = open
+		if open then
+			placeDetails()
+		end
 		detailsButton.TextColor3 = if open then C.Text else C.Cyan
 		detailsButton.BackgroundColor3 = if open then C.Surface2 else C.Navy
 	end
@@ -283,7 +309,6 @@ function HUDController.Start(remotes: Instance)
 		end
 		layout = UITheme.layout(size)
 		local touch = layout.Mode == "touch"
-		local small = touch or layout.Mode == "compact"
 		local warnWidth = math.min(if touch then 360 else 440, size.X - 140)
 		warn.Size = UDim2.fromOffset(warnWidth, 0)
 		combo.Size = UDim2.fromOffset(warnWidth, 0)
@@ -292,13 +317,7 @@ function HUDController.Start(remotes: Instance)
 		phaseLabel.TextSize = if touch then 11 else 13
 		warnTitle.TextSize = if touch then 13 else 15
 		warnHint.TextSize = if touch then 12 else 13
-		local chipSize = if touch then 40 else 44
-		for _, entry in chips do
-			entry.Frame.Size = UDim2.fromOffset(chipSize, chipSize)
-		end
 		detailsButton.Size = UDim2.fromOffset(if touch then 44 else 40, if touch then 44 else 40)
-		details.Size = UDim2.fromOffset(if small then 270 else 300, 0)
-		details.Position = UDim2.new(1, -10, 0, if touch then 56 else 54)
 		results.Size = UDim2.fromOffset(math.min(560, size.X - 32), 0)
 		results.Position = UDim2.fromScale(0.5, if layout.Portrait then 0.45 else 0.52)
 		-- Portrait fallback: patch chips go below the pill so the top row does not crowd.
@@ -309,6 +328,83 @@ function HUDController.Start(remotes: Instance)
 			topRight.AnchorPoint = Vector2.new(1, 0)
 			topRight.Position = UDim2.new(1, -10, 0, 6)
 		end
+		-- Alerts placement (see the header comment)
+		if touch and not layout.Portrait then
+			local zones = UITheme.nativeTouchZones(size)
+			local w = math.floor(math.min(360, zones.Move.Max.X - 18))
+			warn.Size = UDim2.fromOffset(w, 0)
+			combo.Size = UDim2.fromOffset(w, 0)
+			alerts.Parent = root
+			alerts.AnchorPoint = Vector2.new(0, 0)
+			alerts.Position = UDim2.fromOffset(10, 6)
+			alertsList.HorizontalAlignment = Enum.HorizontalAlignment.Left
+		elseif touch then
+			alerts.Parent = root
+			alerts.AnchorPoint = Vector2.new(0.5, 0)
+			alerts.Position = UDim2.new(0.5, 0, 0, 82 + 44 + 6)
+			alertsList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		else
+			alerts.Parent = top
+			alerts.AnchorPoint = Vector2.new(0, 0)
+			alerts.Position = UDim2.new()
+			alertsList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		end
+	end
+
+	-- Publishes the HUD's top row (on portrait also the alerts under it) for touch panel layout.
+	local function publishTop()
+		if root.AbsoluteSize.X <= 0 then
+			return
+		end
+		local r1 = UITheme.rectOf(top, root)
+		local r2 = UITheme.rectOf(topRight, root)
+		local maxY = math.max(r1.Max.Y, r2.Max.Y)
+		if layout.Mode == "touch" and layout.Portrait and (warn.Visible or combo.Visible or toast.Visible) then
+			maxY = math.max(maxY, UITheme.rectOf(alerts, root).Max.Y)
+		end
+		UITheme.setReserved("hudTop", Rect.new(math.min(r1.Min.X, r2.Min.X), 0, math.max(r1.Max.X, r2.Max.X), maxY))
+	end
+
+	-- Details placement: the largest free rectangle; height capped, the content scrolls.
+	placeDetails = function()
+		local size = root.AbsoluteSize
+		if size.X <= 0 then
+			return
+		end
+		local x1, y1, x2, y2
+		if layout.Mode == "touch" then
+			local zones = UITheme.nativeTouchZones(size)
+			local controls = UITheme.touchControlsRect(size)
+			local hud = UITheme.reserved("hudTop")
+			y1 = (if hud then hud.Max.Y else 54) + 8
+			x1 = zones.Move.Max.X + 8
+			-- Option A: above the touch controls. Option B: left of them, full height.
+			local aW, aH = size.X - 10 - x1, controls.Min.Y - 8 - y1
+			local bW, bH = controls.Min.X - 8 - x1, size.Y - 8 - y1
+			if bW >= 240 and bW * bH >= aW * aH then
+				x2, y2 = controls.Min.X - 8, size.Y - 8
+			else
+				x2, y2 = size.X - 10, controls.Min.Y - 8
+			end
+		else
+			x1, y1, x2, y2 = 10, 54, size.X - 10, size.Y - 12
+		end
+		-- Never under an open Architect tray: below it or left of it, whichever leaves more room.
+		local arch = UITheme.reserved("architect")
+		if arch and arch.Max.X > x1 and arch.Min.X < x2 and arch.Max.Y > y1 and arch.Min.Y < y2 then
+			local below = (x2 - x1) * (y2 - (arch.Max.Y + 8))
+			local left = ((arch.Min.X - 8) - x1) * (y2 - y1)
+			if below >= left then
+				y1 = arch.Max.Y + 8
+			else
+				x2 = arch.Min.X - 8
+			end
+		end
+		local w = math.max(math.min(if layout.Mode == "desktop" then 300 else 270, x2 - x1), 0)
+		local h = math.max(math.min(dList.AbsoluteContentSize.Y + 20, y2 - y1), 0)
+		details.AnchorPoint = Vector2.new(1, 0)
+		details.Position = UDim2.fromOffset(x2, y1)
+		details.Size = UDim2.fromOffset(w, h)
 	end
 	root:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyLayout)
 	applyLayout()
@@ -443,11 +539,6 @@ function HUDController.Start(remotes: Instance)
 				chips[key] = nil
 			end
 		end
-		if touch then
-			for _, entry in chips do
-				entry.Frame.Size = UDim2.fromOffset(40, 40)
-			end
-		end
 
 		if soonest and inMatch then
 			local def = PatchCatalog.Get(soonest.PatchId)
@@ -513,6 +604,9 @@ function HUDController.Start(remotes: Instance)
 			local data = snap.LastResult
 			if typeof(data) == "table" then
 				results.Visible = true
+				if detailsOpen then
+					setDetails(false) -- the results card replaces the Details panel
+				end
 				local team = if typeof(data.Team) == "table" then data.Team else {}
 				local header, color
 				if team.Aborted then
@@ -600,7 +694,7 @@ function HUDController.Start(remotes: Instance)
 		local function zone(name: string, color: Color3): Frame
 			local f = UIUtil.create("Frame", { Name = name, BackgroundColor3 = color, BackgroundTransparency = 0.85, BorderSizePixel = 0, ZIndex = 50 }, overlay)
 			UIUtil.stroke(f, color, 1)
-			UIUtil.text("Label", f, name, 10, color, F.Label, { ZIndex = 51, Position = UDim2.fromOffset(4, 2) })
+			UIUtil.text("Label", f, name, 11, color, F.Label, { ZIndex = 51, Position = UDim2.fromOffset(4, 2) })
 			return f
 		end
 		local jumpZone = zone("native jump", C.Coral)
@@ -624,6 +718,10 @@ function HUDController.Start(remotes: Instance)
 	task.spawn(function()
 		while gui.Parent do
 			refresh()
+			publishTop()
+			if detailsOpen then
+				placeDetails()
+			end
 			task.wait(REFRESH_SECONDS)
 		end
 	end)
