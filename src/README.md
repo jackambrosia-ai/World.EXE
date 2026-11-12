@@ -41,6 +41,7 @@ These files are exact copies of the WORLD_EXE scripts in the Studio place. Paths
 | `ServerScriptService/WORLD_EXE/Patches/SlideField.luau` | `ServerScriptService.WORLD_EXE.Patches.SlideField` | ModuleScript |
 | `ServerScriptService/WORLD_EXE/Patches/TestBehaviors.luau` | `ServerScriptService.WORLD_EXE.Patches.TestBehaviors` | ModuleScript |
 | `StarterPlayer/StarterPlayerScripts/WORLD_EXE/ClientBootstrap.client.luau` | `StarterPlayer.StarterPlayerScripts.WORLD_EXE.ClientBootstrap` | LocalScript |
+| `StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/UITheme.luau` | `StarterPlayer.StarterPlayerScripts.WORLD_EXE.Controllers.UITheme` | ModuleScript |
 | `StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/UIUtil.luau` | `StarterPlayer.StarterPlayerScripts.WORLD_EXE.Controllers.UIUtil` | ModuleScript |
 | `StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/MatchStateClient.luau` | `StarterPlayer.StarterPlayerScripts.WORLD_EXE.Controllers.MatchStateClient` | ModuleScript |
 | `StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/HUDController.luau` | `StarterPlayer.StarterPlayerScripts.WORLD_EXE.Controllers.HUDController` | ModuleScript |
@@ -48,7 +49,9 @@ These files are exact copies of the WORLD_EXE scripts in the Studio place. Paths
 | `StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/AbilityController.luau` | `StarterPlayer.StarterPlayerScripts.WORLD_EXE.Controllers.AbilityController` | ModuleScript |
 | `StarterPlayer/StarterPlayerScripts/WORLD_EXE/Controllers/EnvironmentResponseClient.luau` | `StarterPlayer.StarterPlayerScripts.WORLD_EXE.Controllers.EnvironmentResponseClient` | ModuleScript |
 
-Phase 8A-2c: `EnvironmentResponseClient` (client presentation only) applies static environmental responses to ACTIVE patches and running combinations. It subscribes through `MatchStateClient.OnChanged` (MatchStateClient stays the only reader of the Snapshot attribute) and drives hooks tagged `EnvFX_<EFFECT_ID>` with builder-written `Base_*` baselines (see `tools/studio/phase8a2c/`). 43 scripts in total.
+Phase 8A-2c: `EnvironmentResponseClient` (client presentation only) applies static environmental responses to ACTIVE patches and running combinations. It subscribes through `MatchStateClient.OnChanged` (MatchStateClient stays the only reader of the Snapshot attribute) and drives hooks tagged `EnvFX_<EFFECT_ID>` with builder-written `Base_*` baselines (see `tools/studio/phase8a2c/`).
+
+Phase 8B-1B: `UITheme` (new) holds the UI design tokens, layout modes (desktop / compact / touch) and the session-only Reduced Effects switch; `HUDController`, `ArchitectController`, `AbilityController` and `UIUtil` were rewritten for the professional HUD. Presentation only: no new remotes and no server changes. 44 scripts in total.
 
 Created at runtime by the server (not saved in the place, not in `src/`): `ReplicatedStorage.WORLD_EXE.Remotes` (RemoteEvents), `ReplicatedStorage.WORLD_EXE.MatchState` (one `Snapshot` attribute: versioned JSON of the whole match state), and the runtime folders under `Workspace.WORLD_EXE`. Client UI is built in code by the controllers (no StarterGui instances).
 
@@ -62,6 +65,8 @@ Attributes on `ServerScriptService.WORLD_EXE`, honoured only when `RunService:Is
 - `StudioTimeScale` (number > 0): multiplies match-phase durations and Architect turn intervals (the 12 s submission window is never scaled).
 - `StudioMinPlayers` (number ≥ 1): overrides the minimum player count. Without it, Studio uses `Config.Match.StudioMinPlayers` (1) so a solo playtest runs the loop; live servers always use `Config.Match.MinPlayers` (2).
 - `StudioFailOnEnter` (state name, e.g. `"INITIALIZING"`): makes that state's entry fail after its hook runs, to test transition-failure recovery.
+
+Client layout preview (Phase 8B-1B): the attribute `WORLD_EXE_UITest = "WxH:touch"` (or `:desktop`) on the **LocalPlayer**, honoured only in Studio, lays the client UI out inside a frame of that size and outlines the native thumbstick and jump zones. Set it only during Play; it is never saved.
 
 Studio-only test patches: `Patches/TestBehaviors` (`TEST_*` IDs) are registered by PatchService only when `RunService:IsStudio()`, are requested only with `{ Test = true }` from server-side test code, and are not in `PatchCatalog`, so players can never request them.
 
