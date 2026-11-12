@@ -3,7 +3,7 @@
 This file is maintained by Claude after each phase. ChatGPT uses it to understand the current implementation state.
 
 ## Current state
-- Overall status: PHASE 8B-1B (Professional UI implementation) IN REVIEW — review round 1 corrections pushed (`ee17515` + status record) on `phase-08b1b-ui`, draft PR #17, awaiting ChatGPT final review. Phase 8A-2c merged (`2641053`). Phase 8A-2d (optional) and other Phase 8B stages not started. Multiplayer validation deferred to the pre-release integration milestone.
+- Overall status: PHASE 8B-1B (Professional UI implementation) PASSED REVIEW (ChatGPT closeout 2026-11-12, code `ee17515`, PR head `53f2647`) — draft PR #17 kept draft and unmerged; awaiting explicit owner authorization for the next action. Phase 8B-2 not started. Phase 8A-2c merged (`2641053`). Phase 8A-2d (optional) and other Phase 8B stages not started. Multiplayer validation deferred to the pre-release integration milestone.
 - Current phase: 8B-1B — Professional UI implementation (owner authorized 2026-11-11). Written UI spec from 8B-1A implemented natively in Luau; presentation only (no server, catalog, map or remote changes).
 - Current branch: `phase-08b1b-ui` (from `main` `a3a7ba4`)
 - Current PR: Phase 8B-1B draft PR on `phase-08b1b-ui` (see the 8B-1B report). Phase 8A-2c merged via [jackambrosia-ai/World.EXE#16](https://github.com/jackambrosia-ai/World.EXE/pull/16). Phase 8A-2b merged via [jackambrosia-ai/World.EXE#15](https://github.com/jackambrosia-ai/World.EXE/pull/15); Phase 8A-2 design [jackambrosia-ai/World.EXE#13](https://github.com/jackambrosia-ai/World.EXE/pull/13) (draft). Phase 8A-2a merged via [jackambrosia-ai/World.EXE#14](https://github.com/jackambrosia-ai/World.EXE/pull/14). Phase 8A-1 merged via [jackambrosia-ai/World.EXE#12](https://github.com/jackambrosia-ai/World.EXE/pull/12); Phase 8A design PR #11 (draft, separate). Phase 7B merged via [jackambrosia-ai/World.EXE#10](https://github.com/jackambrosia-ai/World.EXE/pull/10). Phase 7A merged via [jackambrosia-ai/World.EXE#9](https://github.com/jackambrosia-ai/World.EXE/pull/9). Phase 6 merged via [jackambrosia-ai/World.EXE#8](https://github.com/jackambrosia-ai/World.EXE/pull/8). Phase 5 merged via [jackambrosia-ai/World.EXE#6](https://github.com/jackambrosia-ai/World.EXE/pull/6). Phase 4 merged via [jackambrosia-ai/World.EXE#5](https://github.com/jackambrosia-ai/World.EXE/pull/5). Phase 3 merged via [jackambrosia-ai/World.EXE#3](https://github.com/jackambrosia-ai/World.EXE/pull/3). The separate, unmerged AI-automation PR #4 is not part of the phase work and must not be merged or activated as part of Phase 4
@@ -79,8 +79,9 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 - Known Phase 7B gaps (not counted as passed): recovery, shutdown or departure while a 7B patch runs (code paths only); all multiplayer behaviour (crate replication, several players pausing crates, flood slow and corruption damage on several players) — deferred to the multiplayer integration milestone.
 - Known Phase 8A-1 gaps (not counted as passed): multiplayer behaviour on the larger map; device performance (mobile FPS/memory); a meaningful foreground desktop client FPS measurement (requested before Phase 8A-2 approval). The `MatchStateChanged` warning was fixed in review round 1.
 - Carry-forward polish (nonblocking, recorded at 8A-2b approval; not to be implemented until planned in a later phase): Archive BLACKOUT atrium floor and north-foreground readability; modest visual improvements to the dominant Skybridge pylons and other district silhouettes; mobile accessibility and performance testing.
+- **Mandatory pre-release validation (recorded at 8B-1B closeout, 2026-11-12; NOT passed, NOT claimed):** (1) physical mobile touch input and safe areas; (2) expanded Roblox chat versus critical alerts and Architect chips; (3) gamepad hardware and navigation; (4) multiplayer and non-Architect visibility; (5) device performance and full-resolution desktop checks (1920×1080 / 1366×768). Required before public release.
 - Carry-forward polish (nonblocking, recorded at 8A-2c approval; not to be implemented until a future authorized phase): SUPER_BOUNCE coil highlights read nearly white under bloom; bounce-pad perimeter indicators could be more distinct; the Data Archive open floor stays underlit during BLACKOUT; full multiplayer, mobile, gamepad and device-performance testing remains deferred.
-- Last updated: 2026-11-11
+- Last updated: 2026-11-12
 
 ## Phase tracker
 | Phase | Scope | Status | PR/Commit | Studio test evidence |
@@ -96,9 +97,22 @@ This file is maintained by Claude after each phase. ChatGPT uses it to understan
 | 7B | MAGNETIC/CORRUPTION/FLOOD + 3 combinations | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #10](https://github.com/jackambrosia-ai/World.EXE/pull/10) → `f9e4707` | Targeted solo: 30 PASS, 0 FAIL; round 1: 7 PASS (safe crate restore) |
 | 8A-1 | Arena greybox and gameplay migration | **Complete — merged** (solo Studio tests; multiplayer deferred) | [PR #12](https://github.com/jackambrosia-ai/World.EXE/pull/12) → `44e8f1d` | Targeted solo: 40 PASS, 0 FAIL; finding fixed in round 1 (4 PASS) |
 | 8A-2 | Architectural identity | 8A-2a merged (`1773f13`); 8A-2b **merged** (`9a6cec4`); 8A-2c **merged** (`2641053`) | [PR #14](https://github.com/jackambrosia-ai/World.EXE/pull/14) (8A-2a); [PR #15](https://github.com/jackambrosia-ai/World.EXE/pull/15) (8A-2b, draft) | 8A-2c: AC9 all 10 patches + 5 combinations, streaming, reset and consecutive matches PASS (0 mismatches); AC10 screenshots; AC2 unchanged; FPS valid (unchanged) |
-| 8B | Visual polish | 8B-1A UI spec written; **8B-1B UI implementation in review** (draft PR #17, round 1 corrections) | `phase-08b1b-ui` | 8B-1B: 25 PASS, 1 LIMITED; round 1: 14 PASS incl. emulated touch submission in one genuine turn (previous LIMITED now PASS); see `docs/phase8b1b/review_r1.md` |
+| 8B | Visual polish | 8B-1A UI spec written; **8B-1B UI implementation passed review** (draft PR #17, unmerged; 8B-2 not started) | `phase-08b1b-ui` | 8B-1B: 25 PASS, 1 LIMITED; round 1: 14 PASS incl. emulated touch submission in one genuine turn (previous LIMITED now PASS); see `docs/phase8b1b/review_r1.md` |
 | 9 | Progression and persistence | Not started | — | — |
 | 10 | Hardening and release candidate | Not started | — | — |
+
+## Phase 8B-1B review closeout (2026-11-12)
+
+ChatGPT independently reviewed code commit `ee17515` and PR head `53f2647`: **Phase 8B-1B passes technical and visual review.** All four round-1 correction requirements (P1–P4) are accepted; no further construction or regression testing requested. Preserved as-is: `src/` at `ee17515`, the saved `Place1.rbxl` (`0CEB5484…8DD03FC6`), backup `WorldEXE_post-phase8b1b-r1_2026-11-11.rbxl`, and draft PR #17 (unmerged).
+
+Mandatory pre-release validation items (not tested, not claimed as passed):
+- Physical mobile touch input and safe areas
+- Expanded Roblox chat versus critical alerts and Architect chips
+- Gamepad hardware and navigation
+- Multiplayer and non-Architect visibility
+- Device performance and full-resolution desktop checks
+
+Next action: awaiting explicit owner authorization. No merge, Phase 8B-2, publishing, asset generation, credit spend or gameplay change.
 
 ## Phase 8B-1B review round 1 corrections (2026-11-11)
 
