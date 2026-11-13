@@ -1,31 +1,49 @@
 -- WORLD.EXE Phase 8A-2b step 6: READ-ONLY final-state audit (never mutates, never restores).
 -- Run in Studio EDIT mode. Long-running: wrap in task.spawn and poll _G.AUDIT8A2B (see README).
--- Covers every 8A-2a (Arch8A2A) and 8A-2b (Arch8A2B) part. All checks are analytic (part geometry,
--- never physics queries: decorative parts have CanQuery off).
+-- Covers every 8A-2a (Arch8A2A), 8A-2b (Arch8A2B) and ENV_SLICE1 (EnvSlice1) part. All checks are
+-- analytic (part geometry, never physics queries: decorative parts have CanQuery off).
+-- ENV_SLICE1 (tools/studio/envslice1, 2026-11-13) parts carry EnvSlice1 = "TraversalLinks" or
+-- "ExteriorScenery" and are subject to every check below (C1-C5, C7, C8, C11, C12 apply through the
+-- shared new-part lists). Slice-specific handling: C5h, C6s, C6b, C9, C10 and C13 as described.
 --   C1 flood volumes          no new collidable in any FloodZone footprint, base-1 .. base+7.
 --   C2 bounce apex            no new part of any kind above a bounce pad (footprint +2) below Y 40.
 --   C3 supply columns         no new part of any kind in a landing column (footprint +1) to Y 160.
 --   C4 spawns                 no new part of any kind in a spawn box (footprint +1, 8 high).
 --   C5 stabilizers            no new collidable within the interaction radius (Y -1..+8).
+--   C5h hazards (slice)       no ENV_SLICE1 collidable within 8 studs above any slip, decay, corruption,
+--                             fragment or magnetic marker (footprint +1).
 --   C6 walkable headroom      new collidables may not enter the 6-stud envelope above an existing
 --                             walkable floor, except EdgeRails (on top, within 1.5 of an edge) and
 --                             approved structures (8A-2a Column_/ButtressPlinth_; 8A-2b FloorStructure).
 --                             Structures: outside the spoke corridors, >= 2 studs from every marker;
 --                             8A-2b FloorStructures also within 4 studs of the edge of every floor they
 --                             stand in, or within 1.5 studs of an existing collidable wall/rack.
---   C6b                       no new collidable intersects an existing collidable (0.3 tolerance).
+--   C6s (slice)               nothing collidable (existing or new) may enter the 6-stud envelope above an
+--                             ENV_SLICE1 WalkSurface, except an EdgeRail on its top within 1.5 of an edge.
+--   C6b                       no 8A-2b or ENV_SLICE1 collidable intersects an existing collidable, and no
+--                             two ENV_SLICE1 collidables intersect each other (0.3 tolerance).
 --   C7 MAGNETIC lanes         no new collidable in any prop -> magnet lane (4 wide).
 --   C8 drone LOS              no new collidable on any waypoint link (every waypoint instance).
 --   C9 collidable roles       every 8A-2b collidable carries FloorStructure, EdgeRail or BoundaryWall;
---                             8A-2a collidables stay inside the core region.
+--                             8A-2a collidables stay inside the core region. Every ENV_SLICE1 collidable
+--                             is in TraversalLinks and carries exactly one of WalkSurface or EdgeRail.
+--                             A WalkSurface is a level, unrotated slab (>= 4 x 4) inside Config.ArenaBounds
+--                             that joins another walkable floor flush (top within 0.1, gap <= 0.3, shared
+--                             edge >= 4); each traversal model must join at least two existing floors.
+--                             An ENV_SLICE1 EdgeRail stands on a WalkSurface.
 --   C10 budgets               per-area caps (design section 9.1), design total 2,252, ceilings
---                             4,000 parts / 900 collidable / 80 lights / 12 shadow lights.
+--                             4,000 parts / 900 collidable / 80 lights / 12 shadow lights. ENV_SLICE1 has
+--                             its own categories (owner-approved 2026-11-13): TraversalLinks 24 parts /
+--                             12 collidable / 0 lights, ExteriorScenery 40 / 0 / 0. They do not draw on
+--                             the district caps. An unknown or doubly-attributed slice part is an error.
 --   C11 neon                  no new Neon part with two dimensions > 4 (landmark emitters exempt).
 --   C12 zero-G gaps           no new part in the Reservoir bridge gap or the Archive rack-top gaps.
---   C13 drop-downs            every 8A-2b EdgeRail faces the void along its whole length (an
---                             existing floor within 40 studs below, or a floor at that level, fails).
+--   C13 drop-downs            every 8A-2b and ENV_SLICE1 EdgeRail faces the void along its whole length
+--                             (a floor within 40 studs below, or a floor at that level, fails). ENV_SLICE1
+--                             WalkSurfaces count as floors here, for old and new rails alike.
 -- Visual acceptance (reported, never a rollback trigger): AC2 strict benchmark (unchanged) with SELF
--- self-occlusion, lobby views, AC1 split, AC3 heights, AC6 reserved hues and slab span support.
+-- self-occlusion, lobby views, AC1 split, AC3 heights, AC6 reserved hues and slab span support
+-- (ENV_SLICE1 WalkSurfaces are included in the span-support check).
 -- report.ACCEPTANCE combines C1-C13, AC6 and strict AC2 for every non-waived viewpoint into one
 -- overall PASS/FAIL; the five owner-approved AC2 exceptions are listed separately.
 local CS = game:GetService("CollectionService")
@@ -40,7 +58,7 @@ local V = Vector3.new
 
 local newParts, newSolid, newSet = {}, {}, {}
 for _, d in map:GetDescendants() do
-	if d:IsA("BasePart") and (d:GetAttribute("Arch8A2A") or d:GetAttribute("Arch8A2B")) then
+	if d:IsA("BasePart") and (d:GetAttribute("Arch8A2A") or d:GetAttribute("Arch8A2B") or d:GetAttribute("EnvSlice1") ~= nil) then
 		table.insert(newParts, d)
 		newSet[d] = true
 		if d.CanCollide then
@@ -48,13 +66,29 @@ for _, d in map:GetDescendants() do
 		end
 	end
 end
-local nB = 0
+local nB, nS = 0, 0
+local sliceSolid, sliceFloors = {}, {}
 for _, p in newParts do
 	if p:GetAttribute("Arch8A2B") then
 		nB += 1
 	end
+	if p:GetAttribute("EnvSlice1") ~= nil then
+		nS += 1
+		if p.CanCollide then
+			table.insert(sliceSolid, p)
+			if p:GetAttribute("WalkSurface") == true then
+				table.insert(sliceFloors, p)
+			end
+		end
+	end
 end
-report.state = { ArenaVersion = root:GetAttribute("ArenaVersion"), Correction8A2A_R2 = map:GetAttribute("Correction8A2A_R2"), Phase8A2B = map:GetAttribute("Phase8A2B"), parts8A2A = #newParts - nB, parts8A2B = nB, auditedAt = os.date("!%Y-%m-%dT%H:%M:%SZ") }
+-- Slice-marked instances the lists above cannot see (outside Map, or not parts) are errors.
+for _, d in workspace:GetDescendants() do
+	if d:GetAttribute("EnvSlice1") ~= nil and d ~= map and not (d:IsA("BasePart") and d:IsDescendantOf(map)) then
+		err("EnvSlice1 attribute on an instance the audit cannot check: " .. d:GetFullName())
+	end
+end
+report.state = { ArenaVersion = root:GetAttribute("ArenaVersion"), Correction8A2A_R2 = map:GetAttribute("Correction8A2A_R2"), Phase8A2B = map:GetAttribute("Phase8A2B"), EnvSlice1 = map:GetAttribute("EnvSlice1"), parts8A2A = #newParts - nB - nS, parts8A2B = nB, partsEnvSlice1 = nS, auditedAt = os.date("!%Y-%m-%dT%H:%M:%SZ") }
 
 local function aabb(p: BasePart): (Vector3, Vector3)
 	local cf, s = p.CFrame, p.Size / 2
@@ -151,6 +185,23 @@ for _, st in tagged("Stabilizer") do
 	end
 end
 
+-- C5h hazards (ENV_SLICE1): nothing collidable from the slice directly above a hazard or pickup marker.
+local hazardMarkers = 0
+for _, tag in { "SlipSurface", "DecayTile", "CorruptionNode", "FragmentSpawn", "MagneticPoint", "MagneticProp" } do
+	for _, m in tagged(tag) do
+		if m:IsA("BasePart") then
+			hazardMarkers += 1
+			local a, b = aabb(m)
+			for _, p in sliceSolid do
+				if boxHit(p, V(a.X - 1, b.Y, a.Z - 1), V(b.X + 1, b.Y + 8, b.Z + 1)) then
+					err("C5h hazard clearance: " .. p:GetFullName() .. " over " .. m.Name)
+				end
+			end
+		end
+	end
+end
+report.C5h_markersChecked = hazardMarkers
+
 -- C6 / C6b.
 local existingSolid, floors, walls = {}, {}, {}
 for _, p in map:GetDescendants() do
@@ -189,6 +240,7 @@ end
 local c6 = { rails = 0, structures = 0, boundaryWalls = 0, other = 0 }
 for _, p in newSolid do
 	local isB = p:GetAttribute("Arch8A2B") ~= nil
+	local isS = p:GetAttribute("EnvSlice1") ~= nil
 	local isRail = p:GetAttribute("EdgeRail") == true
 	local isStructure = string.find(p.Name, "^Column_") ~= nil or string.find(p.Name, "^ButtressPlinth_") ~= nil or p:GetAttribute("FloorStructure") == true
 	if isRail then
@@ -252,7 +304,7 @@ for _, p in newSolid do
 			end
 		end
 	end
-	if isB then
+	if isB or isS then
 		for _, e in existingSolid do
 			local ea, eb = aabb(e)
 			if pa.X < eb.X - 0.3 and pb.X > ea.X + 0.3 and pa.Y < eb.Y - 0.3 and pb.Y > ea.Y + 0.3 and pa.Z < eb.Z - 0.3 and pb.Z > ea.Z + 0.3 then
@@ -261,7 +313,39 @@ for _, p in newSolid do
 		end
 	end
 end
+-- C6b (ENV_SLICE1): slice collidables may touch (rails stand on floors) but not intersect each other.
+for i, p in sliceSolid do
+	local pa, pb = aabb(p)
+	for j = i + 1, #sliceSolid do
+		local ea, eb = aabb(sliceSolid[j])
+		if pa.X < eb.X - 0.3 and pb.X > ea.X + 0.3 and pa.Y < eb.Y - 0.3 and pb.Y > ea.Y + 0.3 and pa.Z < eb.Z - 0.3 and pb.Z > ea.Z + 0.3 then
+			err("C6b slice parts intersect: " .. p:GetFullName() .. " x " .. sliceSolid[j]:GetFullName())
+		end
+	end
+end
+-- C6s (ENV_SLICE1): headroom above the new walk surfaces, against every collidable in the map.
+local allSolid = table.clone(existingSolid)
+for _, p in newSolid do
+	table.insert(allSolid, p)
+end
+local c6sRails = 0
+for _, f in sliceFloors do
+	local fa, fb = aabb(f)
+	local lo, hi = V(fa.X + 1, fb.Y + 0.2, fa.Z + 1), V(fb.X - 1, fb.Y + 6, fb.Z - 1)
+	for _, p in allSolid do
+		if p ~= f and boxHit(p, lo, hi) then
+			local pa, pb = aabb(p)
+			local nearEdge = math.min(math.abs(pa.X - fa.X), math.abs(pb.X - fb.X), math.abs(pa.Z - fa.Z), math.abs(pb.Z - fb.Z))
+			if p:GetAttribute("EdgeRail") == true and math.abs(pa.Y - fb.Y) < 0.6 and nearEdge <= 1.5 then
+				c6sRails += 1
+			else
+				err("C6s headroom over slice walk surface " .. f.Name .. ": " .. p:GetFullName())
+			end
+		end
+	end
+end
 report.C6_checked = c6
+report.C6s_checked = { walkSurfaces = #sliceFloors, edgeRailsAccepted = c6sRails }
 
 -- C7, C8.
 local lanes, links = 0, 0
@@ -309,6 +393,17 @@ for _, p in newSolid do
 		if not (p:GetAttribute("FloorStructure") or p:GetAttribute("EdgeRail") or p:GetAttribute("BoundaryWall")) then
 			err("C9 8A-2b collidable without an approved role: " .. p:GetFullName())
 		end
+	elseif p:GetAttribute("EnvSlice1") ~= nil then
+		local walk, rail = p:GetAttribute("WalkSurface") == true, p:GetAttribute("EdgeRail") == true
+		if walk == rail then
+			err("C9 ENV_SLICE1 collidable needs exactly one of WalkSurface / EdgeRail: " .. p:GetFullName())
+		end
+		if p:GetAttribute("EnvSlice1") ~= "TraversalLinks" then
+			err("C9 ENV_SLICE1 collidable outside TraversalLinks: " .. p:GetFullName())
+		end
+		if p:GetAttribute("FloorStructure") or p:GetAttribute("BoundaryWall") then
+			err("C9 ENV_SLICE1 collidable carries an 8A-2b role: " .. p:GetFullName())
+		end
 	else
 		local a, b = aabb(p)
 		if b.X > 160.5 or a.X < -101 or a.Z < -147 or b.Z > 101 then
@@ -316,6 +411,61 @@ for _, p in newSolid do
 		end
 	end
 end
+
+-- C9 (ENV_SLICE1) walk surfaces: level slabs inside the arena bounds, joined flush to other floors.
+local BOUNDS_MIN, BOUNDS_MAX = V(-275, -40, -275), V(275, 160, 275) -- Config.ArenaBoundsMin / Max
+local function flushJoin(f: BasePart, g: BasePart): boolean
+	local fa, fb = aabb(f)
+	local ga, gb = aabb(g)
+	if math.abs(fb.Y - gb.Y) > 0.1 then
+		return false
+	end
+	local gapX = math.max(ga.X - fb.X, fa.X - gb.X)
+	local gapZ = math.max(ga.Z - fb.Z, fa.Z - gb.Z)
+	local overlapX = math.min(fb.X, gb.X) - math.max(fa.X, ga.X)
+	local overlapZ = math.min(fb.Z, gb.Z) - math.max(fa.Z, ga.Z)
+	return (math.abs(gapX) <= 0.3 and overlapZ >= 4) or (math.abs(gapZ) <= 0.3 and overlapX >= 4)
+end
+local sliceJoins = {}
+for _, f in sliceFloors do
+	local fa, fb = aabb(f)
+	if f.CFrame.UpVector.Y < 0.9999 or math.abs(f.CFrame.LookVector.X * f.CFrame.LookVector.Z) > 1e-4 or f.Size.X < 4 or f.Size.Z < 4 then
+		err("C9 walk surface must be a level, unrotated slab of at least 4 x 4: " .. f:GetFullName())
+	end
+	if fa.X < BOUNDS_MIN.X or fa.Y < BOUNDS_MIN.Y or fa.Z < BOUNDS_MIN.Z or fb.X > BOUNDS_MAX.X or fb.Y + 6 > BOUNDS_MAX.Y or fb.Z > BOUNDS_MAX.Z then
+		err("C9 walk surface outside the arena bounds: " .. f:GetFullName())
+	end
+	local joined = false
+	local key = f.Parent:GetFullName()
+	sliceJoins[key] = sliceJoins[key] or {}
+	for _, g in sliceFloors do
+		if g ~= f and flushJoin(f, g) then
+			joined = true
+		end
+	end
+	for _, g in floors do
+		if flushJoin(f, g) then
+			joined = true
+			sliceJoins[key][g.Name] = true
+		end
+	end
+	if not joined then
+		err("C9 walk surface not joined flush to another floor: " .. f:GetFullName())
+	end
+end
+local joinReport = {}
+for key, set in sliceJoins do
+	local names = {}
+	for n in set do
+		table.insert(names, n)
+	end
+	table.sort(names)
+	joinReport[key] = names
+	if #names < 2 then
+		err(string.format("C9 traversal model joins %d existing floor(s), needs 2: %s", #names, key))
+	end
+end
+report.C9_sliceJoins = joinReport
 
 -- C10 budgets.
 local totals = { parts = 0, collide = 0, lights = 0, shadows = 0 }
@@ -335,6 +485,16 @@ end
 local areas = {}
 for _, p in newParts do
 	local a = p:GetAttribute("Arch8A2B") or p:GetAttribute("Arch8A2A")
+	local sliceArea = p:GetAttribute("EnvSlice1")
+	if sliceArea ~= nil then
+		if a ~= nil then
+			err("C10 part attributed to both a district and ENV_SLICE1: " .. p:GetFullName())
+		end
+		if sliceArea ~= "TraversalLinks" and sliceArea ~= "ExteriorScenery" then
+			err("C10 unknown ENV_SLICE1 category '" .. tostring(sliceArea) .. "': " .. p:GetFullName())
+		end
+		a = tostring(sliceArea)
+	end
 	if a == "Reactor" or a == "CentralCore" then
 		a = "CoreTotal"
 	end
@@ -363,6 +523,9 @@ local CAPS = {
 	CoolantReservoir = { 140, 18, 6 },
 	OuterRing = { 120, 42, 5 },
 	SharedSupports = { 250, 0, 0 },
+	-- ENV_SLICE1 slice-level allocations (owner-approved 2026-11-13). Not a licence to build up to them.
+	TraversalLinks = { 24, 12, 0 },
+	ExteriorScenery = { 40, 0, 0 },
 }
 for k, cap in CAPS do
 	local a = areas[k] or { parts = 0, collide = 0, lights = 0 }
@@ -431,8 +594,14 @@ end
 report.C12_gapsChecked = #gaps
 
 -- C13 drop-downs: every 8A-2b EdgeRail must face the void.
+local coverSolids = table.clone(existingSolid)
+local railFloors = table.clone(floors)
+for _, f in sliceFloors do
+	table.insert(coverSolids, f)
+	table.insert(railFloors, f)
+end
 local function coveredOut(pt: Vector3, top: number, floor: BasePart?): boolean
-	for _, e in existingSolid do
+	for _, e in coverSolids do
 		if e ~= floor then
 			local a, b = aabb(e)
 			if pt.X >= a.X and pt.X <= b.X and pt.Z >= a.Z and pt.Z <= b.Z and b.Y >= top - 40 and a.Y <= top + 6 then
@@ -442,13 +611,16 @@ local function coveredOut(pt: Vector3, top: number, floor: BasePart?): boolean
 	end
 	return false
 end
-local railsChecked = 0
+local railsChecked, sliceRails = 0, 0
 for _, p in newSolid do
-	if p:GetAttribute("Arch8A2B") and p:GetAttribute("EdgeRail") then
+	if (p:GetAttribute("Arch8A2B") or p:GetAttribute("EnvSlice1") ~= nil) and p:GetAttribute("EdgeRail") then
 		railsChecked += 1
+		if p:GetAttribute("EnvSlice1") ~= nil then
+			sliceRails += 1
+		end
 		local a, b = aabb(p)
 		local floor
-		for _, f in floors do
+		for _, f in railFloors do
 			local fa, fb = aabb(f)
 			local c = (a + b) / 2
 			if c.X >= fa.X and c.X <= fb.X and c.Z >= fa.Z and c.Z <= fb.Z and math.abs(fb.Y - a.Y) < 0.6 then
@@ -458,6 +630,8 @@ for _, p in newSolid do
 		end
 		if not floor then
 			err("C13 rail without a floor: " .. p:GetFullName())
+		elseif p:GetAttribute("EnvSlice1") ~= nil and not floor:GetAttribute("WalkSurface") then
+			err("C9 ENV_SLICE1 rail not on a slice walk surface: " .. p:GetFullName())
 		else
 			local fa, fb = aabb(floor)
 			local alongX = (b.X - a.X) > (b.Z - a.Z)
@@ -483,6 +657,7 @@ for _, p in newSolid do
 	end
 end
 report.C13_railsChecked = railsChecked
+report.C13_sliceRailsChecked = sliceRails
 
 -- Streaming modes of the new assemblies.
 local streaming = {}
@@ -746,6 +921,9 @@ for _, d in map:GetDescendants() do
 	if d:IsA("BasePart") and (table.find(SLABS, d.Name) or string.match(d.Name, "^Step_%d$")) then
 		table.insert(slabParts, d)
 	end
+end
+for _, f in sliceFloors do
+	table.insert(slabParts, f)
 end
 local CORE_SLABS = { CorePlaza = true, Mezz_N = true, Mezz_S = true, Mezz_E = true, Mezz_W = true, Gantry_N_Bridge = true, Gantry_E_Bridge = true }
 local coreSupports = {}
