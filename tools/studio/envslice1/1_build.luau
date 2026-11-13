@@ -1,22 +1,29 @@
 -- WORLD.EXE ENV_SLICE1 step 1: idempotent construction (Studio EDIT mode, via Studio MCP execute_luau).
 -- Builds exactly the owner-approved first production map slice (approval 2026-11-13, evidence
--- WORLD-EXE-Dev-HQ PR #11):
+-- WORLD-EXE-Dev-HQ PR #11 and PR #12):
 --   Map.EnvSlice1.TraversalLink_SkyLandingS_BridgeE   17 parts, 9 collidable  (EnvSlice1 = "TraversalLinks")
 --   Map.EnvSlice1.ExteriorScenery_E10Spire            24 parts, 0 collidable  (EnvSlice1 = "ExteriorScenery")
--- Two audit-driven corrections to the reviewed prototype, approved by the owner on 2026-11-13 before
--- construction: EdgeRail_North is 18 studs (X 122..140) instead of 28, because east of X 140 it blocked
--- the drop-down onto SkyBase (C13); SupportPylon_A / _B (non-collidable, like the existing
--- SharedSupports pylons) carry the three slabs that had no support within 30 studs (AC6).
+-- Changes against the reviewed prototype (PR #11):
+--   v1 (owner-approved before construction): EdgeRail_North is 18 studs (X 122..140) instead of 28,
+--      because east of X 140 it blocked the drop-down onto SkyBase (C13); SupportPylon_A / _B
+--      (non-collidable, like the existing SharedSupports pylons) carry three slabs that had no support
+--      within 30 studs (AC6).
+--   v2 (review correction, 2026-11-13): Spawn_RES_2 sightline. Walk_4's west edge moves from X 82 to
+--      82.5 (Walk_3 trimmed to match) and ReservoirLanding is trimmed to X 75..90.5, Z 188..202 (was
+--      75..93, 188..206), with its edge trim and beacon moved with it. This clears two of the four
+--      reactor-benchmark sight lines the slice blocked from Spawn_RES_2 (13% -> 18%; pre-slice 23%).
+--      The other two cross the only possible join between Walk_4 and Bridge_E (see README).
 -- Rules:
 --   * Creates only Map.EnvSlice1 and the Map attribute "EnvSlice1". No existing instance is moved,
 --     resized, re-tagged, re-attributed or deleted. No scripts, tags or lights are created.
 --   * Every new part carries EnvSlice1 = <category>. Collidable parts carry exactly one role:
 --     WalkSurface (walkable floor slab) or EdgeRail (4-stud safety rail on a void-facing edge).
 --     Decorative parts have CanCollide, CanQuery, CanTouch and CastShadow off.
---   * Idempotent: if Map.EnvSlice1 already matches this specification nothing is changed. If slice
---     content exists in any other form the script stops with an error (run 9_rollback.luau first).
---   * Geometry is absolute and matches the reviewed prototype; the anchors it joins or must clear
---     are asserted first.
+--   * Idempotent: if Map.EnvSlice1 already matches this specification exactly (geometry, appearance,
+--     physics and query flags, attributes, no extra instances) nothing is changed. If slice content
+--     exists in any other form, including an older version, the script stops with an error and
+--     changes nothing (run 9_rollback.luau first).
+--   * Geometry is absolute; the anchors it joins or must clear are asserted first.
 -- Order: 1_build -> phase8a2b/6_audit (read-only, EnvSlice1-aware) -> focused Play tests (README).
 -- Recovery: 9_rollback.luau.
 local root = workspace:WaitForChild("WORLD_EXE")
@@ -24,7 +31,7 @@ local map = root:WaitForChild("Map")
 local V = Vector3.new
 local RGB = Color3.fromRGB
 local M = Enum.Material
-local VERSION = "v1 2026-11-13"
+local VERSION = "v2 2026-11-13"
 
 assert(root:GetAttribute("ArenaVersion") == 3, "expected ArenaVersion 3")
 assert(map:GetAttribute("Phase8A2B") ~= nil, "expected the finalized Phase 8A-2b arena")
@@ -67,19 +74,19 @@ local SPEC = {
 		parts = {
 			{ "CutThrough_Walk_1", V(20, 2, 8), V(140, 23, 135), FLOOR, "WalkSurface" },
 			{ "CutThrough_Walk_2", V(8, 2, 30), V(126, 23, 146), FLOOR, "WalkSurface" },
-			{ "CutThrough_Walk_3", V(40, 2, 8), V(102, 23, 157), FLOOR, "WalkSurface" },
-			{ "CutThrough_Walk_4", V(8, 2, 27), V(86, 23, 174.5), FLOOR, "WalkSurface" },
-			{ "ReservoirLanding", V(18, 2, 18), V(84, 23, 197), FLOOR, "WalkSurface" },
+			{ "CutThrough_Walk_3", V(39.5, 2, 8), V(102.25, 23, 157), FLOOR, "WalkSurface" },
+			{ "CutThrough_Walk_4", V(8, 2, 27), V(86.5, 23, 174.5), FLOOR, "WalkSurface" },
+			{ "ReservoirLanding", V(15.5, 2, 14), V(82.75, 23, 195), FLOOR, "WalkSurface" },
 			{ "EdgeRail_North", V(18, 4, 0.4), V(131, 26, 131.2), RAIL, "EdgeRail" },
 			{ "EdgeRail_South", V(20, 4, 0.4), V(140, 26, 138.8), RAIL, "EdgeRail" },
 			{ "EdgeRail_West", V(0.4, 4, 8.6), V(122.2, 26, 135.7), RAIL, "EdgeRail" },
 			{ "EdgeRail_East", V(0.4, 4, 22), V(129.8, 26, 150), RAIL, "EdgeRail" },
 			{ "GuideTrim_Walk_1", V(24, 0.2, 0.3), V(138, 24.05, 135), CYAN },
 			{ "GuideTrim_Walk_2", V(0.3, 0.2, 21.85), V(126, 24.05, 146.075), CYAN },
-			{ "GuideTrim_Walk_3", V(39.85, 0.2, 0.3), V(105.925, 24.05, 157), CYAN },
-			{ "GuideTrim_Walk_4", V(0.3, 0.2, 30.85), V(86, 24.05, 172.575), CYAN },
-			{ "EdgeTrim_Landing_N", V(18, 0.2, 0.3), V(84, 24.05, 205.8), CYAN },
-			{ "LandingBeacon", V(1, 10, 1), V(92.3, 29, 205.3), CYAN },
+			{ "GuideTrim_Walk_3", V(39.35, 0.2, 0.3), V(106.175, 24.05, 157), CYAN },
+			{ "GuideTrim_Walk_4", V(0.3, 0.2, 30.85), V(86.5, 24.05, 172.575), CYAN },
+			{ "EdgeTrim_Landing_N", V(15.5, 0.2, 0.3), V(82.75, 24.05, 201.85), CYAN },
+			{ "LandingBeacon", V(1, 10, 1), V(90, 29, 201), CYAN },
 			{ "SupportPylon_A", V(3, 22, 3), V(126, 11, 157), PYLON },
 			{ "SupportPylon_B", V(3, 22, 3), V(86, 11, 159), PYLON },
 		},
@@ -124,28 +131,93 @@ local function cframeOf(row): CFrame
 	return CFrame.new(row[3])
 end
 
+-- The single source of every non-geometric property. build() applies it; matches() compares to it,
+-- so the idempotency check cannot drift from what the builder creates.
+local function expected(row, category: string)
+	local role = row[5]
+	local attrs = { EnvSlice1 = category }
+	if role then
+		attrs[role] = true
+	end
+	return {
+		props = {
+			Color = row[4][1],
+			Material = row[4][2],
+			Anchored = true,
+			CanCollide = role ~= nil,
+			CanQuery = role ~= nil,
+			CanTouch = false,
+			CastShadow = false,
+			Transparency = 0,
+			Reflectance = 0,
+			Massless = false,
+			Locked = false,
+			Shape = Enum.PartType.Block,
+			TopSurface = Enum.SurfaceType.Smooth,
+			BottomSurface = Enum.SurfaceType.Smooth,
+		},
+		attrs = attrs,
+	}
+end
+local PROP_ORDER = { "Color", "Material", "Anchored", "CanCollide", "CanQuery", "CanTouch", "CastShadow", "Transparency", "Reflectance", "Massless", "Locked", "Shape", "TopSurface", "BottomSurface" }
+
 -- Existing slice content: accept only an exact match of this specification.
+local function sameAttrs(inst: Instance, want: { [string]: any }): boolean
+	local have = inst:GetAttributes()
+	for k, v in want do
+		if have[k] ~= v then
+			return false
+		end
+	end
+	for k in have do
+		if want[k] == nil then
+			return false
+		end
+	end
+	return true
+end
 local function matches(folder: Instance): (boolean, string)
-	if not folder:IsA("Folder") or #folder:GetChildren() ~= #SPEC then
+	if not folder:IsA("Folder") or #folder:GetChildren() ~= #SPEC or next(folder:GetAttributes()) ~= nil then
 		return false, "unexpected container"
+	end
+	local CS = game:GetService("CollectionService")
+	if #CS:GetTags(folder) > 0 then
+		return false, "container has tags"
 	end
 	for _, group in SPEC do
 		local model = folder:FindFirstChild(group.model)
-		if not (model and model:IsA("Model")) or #model:GetChildren() ~= #group.parts then
+		if not (model and model.ClassName == "Model") or #model:GetChildren() ~= #group.parts then
 			return false, "model " .. group.model
 		end
+		if not sameAttrs(model, { EnvSlice1Category = group.category }) or #CS:GetTags(model) > 0 then
+			return false, "attributes or tags of model " .. group.model
+		end
 		for _, row in group.parts do
+			local found = 0
+			for _, c in model:GetChildren() do
+				if c.Name == row[1] then
+					found += 1
+				end
+			end
 			local p = model:FindFirstChild(row[1])
-			if not (p and p:IsA("Part")) then
-				return false, "missing " .. row[1]
+			if found ~= 1 or not (p and p.ClassName == "Part") then
+				return false, "missing or duplicate " .. row[1]
 			end
 			local cf = cframeOf(row)
 			if (p.Size - row[2]).Magnitude > 0.001 or (p.Position - cf.Position).Magnitude > 0.001 or (p.CFrame.LookVector - cf.LookVector).Magnitude > 0.001 or (p.CFrame.UpVector - cf.UpVector).Magnitude > 0.001 then
 				return false, "geometry of " .. row[1]
 			end
-			local roleOk = (p:GetAttribute("WalkSurface") == true) == (row[5] == "WalkSurface") and (p:GetAttribute("EdgeRail") == true) == (row[5] == "EdgeRail")
-			if p.CanCollide ~= (row[5] ~= nil) or not roleOk or p.Color ~= row[4][1] or p.Material ~= row[4][2] or p:GetAttribute("EnvSlice1") ~= group.category or #p:GetChildren() ~= 0 then
-				return false, "properties of " .. row[1]
+			local want = expected(row, group.category)
+			for _, k in PROP_ORDER do
+				if (p :: any)[k] ~= want.props[k] then
+					return false, k .. " of " .. row[1]
+				end
+			end
+			if not sameAttrs(p, want.attrs) then
+				return false, "attributes of " .. row[1]
+			end
+			if #p:GetChildren() ~= 0 or #CS:GetTags(p) > 0 then
+				return false, "children or tags on " .. row[1]
 			end
 		end
 	end
@@ -162,8 +234,9 @@ end
 assert(stray == 0, string.format("%d EnvSlice1 instance(s) exist outside Map.EnvSlice1; run 9_rollback.luau first", stray))
 if existing then
 	local ok, why = matches(existing)
-	assert(ok, "Map.EnvSlice1 exists but differs from the specification (" .. why .. "); run 9_rollback.luau first")
-	return string.format("ENV_SLICE1 already built (%s); nothing changed", tostring(map:GetAttribute("EnvSlice1")))
+	assert(ok, "Map.EnvSlice1 exists but differs from the " .. VERSION .. " specification (" .. why .. "); nothing changed; run 9_rollback.luau first")
+	assert(map:GetAttribute("EnvSlice1") == VERSION, "Map.EnvSlice1 matches the specification but the Map attribute reads " .. tostring(map:GetAttribute("EnvSlice1")))
+	return string.format("ENV_SLICE1 already built (%s); nothing changed", VERSION)
 end
 
 -- Build off-tree, then parent once.
@@ -175,23 +248,18 @@ for _, group in SPEC do
 	model.Name = group.model
 	model:SetAttribute("EnvSlice1Category", group.category)
 	for _, row in group.parts do
-		local role = row[5]
+		local want = expected(row, group.category)
 		local p = Instance.new("Part")
 		p.Name = row[1]
 		p.Size = row[2]
 		p.CFrame = cframeOf(row)
-		p.Color = row[4][1]
-		p.Material = row[4][2]
-		p.Anchored = true
-		p.TopSurface = Enum.SurfaceType.Smooth
-		p.BottomSurface = Enum.SurfaceType.Smooth
-		p.CastShadow = false
-		p.CanTouch = false
-		p.CanCollide = role ~= nil
-		p.CanQuery = role ~= nil
-		p:SetAttribute("EnvSlice1", group.category)
-		if role then
-			p:SetAttribute(role, true)
+		for _, k in PROP_ORDER do
+			(p :: any)[k] = want.props[k]
+		end
+		for k, v in want.attrs do
+			p:SetAttribute(k, v)
+		end
+		if p.CanCollide then
 			collidable += 1
 		end
 		p.Parent = model
@@ -199,6 +267,8 @@ for _, group in SPEC do
 	end
 	model.Parent = folder
 end
+local ok, why = matches(folder)
+assert(ok, "internal: freshly built slice does not match its own specification (" .. why .. ")")
 folder.Parent = map
 map:SetAttribute("EnvSlice1", VERSION)
 return string.format("ENV_SLICE1 built (%s): %d parts, %d collidable, in %s", VERSION, parts, collidable, folder:GetFullName())
