@@ -3,10 +3,15 @@
 // chunks (traversal_spec.luau by Agent A, exterior_spec.luau by Agent B). Deterministic: same inputs ->
 // byte-identical output (LF line endings, no timestamps; input hashes recorded in the header).
 //
-//   node assemble.js                       # specs and output next to this file
-//   node assemble.js --traversal a.luau --exterior b.luau --out 1_build.luau [--geometry parts.tsv]
+//   node assemble.js --all                 # regenerate every committed build (PRESETS below)
+//   node assemble.js                       # v1 specs and 1_build.luau next to this file
+//   node assemble.js --traversal a.luau --exterior b.luau --out x.luau [--version "v2 ..."]
+//                    [--replaces old_exterior.luau --replaces-version "v1 ..." [--replace-exterior]]
+//                    [--geometry parts.tsv]
 //   node assemble.js --no-preflight        # skip the offline spec preflight (Studio still validates)
 //   node assemble.js --check f1.luau ...   # structural Luau check only (blocks, brackets, strings)
+// --replaces names the ONE exterior a build may swap out (recognised in Studio by exact structure and
+// the Map attribute --replaces-version); --replace-exterior sets REPLACE_EXTERIOR = true in the output.
 //
 // Steps: (1) read and normalise inputs; fail clearly if a spec is missing or empty; (2) offline
 // preflight: evaluate each spec with a small Lua-table evaluator and apply the builder's rules and
@@ -21,6 +26,16 @@ const crypto = require("crypto");
 const HERE = __dirname;
 const MARK_T = "--@@TRAVERSAL_SPEC@@";
 const MARK_E = "--@@EXTERIOR_SPEC@@";
+const MARK_R = "--@@REPLACES_SPEC@@";
+const MARK_C = "--@@BUILD_CONFIG@@";
+const V1 = "v1 2026-11-13", V2 = "v2 2026-11-13";
+// `--all` regenerates every committed build from the specs next to this file.
+const PRESETS = [
+  { out: "1_build.luau", exterior: "exterior_spec.luau", version: V1, note: "v1 build (as built 2026-11-13); refuses any other sprint content" },
+  { out: "1_build_v2.luau", exterior: "exterior_spec_v2.luau", version: V2, replaces: "exterior_spec.luau", replacesVersion: V1, replace: false, note: "v2 build/verify; finds the exact v1 exterior and REFUSES (REPLACE_EXTERIOR = false)" },
+  { out: "2_replace_exterior_v1_to_v2.luau", exterior: "exterior_spec_v2.luau", version: V2, replaces: "exterior_spec.luau", replacesVersion: V1, replace: true, note: "swaps the exact v1 exterior for v2; traversal verified, untouched" },
+  { out: "8_restore_exterior_v2_to_v1.luau", exterior: "exterior_spec.luau", version: V1, replaces: "exterior_spec_v2.luau", replacesVersion: V2, replace: true, note: "rollback of the swap: exact v2 exterior -> v1 rebuilt from exterior_spec.luau" },
+];
 
 function die(msg) {
   console.error("assemble: " + msg);
@@ -328,7 +343,7 @@ function preflight(spec, expectCat, label, problems, modelNames) {
       if (!isV(pos)) { P(`${w}: bad position`); continue; }
       if (orient !== undefined && !isV(orient)) { P(`${w}: bad orientation`); continue; }
       if (!col || !col.__tbl || col.__n !== 3 || [1, 2, 3].some((i) => !Number.isInteger(col[i]) || col[i] < 0 || col[i] > 255)) P(`${w}: colour must be {r,g,b} integers 0..255`);
-      if (!MATERIALS.has(mat)) P(`${w}: invalid material ${mat}`);
+      if (!MATERIALS.has(mat) && !(mat === "ForceField" && expectCat === "SprintExterior")) P(`${w}: invalid material ${mat}` + (mat === "ForceField" ? " (ForceField only in SprintExterior)" : ""));
       if (role !== undefined && !["WalkSurface", "EdgeRail", "JumpStep"].includes(role)) P(`${w}: bad role ${role}`);
       const extra = extraRaw && extraRaw.__tbl ? extraRaw : {};
       if (extraRaw !== undefined && !extraRaw.__tbl) P(`${w}: extra must be a table`);
@@ -361,7 +376,8 @@ function preflight(spec, expectCat, label, problems, modelNames) {
         if (expectCat !== "SprintExterior") P(`${w}: lights only in SprintExterior`);
         if (!L || !L.__tbl) P(`${w}: light must be a table`);
         else {
-          for (const k of Object.keys(L)) if (!["__tbl", "__n", "class", "range", "brightness", "color", "angle", "face"].includes(k)) P(`${w}: unknown light key ${k}`);
+          if (L.shadows !== undefined || L.Shadows !== undefined) P(`${w}: lights are always Shadows = false (the builder sets it); remove the shadows key`);
+          for (const k of Object.keys(L)) if (!["__tbl", "__n", "class", "range", "brightness", "color", "angle", "face", "shadows", "Shadows"].includes(k)) P(`${w}: unknown light key ${k}`);
           if (!["PointLight", "SpotLight"].includes(L.class)) P(`${w}: light class must be PointLight or SpotLight`);
           if (!(L.range > 0 && L.range <= 60)) P(`${w}: light range must be in (0,60]`);
           if (!(L.brightness > 0 && L.brightness <= 10)) P(`${w}: light brightness must be in (0,10]`);
@@ -400,6 +416,93 @@ function mapCountsFromExport(tsv) {
 }
 
 // ------------------------------------------------------------------------------------------------
+// One build. o: { template, traversal, exterior, out, geometry, version, replaces?, replacesVersion?,
+// replace (bool), preflight (bool), note? }
+function build(o) {
+  const template = readText(o.template, "template");
+  const tSpec = readText(o.traversal, "traversal spec (traversal_spec.luau)");
+  const eSpec = readText(o.exterior, "exterior spec");
+  const rSpec = o.replaces ? readText(o.replaces, "replaced exterior spec") : null;
+  if (typeof o.version !== "string" || !/^[\w .:-]{1,40}$/.test(o.version)) die(`bad --version ${JSON.stringify(o.version)}`);
+  if (o.replace && !rSpec) die("--replace-exterior needs --replaces <spec>");
+  if (rSpec) {
+    if (typeof o.replacesVersion !== "string" || !/^[\w .:-]{1,40}$/.test(o.replacesVersion)) die("--replaces needs --replaces-version");
+    if (o.replacesVersion === o.version) die("--replaces-version must differ from --version");
+    if (sha(rSpec) === sha(eSpec)) die("the replaced exterior spec is identical to the built one");
+  }
+  const specs = [[tSpec, o.traversal], [eSpec, o.exterior]].concat(rSpec ? [[rSpec, o.replaces]] : []);
+  for (const [s, p] of specs) {
+    if (!s.trim()) die(`spec is empty: ${p}`);
+    if (!/(^|\n)\s*return\b/.test(s)) die(`spec has no top-level 'return': ${p}`);
+    if (s.includes("--@@")) die(`spec contains an assembler marker: ${p}`);
+  }
+  for (const mark of [MARK_C, MARK_T, MARK_E, MARK_R]) {
+    const count = template.split("\n").filter((l) => l.trim() === mark).length;
+    if (count !== 1) die(`template must contain the line ${mark} exactly once (found ${count})`);
+  }
+  if (!/Shadows = false/.test(template)) die("template no longer forces light Shadows = false");
+
+  // Preflight (fatal when a spec cannot be evaluated offline, unless --no-preflight).
+  if (o.preflight) {
+    const problems = [], modelNames = new Set();
+    try {
+      const t = preflight(evalSpec(tSpec, path.basename(o.traversal)), "SprintTraversal", "traversal_spec", problems, modelNames);
+      const e = preflight(evalSpec(eSpec, path.basename(o.exterior)), "SprintExterior", "exterior_spec", problems, modelNames);
+      let r = null;
+      if (rSpec) {
+        const names = new Set(), rp = [];
+        r = preflight(evalSpec(rSpec, path.basename(o.replaces)), "SprintExterior", "replaces_spec", rp, names);
+        problems.push(...rp);
+      }
+      const tot = { parts: t.parts + e.parts, collide: t.collide + e.collide, lights: t.lights + e.lights };
+      if (tot.parts > 200 || tot.collide > 42 || tot.lights > 2) problems.push(`sprint total ${tot.parts}/${tot.collide}/${tot.lights} exceeds 200/42/2`);
+      let mapLine = "map-after not checked (no geometry export)";
+      if (fs.existsSync(o.geometry)) {
+        const m = mapCountsFromExport(o.geometry);
+        const after = [m.parts + tot.parts, m.collide + tot.collide, m.lights + tot.lights];
+        mapLine = `map ${m.parts}/${m.collide}/${m.lights} -> ${after.join("/")} (cap 2102/421/53)`;
+        if (after[0] > 2102 || after[1] > 421 || after[2] > 53) problems.push(`map after ${after.join("/")} exceeds 2102/421/53`);
+      }
+      const rLine = r ? `; replaces SprintExterior ${r.parts}/${r.collide}/${r.lights} (${o.replacesVersion})` : "";
+      console.log(`preflight ${path.basename(o.out)}: SprintTraversal ${t.parts}/${t.collide}/${t.lights} (cap 95/42/0), SprintExterior ${e.parts}/${e.collide}/${e.lights} (cap 105/0/2), total ${tot.parts}/${tot.collide}/${tot.lights}; ${mapLine}${rLine}`);
+    } catch (err) {
+      if (err instanceof Unsupported) die(`preflight cannot evaluate a spec offline (${err.message}); simplify the spec or pass --no-preflight deliberately`);
+      throw err;
+    }
+    if (problems.length) die(`preflight refused (${problems.length} problem(s)):\n  - ` + problems.join("\n  - "));
+  }
+
+  const wrap = (s) => s.replace(/\n+$/, ""); // chunk text, inserted verbatim between the template's wrapper lines
+  const config = [
+    `local VERSION = ${JSON.stringify(o.version)} -- Map attribute EnvSprint2 for this build (bump on every geometry change)`,
+    `local REPLACE_EXTERIOR = ${o.replace ? "true" : "false"} -- true: may swap the exact REPLACES_VERSION exterior for this one`,
+    `local REPLACES_VERSION: string? = ${rSpec ? JSON.stringify(o.replacesVersion) : "nil"}`,
+  ].join("\n");
+  const header = [
+    "-- GENERATED by tools/studio/envsprint2/assemble.js. Do not edit; edit the template or the specs and re-run.",
+    ...(o.note ? [`-- ${o.note}`] : []),
+    `-- VERSION ${o.version}; REPLACE_EXTERIOR ${o.replace ? "true" : "false"}; replaces ${rSpec ? `${path.basename(o.replaces)} (${o.replacesVersion})` : "nothing"}`,
+    `-- build_template.luau sha256 ${sha(template)}`,
+    `-- ${path.basename(o.traversal)} sha256 ${sha(tSpec)}`,
+    `-- ${path.basename(o.exterior)} sha256 ${sha(eSpec)} (built exterior)`,
+    ...(rSpec ? [`-- ${path.basename(o.replaces)} sha256 ${sha(rSpec)} (replaced exterior)`] : []),
+  ].join("\n");
+  const out = header + "\n" + template
+    .split("\n")
+    .map((l) => {
+      const k = l.trim();
+      if (k === MARK_C) return config;
+      if (k === MARK_T) return wrap(tSpec);
+      if (k === MARK_E) return wrap(eSpec);
+      if (k === MARK_R) return rSpec ? wrap(rSpec) : "return nil";
+      return l;
+    })
+    .join("\n");
+  try { checkStructure(out, path.basename(o.out)); } catch (e) { die("structural check of the assembled builder failed: " + e.message); }
+  fs.writeFileSync(o.out, out, "utf8");
+  console.log(`wrote ${o.out} (${out.length} bytes, sha256 ${sha(out)})`);
+}
+
 function main() {
   const args = process.argv.slice(2);
   const opt = (name, def) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : def; };
@@ -411,64 +514,28 @@ function main() {
     }
     process.exit(bad ? 1 : 0);
   }
-  const templatePath = opt("--template", path.join(HERE, "build_template.luau"));
-  const tPath = opt("--traversal", path.join(HERE, "traversal_spec.luau"));
-  const ePath = opt("--exterior", path.join(HERE, "exterior_spec.luau"));
-  const outPath = opt("--out", path.join(HERE, "1_build.luau"));
-  const geoPath = opt("--geometry", "C:\\WORLD.EXE-Art\\EnvSprint2\\geometry\\parts.tsv");
-
-  const template = readText(templatePath, "template");
-  const tSpec = readText(tPath, "traversal spec (Agent A: traversal_spec.luau)");
-  const eSpec = readText(ePath, "exterior spec (Agent B: exterior_spec.luau)");
-  for (const [s, p] of [[tSpec, tPath], [eSpec, ePath]]) {
-    if (!s.trim()) die(`spec is empty: ${p}`);
-    if (!/(^|\n)\s*return\b/.test(s)) die(`spec has no top-level 'return': ${p}`);
-    if (s.includes("--@@")) die(`spec contains an assembler marker: ${p}`);
-  }
-  for (const mark of [MARK_T, MARK_E]) {
-    const count = template.split("\n").filter((l) => l.trim() === mark).length;
-    if (count !== 1) die(`template must contain the line ${mark} exactly once (found ${count})`);
-  }
-
-  // Preflight.
-  if (!args.includes("--no-preflight")) {
-    const problems = [], modelNames = new Set();
-    let tot = null;
-    try {
-      const t = preflight(evalSpec(tSpec, path.basename(tPath)), "SprintTraversal", "traversal_spec", problems, modelNames);
-      const e = preflight(evalSpec(eSpec, path.basename(ePath)), "SprintExterior", "exterior_spec", problems, modelNames);
-      tot = { parts: t.parts + e.parts, collide: t.collide + e.collide, lights: t.lights + e.lights };
-      if (tot.parts > 200 || tot.collide > 42 || tot.lights > 2) problems.push(`sprint total ${tot.parts}/${tot.collide}/${tot.lights} exceeds 200/42/2`);
-      let mapLine = "map-after not checked (no geometry export)";
-      if (fs.existsSync(geoPath)) {
-        const m = mapCountsFromExport(geoPath);
-        const after = [m.parts + tot.parts, m.collide + tot.collide, m.lights + tot.lights];
-        mapLine = `map ${m.parts}/${m.collide}/${m.lights} -> ${after.join("/")} (cap 2102/421/53)`;
-        if (after[0] > 2102 || after[1] > 421 || after[2] > 53) problems.push(`map after ${after.join("/")} exceeds 2102/421/53`);
-      }
-      console.log(`preflight: SprintTraversal ${t.parts}/${t.collide}/${t.lights} (cap 95/42/0), SprintExterior ${e.parts}/${e.collide}/${e.lights} (cap 105/0/2), total ${tot.parts}/${tot.collide}/${tot.lights}; ${mapLine}`);
-    } catch (err) {
-      if (err instanceof Unsupported) console.log(`preflight skipped (spec uses syntax the offline evaluator does not support: ${err.message}); the Studio builder still validates everything`);
-      else throw err;
+  const common = {
+    template: opt("--template", path.join(HERE, "build_template.luau")),
+    traversal: opt("--traversal", path.join(HERE, "traversal_spec.luau")),
+    geometry: opt("--geometry", "C:\\WORLD.EXE-Art\\EnvSprint2\\geometry\\parts.tsv"),
+    preflight: !args.includes("--no-preflight"),
+  };
+  if (args.includes("--all")) {
+    for (const p of PRESETS) {
+      build({ ...common, out: path.join(HERE, p.out), exterior: path.join(HERE, p.exterior), version: p.version, replaces: p.replaces && path.join(HERE, p.replaces), replacesVersion: p.replacesVersion, replace: !!p.replace, note: p.note });
     }
-    if (problems.length) die(`preflight refused (${problems.length} problem(s)):\n  - ` + problems.join("\n  - "));
+    return;
   }
-
-  const wrap = (s) => s.replace(/\n+$/, ""); // chunk text, inserted verbatim between the template's wrapper lines
-  const header = [
-    "-- GENERATED by tools/studio/envsprint2/assemble.js. Do not edit; edit the template or the specs and re-run.",
-    `-- build_template.luau sha256 ${sha(template)}`,
-    `-- traversal_spec.luau sha256 ${sha(tSpec)}`,
-    `-- exterior_spec.luau  sha256 ${sha(eSpec)}`,
-  ].join("\n");
-  const out = header + "\n" + template
-    .split("\n")
-    .map((l) => (l.trim() === MARK_T ? wrap(tSpec) : l.trim() === MARK_E ? wrap(eSpec) : l))
-    .join("\n");
-  try { checkStructure(out, path.basename(outPath)); } catch (e) { die("structural check of the assembled builder failed: " + e.message); }
-  fs.writeFileSync(outPath, out, "utf8");
-  console.log(`wrote ${outPath} (${out.length} bytes, sha256 ${sha(out)})`);
+  build({
+    ...common,
+    exterior: opt("--exterior", path.join(HERE, "exterior_spec.luau")),
+    out: opt("--out", path.join(HERE, "1_build.luau")),
+    version: opt("--version", V1),
+    replaces: opt("--replaces", null),
+    replacesVersion: opt("--replaces-version", null),
+    replace: args.includes("--replace-exterior"),
+  });
 }
 
 if (require.main === module) main();
-module.exports = { lex, checkStructure, evalSpec, preflight };
+module.exports = { lex, checkStructure, evalSpec, preflight, build };
