@@ -1,6 +1,6 @@
 # Map interface proposal: one match system, several maps
 
-Status: **proposal only** (Agent C, 2026-11-13). Nothing in `src/` is changed by this document. Every code reference is `main` at `f716fe4`.
+Status: **proposal only** (Agent C, 2026-11-13). Nothing in `src/` is changed by this document. Every code reference is `main` at `f716fe4`; re-verified 2026-11-14 at `3790f0b` (PR #21 head, `src/` unchanged). The testable checklist is `COMPATIBILITY_CHECKLIST.md`.
 Owner decisions are marked **[OWNER]**.
 
 ## 1. Why this is needed
@@ -35,7 +35,7 @@ The `tools/studio/*` build scripts are full of absolute coordinates by design. T
 | `PlayerStateService.luau:95-99, 313-317` | `insideArena`: eliminate below `OutOfBoundsY`; non-participants inside the box are moved to a lobby pad |
 | `AbilityService.luau:211-214, 238` | DASH landing must be inside the same box |
 
-Measured: reachable walkable surfaces span X −260..237, Z −259..260 (`SCALE_REVIEW.md` §1), so today's box has a 15 to 38-stud margin. Any expansion past ±275 makes DASH silently fail at the new edges and lets spectators stand in the new areas.
+Measured: reachable walkable surfaces span X −260..237, Z −259..260 (`SCALE_REVIEW.md` §1), so today's box has a 15 to 38-stud margin. Any expansion past ±275 makes DASH silently fail at the new edges and lets spectators stand in the new areas. The vertical limits matter too: a walkable floor below Y −60 kills players and rooftops above Y 160 block DASH (Map 2 risk). A widened box must also keep the lobby pads outside it, or containment teleports lobby players every tick (checklist C-04, C-06).
 
 ### 2.3 Marker tags, counts and schema
 | Where | What |
@@ -76,7 +76,8 @@ Measured: reachable walkable surfaces span X −260..237, Z −259..260 (`SCALE_
 | `PatchCatalog.luau:40` | DECAY text says "Research Yard" |
 | `WorldModifierService.luau:124-127` | captures Lighting/Gravity baselines at Init. A per-map lighting preset must be applied **before** this. |
 | Camera | no map-specific camera code in `src/` (only `CurrentCamera.ViewportSize` for UI) |
-| Streaming | `StreamingEnabled = true`, target radius 1024, min 64 (place settings in the export, not in `src/`) |
+| Streaming | `StreamingEnabled = true`, target radius 1024, min 64 (place settings recorded in `EnvSprint2/geometry/markers_settings.json`; `src/` neither sets nor reads them and never sets `ModelStreamingMode`) |
+| World guidance | no client world-space marker for stabilizers or crates; only the 60-stud supply beacon (`SupplyDrop.luau:30`) |
 
 ## 3. The contract: `MapDefinition`
 
@@ -242,7 +243,7 @@ Runtime state is one server table (`dormant` | `reserved` | `active`) owned by a
 6. **Sector-scoped targeting behind `Patches.Targeting`.** PatchService scope plus the patch filters in §5.2. Map 1 stays `"map"` until playtested. First behaviour change, gated.
 7. **Spawn policy** (`Initial`, `Respawn`) behind the definition, default today's.
 8. **Boss-sector data + validation** (no runtime consumer except §6/§5 exclusions).
-9. **Map 1 expanded definition** (new bounds, sectors, counts from Agent A's LAYOUT) + `Fingerprint` once the place is approved.
+9. **Map 1 expanded definition** (new bounds, sectors, counts from Agent A's LAYOUT; the v7 wings currently hold **no** gameplay markers, so counts must change) + `Fingerprint` once the place is approved.
 10. **Map 2 definition** once Studio collision and markers exist; separate place (if approved).
 
 Every step keeps `Place1.rbxl` booting `Ready` with zero validation errors, which is the existing acceptance gate.
