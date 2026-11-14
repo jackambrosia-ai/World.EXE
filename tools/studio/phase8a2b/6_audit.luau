@@ -46,6 +46,35 @@
 -- (ENV_SLICE1 WalkSurfaces are included in the span-support check).
 -- report.ACCEPTANCE combines C1-C13, AC6 and strict AC2 for every non-waived viewpoint into one
 -- overall PASS/FAIL; the five owner-approved AC2 exceptions are listed separately.
+-- ENV_SPRINT2 (tools/studio/envsprint2, 2026-11-13) parts carry EnvSprint2 = "SprintTraversal" or
+-- "SprintExterior" and live in Map.EnvSprint2.<Traversal_*|Exterior_*>. They join the shared new-part
+-- lists (C1-C5, C7, C8, C11, C12 unchanged) and get every slice rule plus:
+--   C5h, C6s, C9 level-slab / bounds rules, C13, AC6 span support exactly as for ENV_SLICE1 (jump steps
+--   are walk surfaces for C6s and AC6, landings for C13, never rail floors).
+--   C6b  sprint collidables vs existing collidables AND vs every other 8A-2a/8A-2b/slice/sprint collidable.
+--   C6   the name/attribute "structure" exemption never applies to sprint parts.
+--   C9   sprint collidables: SprintTraversal, exactly one of WalkSurface / EdgeRail / JumpStep (= true),
+--        no other attributes than EnvSprint2/ReservedUse, Block Part; rails unrotated, >= 4 studs high,
+--        on a sprint WalkSurface. WalkSurface: level slab >= 4 x 4 in bounds, joined FLUSH (slice rule).
+--        JumpStep (ENV_SPRINT2 role, 2026-11-13): level slab >= 4 x 4 in bounds, joined by JUMP LINKS:
+--        rise r <= 6.5, overlap <= 0.3, gap <= min(6, 9 - r) across an edge shared >= 4 (stock jump
+--        leaves >= 2.7 studs of margin at every rise). Each connected step group links >= 2 distinct
+--        existing floors (pre-sprint floors or ENV_SLICE1 walk surfaces). C9v: no step over the void
+--        (centre + 4 corners each have a non-rail collidable within 40 below). C6j: the take-off band
+--        (2 studs) plus gap of every jump link is clear from lower top + 0.2 to + 12. C6s above steps.
+--        Every sprint walk surface / step is connected to an existing floor, and every Traversal_* model
+--        joins at least two distinct existing floors (flush joins or jump links).
+--   C10  SprintTraversal 95/42/0, SprintExterior 105/0/2, sprint total 200/42/2, map 2,102/421/53;
+--        sprint lights only PointLight/SpotLight, Shadows false, only as single children of sprint
+--        parts; a sprint part may carry no district or ENV_SLICE1 attribute; structural placement
+--        (Map.EnvSprint2.<model>.<part>, model prefix matches category) is checked.
+--   C11  the landmark neon name exemption never applies to sprint parts.
+--   C13  sprint rails stand on a sprint WalkSurface; the drop-down test also treats every non-rail
+--        8A-2a/8A-2b/slice/sprint collidable as cover.
+--   AC2w sprint parts may not reduce the strict benchmark of any owner-waived viewpoint (measured with
+--        and without sprint occluders).
+-- With no EnvSprint2 content in Workspace the audit runs exactly the pre-sprint code paths and returns
+-- the same report (every sprint addition is gated on sprint content being present).
 local CS = game:GetService("CollectionService")
 local root = workspace:WaitForChild("WORLD_EXE")
 local map, lobby = root.Map, root.Lobby
@@ -58,7 +87,7 @@ local V = Vector3.new
 
 local newParts, newSolid, newSet = {}, {}, {}
 for _, d in map:GetDescendants() do
-	if d:IsA("BasePart") and (d:GetAttribute("Arch8A2A") or d:GetAttribute("Arch8A2B") or d:GetAttribute("EnvSlice1") ~= nil) then
+	if d:IsA("BasePart") and (d:GetAttribute("Arch8A2A") or d:GetAttribute("Arch8A2B") or d:GetAttribute("EnvSlice1") ~= nil or d:GetAttribute("EnvSprint2") ~= nil) then
 		table.insert(newParts, d)
 		newSet[d] = true
 		if d.CanCollide then
@@ -82,13 +111,65 @@ for _, p in newParts do
 		end
 	end
 end
+-- ENV_SPRINT2 lists (empty when the sprint is absent).
+local nP = 0
+local sprintParts, sprintSolid, sprintFloors, sprintSteps, sprintSet = {}, {}, {}, {}, {}
+for _, p in newParts do
+	if p:GetAttribute("EnvSprint2") ~= nil then
+		nP += 1
+		table.insert(sprintParts, p)
+		sprintSet[p] = true
+		if p.CanCollide then
+			table.insert(sprintSolid, p)
+			if p:GetAttribute("WalkSurface") == true then
+				table.insert(sprintFloors, p)
+			elseif p:GetAttribute("JumpStep") == true then
+				table.insert(sprintSteps, p)
+			end
+		end
+	end
+end
+local sprintFolder = map:FindFirstChild("EnvSprint2")
 -- Slice-marked instances the lists above cannot see (outside Map, or not parts) are errors.
+local sprintMarked = false
 for _, d in workspace:GetDescendants() do
 	if d:GetAttribute("EnvSlice1") ~= nil and d ~= map and not (d:IsA("BasePart") and d:IsDescendantOf(map)) then
 		err("EnvSlice1 attribute on an instance the audit cannot check: " .. d:GetFullName())
 	end
+	if d ~= map and (d:GetAttribute("EnvSprint2") ~= nil or d:GetAttribute("EnvSprint2Category") ~= nil) then
+		sprintMarked = true
+		local okPart = d:IsA("BasePart") and sprintFolder ~= nil and d.Parent ~= nil and d.Parent.Parent == sprintFolder and d:GetAttribute("EnvSprint2Category") == nil
+		local okModel = d:IsA("Model") and d.Parent == sprintFolder and d:GetAttribute("EnvSprint2") == nil
+		if not (okPart or okModel) then
+			err("EnvSprint2 attribute on an instance outside Map.EnvSprint2.<model>.<part> structure: " .. d:GetFullName())
+		end
+	end
 end
-report.state = { ArenaVersion = root:GetAttribute("ArenaVersion"), Correction8A2A_R2 = map:GetAttribute("Correction8A2A_R2"), Phase8A2B = map:GetAttribute("Phase8A2B"), EnvSlice1 = map:GetAttribute("EnvSlice1"), parts8A2A = #newParts - nB - nS, parts8A2B = nB, partsEnvSlice1 = nS, auditedAt = os.date("!%Y-%m-%dT%H:%M:%SZ") }
+local sprintPresent = nP > 0 or sprintFolder ~= nil or sprintMarked or map:GetAttribute("EnvSprint2") ~= nil
+report.state = { ArenaVersion = root:GetAttribute("ArenaVersion"), Correction8A2A_R2 = map:GetAttribute("Correction8A2A_R2"), Phase8A2B = map:GetAttribute("Phase8A2B"), EnvSlice1 = map:GetAttribute("EnvSlice1"), parts8A2A = #newParts - nB - nS - nP, parts8A2B = nB, partsEnvSlice1 = nS, auditedAt = os.date("!%Y-%m-%dT%H:%M:%SZ") }
+if sprintPresent then
+	report.state.EnvSprint2 = map:GetAttribute("EnvSprint2")
+	report.state.partsEnvSprint2 = nP
+	-- Structure: Map.EnvSprint2 is a Folder of Traversal_* / Exterior_* models whose category matches.
+	local SPRINT_PREFIX = { Traversal = "SprintTraversal", Exterior = "SprintExterior" }
+	if sprintFolder and not sprintFolder:IsA("Folder") then
+		err("C10 Map.EnvSprint2 is not a Folder")
+	end
+	if nP > 0 and map:GetAttribute("EnvSprint2") == nil then
+		err("C10 sprint parts present but the Map attribute EnvSprint2 is not set (incomplete build)")
+	end
+	for _, m in (if sprintFolder then sprintFolder:GetChildren() else {}) :: { Instance } do
+		local prefix = string.match(m.Name, "^(%a+)_[%w_]+$")
+		if not (m:IsA("Model") and prefix and SPRINT_PREFIX[prefix] == m:GetAttribute("EnvSprint2Category")) then
+			err("C10 unrecognized child of Map.EnvSprint2 (needs Traversal_*/SprintTraversal or Exterior_*/SprintExterior): " .. m:GetFullName())
+		end
+		for _, c in m:GetChildren() do
+			if not c:IsA("BasePart") or c:GetAttribute("EnvSprint2") ~= m:GetAttribute("EnvSprint2Category") then
+				err("C10 sprint model child without its model's EnvSprint2 category: " .. c:GetFullName())
+			end
+		end
+	end
+end
 
 local function aabb(p: BasePart): (Vector3, Vector3)
 	local cf, s = p.CFrame, p.Size / 2
@@ -185,16 +266,19 @@ for _, st in tagged("Stabilizer") do
 	end
 end
 
--- C5h hazards (ENV_SLICE1): nothing collidable from the slice directly above a hazard or pickup marker.
+-- C5h hazards (ENV_SLICE1, ENV_SPRINT2): nothing collidable from the slice or the sprint directly above
+-- a hazard or pickup marker.
 local hazardMarkers = 0
 for _, tag in { "SlipSurface", "DecayTile", "CorruptionNode", "FragmentSpawn", "MagneticPoint", "MagneticProp" } do
 	for _, m in tagged(tag) do
 		if m:IsA("BasePart") then
 			hazardMarkers += 1
 			local a, b = aabb(m)
-			for _, p in sliceSolid do
-				if boxHit(p, V(a.X - 1, b.Y, a.Z - 1), V(b.X + 1, b.Y + 8, b.Z + 1)) then
-					err("C5h hazard clearance: " .. p:GetFullName() .. " over " .. m.Name)
+			for _, list in { sliceSolid, sprintSolid } do
+				for _, p in list do
+					if boxHit(p, V(a.X - 1, b.Y, a.Z - 1), V(b.X + 1, b.Y + 8, b.Z + 1)) then
+						err("C5h hazard clearance: " .. p:GetFullName() .. " over " .. m.Name)
+					end
 				end
 			end
 		end
@@ -241,8 +325,9 @@ local c6 = { rails = 0, structures = 0, boundaryWalls = 0, other = 0 }
 for _, p in newSolid do
 	local isB = p:GetAttribute("Arch8A2B") ~= nil
 	local isS = p:GetAttribute("EnvSlice1") ~= nil
+	local isP = sprintSet[p] == true
 	local isRail = p:GetAttribute("EdgeRail") == true
-	local isStructure = string.find(p.Name, "^Column_") ~= nil or string.find(p.Name, "^ButtressPlinth_") ~= nil or p:GetAttribute("FloorStructure") == true
+	local isStructure = not isP and (string.find(p.Name, "^Column_") ~= nil or string.find(p.Name, "^ButtressPlinth_") ~= nil or p:GetAttribute("FloorStructure") == true)
 	if isRail then
 		c6.rails += 1
 	elseif isStructure then
@@ -304,7 +389,7 @@ for _, p in newSolid do
 			end
 		end
 	end
-	if isB or isS then
+	if isB or isS or isP then
 		for _, e in existingSolid do
 			local ea, eb = aabb(e)
 			if pa.X < eb.X - 0.3 and pb.X > ea.X + 0.3 and pa.Y < eb.Y - 0.3 and pb.Y > ea.Y + 0.3 and pa.Z < eb.Z - 0.3 and pb.Z > ea.Z + 0.3 then
@@ -323,29 +408,54 @@ for i, p in sliceSolid do
 		end
 	end
 end
--- C6s (ENV_SLICE1): headroom above the new walk surfaces, against every collidable in the map.
-local allSolid = table.clone(existingSolid)
-for _, p in newSolid do
-	table.insert(allSolid, p)
+-- C6b (ENV_SPRINT2): sprint collidables may touch but not intersect any other new collidable
+-- (8A-2a, 8A-2b, ENV_SLICE1 or another sprint part). Existing collidables are covered above.
+local solidIndex = {}
+for i, q in newSolid do
+	solidIndex[q] = i
 end
-local c6sRails = 0
-for _, f in sliceFloors do
-	local fa, fb = aabb(f)
-	local lo, hi = V(fa.X + 1, fb.Y + 0.2, fa.Z + 1), V(fb.X - 1, fb.Y + 6, fb.Z - 1)
-	for _, p in allSolid do
-		if p ~= f and boxHit(p, lo, hi) then
-			local pa, pb = aabb(p)
-			local nearEdge = math.min(math.abs(pa.X - fa.X), math.abs(pb.X - fb.X), math.abs(pa.Z - fa.Z), math.abs(pb.Z - fb.Z))
-			if p:GetAttribute("EdgeRail") == true and math.abs(pa.Y - fb.Y) < 0.6 and nearEdge <= 1.5 then
-				c6sRails += 1
-			else
-				err("C6s headroom over slice walk surface " .. f.Name .. ": " .. p:GetFullName())
+for _, p in sprintSolid do
+	local pa, pb = aabb(p)
+	for _, q in newSolid do
+		-- each sprint-sprint pair once (q later in newSolid order), every sprint-other pair once
+		if q ~= p and (not sprintSet[q] or solidIndex[q] > solidIndex[p]) then
+			local ea, eb = aabb(q)
+			if pa.X < eb.X - 0.3 and pb.X > ea.X + 0.3 and pa.Y < eb.Y - 0.3 and pb.Y > ea.Y + 0.3 and pa.Z < eb.Z - 0.3 and pb.Z > ea.Z + 0.3 then
+				err("C6b sprint part intersects " .. q:GetFullName() .. ": " .. p:GetFullName())
 			end
 		end
 	end
 end
+-- C6s (ENV_SLICE1, ENV_SPRINT2): headroom above the new walk surfaces, against every collidable in the map.
+local allSolid = table.clone(existingSolid)
+for _, p in newSolid do
+	table.insert(allSolid, p)
+end
+local function headroom(list: { BasePart }, label: string): number
+	local accepted = 0
+	for _, f in list do
+		local fa, fb = aabb(f)
+		local lo, hi = V(fa.X + 1, fb.Y + 0.2, fa.Z + 1), V(fb.X - 1, fb.Y + 6, fb.Z - 1)
+		for _, p in allSolid do
+			if p ~= f and boxHit(p, lo, hi) then
+				local pa, pb = aabb(p)
+				local nearEdge = math.min(math.abs(pa.X - fa.X), math.abs(pb.X - fb.X), math.abs(pa.Z - fa.Z), math.abs(pb.Z - fb.Z))
+				if p:GetAttribute("EdgeRail") == true and math.abs(pa.Y - fb.Y) < 0.6 and nearEdge <= 1.5 then
+					accepted += 1
+				else
+					err("C6s headroom over " .. label .. " walk surface " .. f.Name .. ": " .. p:GetFullName())
+				end
+			end
+		end
+	end
+	return accepted
+end
+local c6sRails = headroom(sliceFloors, "slice")
 report.C6_checked = c6
 report.C6s_checked = { walkSurfaces = #sliceFloors, edgeRailsAccepted = c6sRails }
+if sprintPresent then
+	report.C6s_sprint_checked = { walkSurfaces = #sprintFloors, edgeRailsAccepted = headroom(sprintFloors, "sprint"), jumpSteps = #sprintSteps, stepRailsAccepted = headroom(sprintSteps, "sprint jump-step") }
+end
 
 -- C7, C8.
 local lanes, links = 0, 0
@@ -403,6 +513,34 @@ for _, p in newSolid do
 		end
 		if p:GetAttribute("FloorStructure") or p:GetAttribute("BoundaryWall") then
 			err("C9 ENV_SLICE1 collidable carries an 8A-2b role: " .. p:GetFullName())
+		end
+	elseif sprintSet[p] then
+		local walk, rail = p:GetAttribute("WalkSurface") == true, p:GetAttribute("EdgeRail") == true
+		local step = p:GetAttribute("JumpStep") == true
+		if (if walk then 1 else 0) + (if rail then 1 else 0) + (if step then 1 else 0) ~= 1 then
+			err("C9 ENV_SPRINT2 collidable needs exactly one of WalkSurface / EdgeRail / JumpStep: " .. p:GetFullName())
+		end
+		for k, v in p:GetAttributes() do
+			if k ~= "EnvSprint2" and k ~= "WalkSurface" and k ~= "EdgeRail" and k ~= "JumpStep" and k ~= "ReservedUse" then
+				err("C9 ENV_SPRINT2 collidable carries unexpected attribute " .. k .. ": " .. p:GetFullName())
+			elseif (k == "WalkSurface" or k == "EdgeRail" or k == "JumpStep") and v ~= true then
+				err("C9 ENV_SPRINT2 role attribute " .. k .. " must be true: " .. p:GetFullName())
+			end
+		end
+		if p:GetAttribute("EnvSprint2") ~= "SprintTraversal" then
+			err("C9 ENV_SPRINT2 collidable outside SprintTraversal: " .. p:GetFullName())
+		end
+		if p:GetAttribute("FloorStructure") or p:GetAttribute("BoundaryWall") or p:GetAttribute("Support8A2B") then
+			err("C9 ENV_SPRINT2 collidable carries an 8A-2b role: " .. p:GetFullName())
+		end
+		if not (p:IsA("Part") and p.ClassName == "Part" and p.Shape == Enum.PartType.Block) then
+			err("C9 ENV_SPRINT2 collidable must be a Block Part: " .. p:GetFullName())
+		end
+		if rail then
+			local a, b = aabb(p)
+			if p.CFrame.UpVector.Y < 0.9999 or math.abs(p.CFrame.LookVector.X * p.CFrame.LookVector.Z) > 1e-4 or b.Y - a.Y < 4 - 0.01 then
+				err("C9 ENV_SPRINT2 rail must be unrotated and at least 4 studs high: " .. p:GetFullName())
+			end
 		end
 	else
 		local a, b = aabb(p)
@@ -467,6 +605,223 @@ for key, set in sliceJoins do
 end
 report.C9_sliceJoins = joinReport
 
+-- C9 (ENV_SPRINT2) walk surfaces and jump steps.
+--   WalkSurface: level slab >= 4 x 4 inside the bounds, joined FLUSH (the slice rule) to another floor.
+--   JumpStep:    level slab >= 4 x 4 inside the bounds, linked by JUMP LINKS to other steps or floors.
+--     Jump link (at least one side a JumpStep; the other a JumpStep, a sprint WalkSurface, an ENV_SLICE1
+--     walk surface or an existing level floor): rise r = |top difference| <= 6.5; footprints overlap by
+--     <= 0.3 on the jump axis; horizontal gap <= min(6, 9 - r) across an edge shared over >= 4 studs.
+--     Stock jump (JumpHeight 7.2, WalkSpeed 16, gravity 196.2) carries the root 8.7 studs at r = 0,
+--     7.6 at r = 3, 6.7 at r = 5 and 5.7 at r = 6.5, i.e. >= 2.7 studs beyond the allowed gap at every
+--     rise (take-off margin). A flat 8-stud gap would leave ~0.7 and is not allowed.
+--     Chain: every connected group of JumpSteps links to >= 2 distinct existing floors (pre-sprint level
+--     floors or ENV_SLICE1 walk surfaces), so it connects two existing floors at its ends.
+--     No void (C9v): centre and four corners (inset 0.5) of every step each have a collidable non-rail
+--     part below the step whose top is within 40 studs of the step top (lower steps count).
+--     Take-off headroom (C6j): for every jump link, the 2-stud take-off band on the lower surface plus
+--     the gap, across the shared edge, is clear of collidables from lower top + 0.2 to lower top + 12
+--     (5-stud character + 7.2 jump), so no slab overhead caps the jump. C6s applies above every step.
+--   Connectivity: every sprint walk surface and step reaches an existing floor through flush joins and
+--   jump links; every Traversal_* model joins >= 2 distinct existing floors (flush joins or jump links).
+local function isLevel(f: BasePart): boolean
+	return f.CFrame.UpVector.Y >= 0.9999 and math.abs(f.CFrame.LookVector.X * f.CFrame.LookVector.Z) <= 1e-4
+end
+-- Returns the take-off box (lower surface band + gap) when f and g are jump-linked, else nil.
+local function jumpLink(f: BasePart, g: BasePart): (Vector3?, Vector3?)
+	if not (isLevel(f) and isLevel(g)) then
+		return nil, nil
+	end
+	local fa, fb = aabb(f)
+	local ga, gb = aabb(g)
+	local rise = math.abs(fb.Y - gb.Y)
+	if rise > 6.5 then
+		return nil, nil
+	end
+	local maxGap = math.min(6, 9 - rise)
+	local la, lb, ua, ub = fa, fb, ga, gb
+	if gb.Y < fb.Y then
+		la, lb, ua, ub = ga, gb, fa, fb
+	end
+	local top = lb.Y
+	local gapX = math.max(ua.X - lb.X, la.X - ub.X)
+	local gapZ = math.max(ua.Z - lb.Z, la.Z - ub.Z)
+	local overlapX = math.min(lb.X, ub.X) - math.max(la.X, ua.X)
+	local overlapZ = math.min(lb.Z, ub.Z) - math.max(la.Z, ua.Z)
+	local z0, z1 = math.max(la.Z, ua.Z), math.min(lb.Z, ub.Z)
+	local x0, x1 = math.max(la.X, ua.X), math.min(lb.X, ub.X)
+	if gapX >= -0.3 and gapX <= maxGap and overlapZ >= 4 then
+		if ua.X >= lb.X - 0.3 then -- upper lies on +X
+			return V(lb.X - 2, top + 0.2, z0), V(math.max(ua.X, lb.X), top + 12, z1)
+		end
+		return V(math.min(ub.X, la.X), top + 0.2, z0), V(la.X + 2, top + 12, z1)
+	elseif gapZ >= -0.3 and gapZ <= maxGap and overlapX >= 4 then
+		if ua.Z >= lb.Z - 0.3 then -- upper lies on +Z
+			return V(x0, top + 0.2, lb.Z - 2), V(x1, top + 12, math.max(ua.Z, lb.Z))
+		end
+		return V(x0, top + 0.2, math.min(ub.Z, la.Z)), V(x1, top + 12, la.Z + 2)
+	end
+	return nil, nil
+end
+local stepSet = {}
+for _, s in sprintSteps do
+	stepSet[s] = true
+end
+local function sprintJoin(f: BasePart, g: BasePart): string?
+	if not stepSet[f] and not stepSet[g] then
+		return if flushJoin(f, g) then "flush" else nil
+	end
+	local lo, hi = jumpLink(f, g)
+	if not lo then
+		return nil
+	end
+	for _, p in allSolid do
+		if p ~= f and p ~= g and boxHit(p, lo, hi :: Vector3) then
+			err("C6j jump take-off headroom between " .. f.Name .. " and " .. g.Name .. " blocked by " .. p:GetFullName())
+		end
+	end
+	return "jump"
+end
+if sprintPresent then
+	local existingFloors = table.clone(floors)
+	for _, f in sliceFloors do
+		table.insert(existingFloors, f)
+	end
+	local nodes = table.clone(sprintFloors)
+	for _, s in sprintSteps do
+		table.insert(nodes, s)
+	end
+	-- Each sprint-to-sprint pair is evaluated once (so a C6j error is reported once).
+	local adj = {}
+	for _, f in nodes do
+		adj[f] = {}
+	end
+	for i, f in nodes do
+		for j = i + 1, #nodes do
+			if sprintJoin(f, nodes[j]) then
+				table.insert(adj[f], nodes[j])
+				table.insert(adj[nodes[j]], f)
+			end
+		end
+	end
+	local sprintJoins, reached, frontier, stepFloors = {}, {}, {}, {}
+	for _, f in nodes do
+		local fa, fb = aabb(f)
+		local label = if stepSet[f] then "jump step" else "walk surface"
+		if not isLevel(f) or f.Size.X < 4 or f.Size.Z < 4 then
+			err("C9 sprint " .. label .. " must be a level, unrotated slab of at least 4 x 4: " .. f:GetFullName())
+		end
+		if fa.X < BOUNDS_MIN.X or fa.Y < BOUNDS_MIN.Y or fa.Z < BOUNDS_MIN.Z or fb.X > BOUNDS_MAX.X or fb.Y + 6 > BOUNDS_MAX.Y or fb.Z > BOUNDS_MAX.Z then
+			err("C9 sprint " .. label .. " outside the arena bounds: " .. f:GetFullName())
+		end
+		local key = f.Parent:GetFullName()
+		sprintJoins[key] = sprintJoins[key] or {}
+		stepFloors[f] = {}
+		for _, g in existingFloors do
+			local kind = sprintJoin(f, g)
+			if kind then
+				sprintJoins[key][g.Name .. "(" .. kind .. ")"] = true
+				stepFloors[f][g] = true
+				if not reached[f] then
+					reached[f] = true
+					table.insert(frontier, f)
+				end
+			end
+		end
+		if stepSet[f] then
+			-- C9v: not over the void.
+			local samples = { V((fa.X + fb.X) / 2, 0, (fa.Z + fb.Z) / 2), V(fa.X + 0.5, 0, fa.Z + 0.5), V(fa.X + 0.5, 0, fb.Z - 0.5), V(fb.X - 0.5, 0, fa.Z + 0.5), V(fb.X - 0.5, 0, fb.Z - 0.5) }
+			local voids = 0
+			for _, s in samples do
+				local caught = false
+				for _, e in allSolid do
+					if e ~= f and e:GetAttribute("EdgeRail") ~= true then
+						local ea, eb = aabb(e)
+						if s.X >= ea.X and s.X <= eb.X and s.Z >= ea.Z and s.Z <= eb.Z and eb.Y <= fa.Y + 0.01 and eb.Y >= fb.Y - 40 then
+							caught = true
+							break
+						end
+					end
+				end
+				if not caught then
+					voids += 1
+				end
+			end
+			if voids > 0 then
+				err(string.format("C9v jump step over the void (%d of 5 samples without a floor within 40 below): %s", voids, f:GetFullName()))
+			end
+		end
+	end
+	-- Connectivity through sprint-to-sprint joins (any model).
+	while #frontier > 0 do
+		local f = table.remove(frontier)
+		for _, g in adj[f] do
+			if not reached[g] then
+				reached[g] = true
+				table.insert(frontier, g)
+			end
+		end
+	end
+	for _, f in nodes do
+		if not reached[f] then
+			err("C9 sprint " .. (if stepSet[f] then "jump step" else "walk surface") .. " not connected to an existing floor: " .. f:GetFullName())
+		end
+	end
+	-- Chain rule: each connected group of steps (through step-step links) links >= 2 existing floors.
+	local seenStep = {}
+	for _, s in sprintSteps do
+		if not seenStep[s] then
+			local group, ends, stack = {}, {}, { s }
+			seenStep[s] = true
+			while #stack > 0 do
+				local x = table.remove(stack)
+				table.insert(group, x.Name)
+				for g in stepFloors[x] do
+					ends[g.Name] = true
+				end
+				for _, y in adj[x] do
+					if stepSet[y] and not seenStep[y] then
+						seenStep[y] = true
+						table.insert(stack, y)
+					end
+				end
+			end
+			local n = 0
+			for _ in ends do
+				n += 1
+			end
+			if n < 2 then
+				table.sort(group)
+				err(string.format("C9 jump-step chain links %d existing floor(s), needs 2: %s", n, table.concat(group, ",")))
+			end
+		end
+	end
+	if sprintFolder then
+		for _, m in sprintFolder:GetChildren() do
+			if string.find(m.Name, "^Traversal_") then
+				sprintJoins[m:GetFullName()] = sprintJoins[m:GetFullName()] or {}
+			end
+		end
+	end
+	local sprintJoinReport = {}
+	for key, set in sprintJoins do
+		local names, distinct = {}, {}
+		for n in set do
+			table.insert(names, n)
+			distinct[(string.gsub(n, "%(%a+%)$", ""))] = true
+		end
+		table.sort(names)
+		local count = 0
+		for _ in distinct do
+			count += 1
+		end
+		sprintJoinReport[key] = names
+		if count < 2 then
+			err(string.format("C9 sprint traversal model joins %d existing floor(s), needs 2: %s", count, key))
+		end
+	end
+	report.C9_sprintJoins = sprintJoinReport
+end
+
 -- C10 budgets.
 local totals = { parts = 0, collide = 0, lights = 0, shadows = 0 }
 for _, d in map:GetDescendants() do
@@ -494,6 +849,23 @@ for _, p in newParts do
 			err("C10 unknown ENV_SLICE1 category '" .. tostring(sliceArea) .. "': " .. p:GetFullName())
 		end
 		a = tostring(sliceArea)
+	end
+	local sprintArea = p:GetAttribute("EnvSprint2")
+	if sprintArea ~= nil then
+		if p:GetAttribute("Arch8A2B") ~= nil or p:GetAttribute("Arch8A2A") ~= nil or sliceArea ~= nil then
+			err("C10 part attributed to both ENV_SPRINT2 and a district or ENV_SLICE1: " .. p:GetFullName())
+		end
+		if sprintArea ~= "SprintTraversal" and sprintArea ~= "SprintExterior" then
+			err("C10 unknown ENV_SPRINT2 category '" .. tostring(sprintArea) .. "': " .. p:GetFullName())
+		end
+		for _, c in p:GetChildren() do
+			if not (c:IsA("PointLight") or c:IsA("SpotLight")) or #p:GetChildren() ~= 1 or #c:GetChildren() ~= 0 then
+				err("C10 sprint part may hold only one PointLight/SpotLight: " .. c:GetFullName())
+			elseif (c :: any).Shadows then
+				err("C10 sprint light casts shadows (Shadows must be false): " .. c:GetFullName())
+			end
+		end
+		a = tostring(sprintArea)
 	end
 	if a == "Reactor" or a == "CentralCore" then
 		a = "CoreTotal"
@@ -526,7 +898,23 @@ local CAPS = {
 	-- ENV_SLICE1 slice-level allocations (owner-approved 2026-11-13). Not a licence to build up to them.
 	TraversalLinks = { 24, 12, 0 },
 	ExteriorScenery = { 40, 0, 0 },
+	-- ENV_SPRINT2 sprint-level allocations (owner-approved sprint, SPRINT_BRIEF.md 2026-11-13).
+	SprintTraversal = { 95, 42, 0 },
+	SprintExterior = { 105, 0, 2 },
 }
+if sprintPresent then
+	local st, se = areas.SprintTraversal or { parts = 0, collide = 0, lights = 0 }, areas.SprintExterior or { parts = 0, collide = 0, lights = 0 }
+	local sp, sc, sl = st.parts + se.parts, st.collide + se.collide, st.lights + se.lights
+	if sp > 200 or sc > 42 or sl > 2 then
+		err(string.format("C10 sprint total %d/%d/%d > 200/42/2", sp, sc, sl))
+	end
+	if totals.parts > 2102 or totals.collide > 421 or totals.lights > 53 then
+		err(string.format("C10 map after the sprint %d/%d/%d > 2102/421/53", totals.parts, totals.collide, totals.lights))
+	end
+	if sp ~= nP then
+		err(string.format("C10 sprint part count mismatch (%d categorized, %d marked)", sp, nP))
+	end
+end
 for k, cap in CAPS do
 	local a = areas[k] or { parts = 0, collide = 0, lights = 0 }
 	if a.parts > cap[1] or a.collide > cap[2] or a.lights > cap[3] then
@@ -546,7 +934,7 @@ local reserved, reservedUse, neonCount = {}, {}, 0
 for _, p in newParts do
 	if p.Material == Enum.Material.Neon then
 		neonCount += 1
-		if not NEON_EXEMPT[p.Name] then
+		if not NEON_EXEMPT[p.Name] or sprintSet[p] then
 			local s = { p.Size.X, p.Size.Y, p.Size.Z }
 			table.sort(s)
 			if s[2] > 4 then
@@ -600,8 +988,16 @@ for _, f in sliceFloors do
 	table.insert(coverSolids, f)
 	table.insert(railFloors, f)
 end
-local function coveredOut(pt: Vector3, top: number, floor: BasePart?): boolean
-	for _, e in coverSolids do
+-- ENV_SPRINT2 walk surfaces are floors for every rail (appended last: nothing changes without them).
+for _, f in sprintFloors do
+	table.insert(coverSolids, f)
+	table.insert(railFloors, f)
+end
+for _, s in sprintSteps do -- a jump step is a landing; never a rail floor
+	table.insert(coverSolids, s)
+end
+local function coveredOut(pt: Vector3, top: number, floor: BasePart?, cover: { BasePart }?): boolean
+	for _, e in cover or coverSolids do
 		if e ~= floor then
 			local a, b = aabb(e)
 			if pt.X >= a.X and pt.X <= b.X and pt.Z >= a.Z and pt.Z <= b.Z and b.Y >= top - 40 and a.Y <= top + 6 then
@@ -658,6 +1054,61 @@ for _, p in newSolid do
 end
 report.C13_railsChecked = railsChecked
 report.C13_sliceRailsChecked = sliceRails
+-- C13 (ENV_SPRINT2): sprint rails stand on a sprint walk surface and face the void; every non-rail
+-- collidable (existing, 8A-2a, 8A-2b, slice, sprint) counts as a landing that the rail would block.
+if sprintPresent then
+	local sprintCover = table.clone(coverSolids)
+	local inCover = {}
+	for _, e in sprintCover do
+		inCover[e] = true
+	end
+	for _, q in newSolid do
+		if not inCover[q] and q:GetAttribute("EdgeRail") ~= true then
+			table.insert(sprintCover, q)
+		end
+	end
+	local sprintRails = 0
+	for _, p in sprintSolid do
+		if p:GetAttribute("EdgeRail") == true then
+			sprintRails += 1
+			local a, b = aabb(p)
+			local c = (a + b) / 2
+			local floor
+			for _, f in sprintFloors do
+				local fa, fb = aabb(f)
+				if c.X >= fa.X and c.X <= fb.X and c.Z >= fa.Z and c.Z <= fb.Z and math.abs(fb.Y - a.Y) < 0.6 then
+					floor = f
+					break
+				end
+			end
+			if not floor then
+				err("C9 ENV_SPRINT2 rail not on a sprint walk surface: " .. p:GetFullName())
+			else
+				local fa, fb = aabb(floor)
+				local alongX = (b.X - a.X) > (b.Z - a.Z)
+				local n
+				if alongX then
+					n = if math.abs(a.Z - fa.Z) < math.abs(fb.Z - b.Z) then V(0, 0, -1) else V(0, 0, 1)
+				else
+					n = if math.abs(a.X - fa.X) < math.abs(fb.X - b.X) then V(-1, 0, 0) else V(1, 0, 0)
+				end
+				local edge = if n.X < 0 then fa.X elseif n.X > 0 then fb.X elseif n.Z < 0 then fa.Z else fb.Z
+				local len = if alongX then b.X - a.X else b.Z - a.Z
+				local bad = 0
+				for t = 0.5, len - 0.5, 2 do
+					local pt = if alongX then V(a.X + t, fb.Y, edge + n.Z * 1.0) else V(edge + n.X * 1.0, fb.Y, a.Z + t)
+					if coveredOut(pt, fb.Y, floor, sprintCover) then
+						bad += 1
+					end
+				end
+				if bad > 0 then
+					err(string.format("C13 rail blocks %d drop-down sample(s): %s", bad, p:GetFullName()))
+				end
+			end
+		end
+	end
+	report.C13_sprintRailsChecked = sprintRails
+end
 
 -- Streaming modes of the new assemblies.
 local streaming = {}
@@ -670,6 +1121,15 @@ for _, top in { map.Architecture, map.Megastructure } do
 	end
 end
 report.streaming = streaming
+if sprintPresent and sprintFolder then
+	local sprintStreaming = {}
+	for _, m in sprintFolder:GetChildren() do
+		if m:IsA("Model") then
+			sprintStreaming[m.Name] = m.ModelStreamingMode.Name
+		end
+	end
+	report.streaming_sprint = sprintStreaming
+end
 
 -- AC2 strict benchmark (unchanged) + SELF + lobby.
 local silParts = {}
@@ -771,6 +1231,14 @@ local function selfScore(eye: Vector3, ignore: Instance?)
 end
 local WAIVED = { Spawn_RES_1 = true, Spawn_RES_2 = true, Spawn_ARCH_1 = true, Spawn_ARCH_2 = true, Spawn_ARCH_3 = true }
 local ac2, ac2Fail, newFail, selfLines, waivedLines = {}, {}, {}, {}, {}
+local benchOccNoSprint, sprintImpact = {}, {}
+if sprintPresent then
+	for _, o in benchOcc do
+		if not sprintSet[o] then
+			table.insert(benchOccNoSprint, o)
+		end
+	end
+end
 for _, s in spawns do
 	local eye = s.Position + V(0, s.Size.Y / 2 + 5, 0)
 	local v, c, co, blk = benchScore(eye, s)
@@ -788,7 +1256,25 @@ for _, s in spawns do
 	end
 	local sc, scr = selfScore(eye, s)
 	table.insert(selfLines, string.format("%s core %d/16 crown %d/8", s.Name, sc, scr))
+	if sprintPresent then
+		-- AC2w (ENV_SPRINT2): the same strict benchmark without sprint occluders.
+		local before = 0
+		for _, smp in bench do
+			if visible(benchOccNoSprint, eye, smp.p, s) then
+				before += 1
+			end
+		end
+		if before ~= v then
+			table.insert(sprintImpact, string.format("%s %d -> %d of %d", s.Name, before, v, #bench))
+		end
+		if WAIVED[s.Name] and v < before then
+			err(string.format("AC2w sprint reduces owner-waived viewpoint %s from %d to %d of %d", s.Name, before, v, #bench))
+		end
+	end
 	task.wait()
+end
+if sprintPresent then
+	report.AC2_sprintImpact = sprintImpact
 end
 local lobbyLines = {}
 for _, v in { { "LobbyCentre_head", V(0, 164.5, 420) }, { "Lobby_thirdPerson", V(0, 172, 434) }, { "Lobby_atGlass", V(0, 164.5, 399) } } do
@@ -924,6 +1410,12 @@ for _, d in map:GetDescendants() do
 end
 for _, f in sliceFloors do
 	table.insert(slabParts, f)
+end
+for _, f in sprintFloors do
+	table.insert(slabParts, f)
+end
+for _, s in sprintSteps do
+	table.insert(slabParts, s)
 end
 local CORE_SLABS = { CorePlaza = true, Mezz_N = true, Mezz_S = true, Mezz_E = true, Mezz_W = true, Gantry_N_Bridge = true, Gantry_E_Bridge = true }
 local coreSupports = {}
