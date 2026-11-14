@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const HERE = __dirname;
 const NOTES = process.argv[2] || 'C:/WORLD.EXE-Art/TwoMaps/Map1/notes';
-const VERSION = 'map1-expansion v7 2026-11-13';
+const VERSION = 'map1-expansion v9 2026-11-14';
 
 // ---------------------------------------------------------------- palette
 const C = {
@@ -23,8 +23,8 @@ const rows = [];
 const containers = {}; // grp -> {sector, cls, streaming}
 const layoutExtra = { landmarks: [] };
 
-function grp(name, sector, cls = 'Folder', streaming = null) {
-  containers[name] = { sector, cls, streaming };
+function grp(name, sector, cls = 'Folder', streaming = null, inName = null) {
+  containers[name] = { sector, cls, streaming, name: inName };
   return name;
 }
 const R3 = (v) => Math.round(v * 1000) / 1000;
@@ -54,7 +54,7 @@ function push(r) {
   rows.push({
     name: r.name, grp: r.grp, role: r.role, size: r.size.map(R3), pos: r.pos.map(R3), rot: (r.rot || IDENT).map((v) => Math.round(v * 1e6) / 1e6),
     mat: r.mat || 'SmoothPlastic', color: r.color || C.plate, tr: r.tr || 0, coll, shape: r.shape || 'B',
-    boss: r.boss || null, light: r.light || null, shadow: r.shadow !== undefined ? r.shadow : (coll && r.role !== 'Rail'), attrs: r.attrs || null,
+    boss: r.boss || null, light: r.light || null, sign: r.sign || null, shadow: r.shadow !== undefined ? r.shadow : (coll && r.role !== 'Rail'), attrs: r.attrs || null,
   });
 }
 // axis-aligned box from min/max
@@ -107,6 +107,19 @@ function ringStrip(g, name, role, cx, cz, r, th, N, y0, y1, depth, mat, color, o
   const pos = [cx + r * Math.cos(th), (y0 + y1) / 2, cz + r * Math.sin(th)];
   const f = lookAt(pos, [cx, pos[1], cz]);
   push(Object.assign({ name, grp: g, role, size: [w, y1 - y0, depth], pos, rot: f.rot, mat, color }, o));
+}
+// in-world sign: a thin decor panel with a SurfaceGui text label on face `face` (Front/Back/Left/Right).
+function sign(g, name, mn, mx, face, text, o = {}) {
+  box(g, name, 'Decor', mn, mx, 'SmoothPlastic', o.panel || C.plateDark, { shadow: false, sign: { face, text, color: o.color || C.cyan, ppS: o.ppS || 20 } });
+}
+// vertical ring (aperture) in the plane X = x0, centre (yc, zc), radius r (to the segment centre), N segments
+function apertureX(g, name, x0, yc, zc, r, N, depth, thick, mat, color, o = {}) {
+  for (let k = 0; k < N; k++) {
+    const ph = (k + 0.5) * 2 * Math.PI / N, c = Math.cos(ph), sn = Math.sin(ph);
+    const tl = 2 * (r + thick / 2) * Math.tan(Math.PI / N) + 0.2;
+    push(Object.assign({ name: `${name}${k + 1}`, grp: g, role: 'Decor', size: [depth, thick, tl], pos: [x0, yc + r * c, zc + r * sn],
+      rot: [1, 0, 0, 0, c, -sn, 0, sn, c], mat, color }, o));
+  }
 }
 // wall in an axis plane with rectangular openings. axis 'x' => wall spans X (u) and Y (v), thickness along Z.
 function wallWithOpenings(g, name, axis, u0, u1, v0, v1, t0, t1, openings, mat, color, o = {}) {
@@ -174,6 +187,10 @@ function corridor(g, name, axis, c, w, a, b, y, o = {}) {
         k++;
         const [mn, mx] = mk(cur, e, cc0, cc1, y, y + 4);
         box(g, `${name}_Rail${sd}${k}`, 'Rail', mn, mx, 'Metal', C.rail);
+        if (o.railGlow) {
+          const [gm, gx] = mk(cur, e, cc0 + 0.3, cc1 - 0.3, y + 4, y + 4.15);
+          box(g, `${name}_RailGlow${sd}${k}`, 'Decor', gm, gx, 'Neon', o.railGlow);
+        }
       }
       cur = Math.max(cur, gp[1]);
     }
@@ -207,7 +224,7 @@ function corridor(g, name, axis, c, w, a, b, y, o = {}) {
 }
 // hub-side portal frame on the plinth face around a cut opening (decor). axis 'x': opening spans X (u),
 // plane at Z = t; axis 'z': opening spans Z, plane at X = t. u0..u1 opening, y0..y1 opening.
-function portal(g, name, axis, t, u0, u1, y0, y1, ht = 1) {
+function portal(g, name, axis, t, u0, u1, y0, y1, ht = 1, jamb = null) {
   const t0 = t - ht, t1 = t + ht;
   const bx = (nm, a0, a1, b0, b1, mat, col) => axis === 'x' ? box(g, nm, 'Decor', [a0, b0, t0], [a1, b1, t1], mat, col, { shadow: true }) : box(g, nm, 'Decor', [t0, b0, a0], [t1, b1, a1], mat, col, { shadow: true });
   bx(name + '_JambA', u0 - 3, u0, y0 - 2, y1 + 3, 'Metal', C.trim);
@@ -216,6 +233,10 @@ function portal(g, name, axis, t, u0, u1, y0, y1, ht = 1) {
   const g0 = axis === 'x' ? [u0, y1 - 0.5, t - ht - 0.3] : [t - ht - 0.3, y1 - 0.5, u0];
   const g1 = axis === 'x' ? [u1, y1, t + ht + 0.3] : [t + ht + 0.3, y1, u1];
   box(g, name + '_Glow', 'Decor', g0, g1, 'Neon', C.cyan);
+  if (jamb) { // v8: lit jambs so the opening reads from inside the hub (violet = ground route, cyan = elevated)
+    bx(name + '_JambGlowA', u0, u0 + 0.3, y0, y1, 'Neon', jamb);
+    bx(name + '_JambGlowB', u1 - 0.3, u1, y0, y1, 'Neon', jamb);
+  }
 }
 const routes = [];
 
@@ -237,12 +258,12 @@ const ISOLATE = [
   // --- Route N ground: Archive floor north edge (Z -260) -> forecourt (Z -420), X 55..75
   corridor(rN, 'RN_Ground', 'z', 65, 20, -420, -260, 0, {
     railFrom: -420, railTo: -262, railGaps: [[-396, -340, 'B']],
-    piers: [-290, -410],
+    piers: [-290, -410], railGlow: C.violet, arch: 48, archFrom: -314, archTo: -262, archH: 18,
   });
   // gatehouse plaza under the terrace
   box(rN, 'RN_Gate_Floor', 'Floor', [43, -2, -396], [87, 0, -340], 'DiamondPlate', C.floorRoute);
   for (const [nm, mn, mx] of [
-    ['RN_Gate_RailW', [43, 0, -396], [44, 4, -340]], ['RN_Gate_RailE', [86, 0, -396], [87, 4, -340]],
+    ['RN_Gate_RailW1', [43, 0, -396], [44, 4, -392]], ['RN_Gate_RailW2', [43, 0, -380], [44, 4, -340]], ['RN_Gate_RailE', [86, 0, -396], [87, 4, -340]],
     ['RN_Gate_RailS1', [44, 0, -341], [55, 4, -340]], ['RN_Gate_RailS2', [75, 0, -341], [86, 4, -340]],
     ['RN_Gate_RailN1', [44, 0, -396], [55, 4, -395]], ['RN_Gate_RailN2', [75, 0, -396], [86, 4, -395]],
   ]) box(rN, nm, 'Rail', mn, mx, 'Metal', C.rail);
@@ -254,25 +275,51 @@ const ISOLATE = [
   box(rN, 'RN_Gate_Lintel', 'Decor', [41, 26, -399], [89, 30, -396], 'Metal', C.plateDark, { shadow: true });
   box(rN, 'RN_Gate_LintelGlow', 'Decor', [44, 25.6, -398], [86, 26, -397], 'Neon', C.cyan);
   cut('RN_Ground_Plinth', [53, -6, -337], [77, 30, -316]);
-  portal(rN, 'RN_Ground_Portal', 'x', -318, 53, 77, 0, 30);
-  cut('RN_Ground_VaultWallDoor', [55, -4, -261.6], [75, 28, -260]);
-  portal(rN, 'RN_Ground_Door', 'x', -259.7, 55, 75, 0, 28, 0.3);
+  portal(rN, 'RN_Ground_Portal', 'x', -318, 53, 77, 0, 30, 1, C.violet);
+  // v8: full-height slot (VaultWall_N becomes 3 pieces instead of 6; reads clearly from the hub)
+  cut('RN_Ground_VaultWallDoor', [55, -4, -261.6], [75, 70, -260]);
+  portal(rN, 'RN_Ground_Door', 'x', -259.7, 55, 75, 0, 68, 0.3, C.violet);
+  sign(rN, 'RN_HubSign_Ground', [55, 15, -259.6], [75, 20, -259.2], 'Back', 'N  CONTAINMENT VAULT');
   routes.push({ id: 'N_Ground', from: 'Hub.DataArchive', to: S, level: 0, width: 20,
     waypoints: [[65, 0, -255], [65, 0, -340], [65, 0, -396], [65, 0, -420], [0, 0, -470], [0, 0, -520], [0, 0, -598]],
-    openings: ['VaultWall_N door X55..75 Y-4..28', 'north plinth X53..77 Y-6..30'] });
+    openings: ['VaultWall_N full-height slot X55..75 Y-4..70', 'north plinth X53..77 Y-6..30'] });
 
   // --- Route N elevated: Ring_N (Y24, Z -237) -> vault west balcony (Z -496), X -75..-55
   corridor(rN, 'RN_Bridge', 'z', -65, 20, -496, -237, 24, {
-    railFrom: -496, railTo: -237, railGaps: [[-496, -482, 'R']], arch: 32, archFrom: -496, archTo: -414, archH: 14,
+    railFrom: -496, railTo: -237, railGaps: [[-496, -482, 'R'], [-404, -368, 'R']], arch: 32, archFrom: -496, archTo: -414, archH: 14,
     piers: [-290, -350],
   });
+  // v8 N-Line Junction station (Z -404..-368): widened deck east of the bridge + ramp down to a link
+  // that joins the ground gatehouse plaza (split decision point between the two N routes)
+  box(rN, 'RN_Jct_Deck', 'Floor', [-55, 22, -404], [-39, 24, -368], 'DiamondPlate', C.floor);
+  box(rN, 'RN_Jct_RailN', 'Rail', [-55, 24, -404], [-39, 28, -403], 'Metal', C.rail);
+  box(rN, 'RN_Jct_RailS', 'Rail', [-55, 24, -369], [-39, 28, -368], 'Metal', C.rail);
+  box(rN, 'RN_Jct_RailE1', 'Rail', [-40, 24, -403], [-39, 28, -392], 'Metal', C.rail);
+  box(rN, 'RN_Jct_RailE2', 'Rail', [-40, 24, -380], [-39, 28, -369], 'Metal', C.rail);
+  box(rN, 'RN_Jct_Cover', 'Cover', [-51, 24, -401], [-44, 28.5, -397], 'Metal', C.cover);
+  ramp(rN, 'RN_Jct_Ramp', [13, 0, -386], [-39, 24, -386], 12, 'DiamondPlate', C.floorRoute, { rails: [-1, 1] });
+  box(rN, 'RN_Link_Floor', 'Floor', [13, -2, -392], [43, 0, -380], 'DiamondPlate', C.floorRoute);
+  box(rN, 'RN_Link_RailN', 'Rail', [13, 0, -392], [43, 4, -391], 'Metal', C.rail);
+  box(rN, 'RN_Link_RailS', 'Rail', [13, 0, -381], [43, 4, -380], 'Metal', C.rail);
+  for (const [nm, x0, x1] of [['W', -78, -76], ['E', -38, -36]]) for (const [k, z] of [[1, -404], [2, -368]]) box(rN, `RN_Jct_Mast${nm}${k}`, 'Decor', [x0, -92, z - 1], [x1, 40, z + 1], 'Metal', C.plateDark, { shadow: true });
+  box(rN, 'RN_Jct_Roof', 'Decor', [-78, 40, -406], [-36, 41.5, -366], 'Metal', C.plateDark, { shadow: true });
+  box(rN, 'RN_Jct_RoofGlowW', 'Decor', [-74, 39.6, -404], [-73.4, 40, -368], 'Neon', C.cyan);
+  box(rN, 'RN_Jct_RoofGlowE', 'Decor', [-41.4, 39.6, -404], [-40.8, 40, -368], 'Neon', C.violet);
+  box(rN, 'RN_Jct_Lamp', 'Decor', [-60, 39.4, -390], [-50, 40, -382], 'Neon', C.cyanSoft, { light: { range: 36, brightness: 1.3, color: [170, 230, 255] } });
+  sign(rN, 'RN_Jct_SignN', [-74, 32, -368.6], [-42, 37, -368.2], 'Back', 'N-LINE JUNCTION   VAULT ^   GATE >');
+  sign(rN, 'RN_Jct_SignS', [-74, 32, -403.8], [-42, 37, -403.4], 'Front', 'N-LINE JUNCTION   HUB ^');
+  routes.push({ id: 'N_Junction', from: 'Route_N elevated', to: 'Route_N ground gatehouse', level: 24, width: 12,
+    waypoints: [[-65, 24, -386], [-39, 24, -386], [13, 0, -386], [43, 0, -386], [65, 0, -386]], openings: [] });
   cut('RN_Bridge_Plinth', [-77, 20, -337], [-53, 52, -316]);
-  portal(rN, 'RN_Bridge_Portal', 'x', -318, -77, -53, 24, 52);
-  cut('RN_Bridge_VaultWall', [-75, 22, -261.6], [-55, 52, -260]);
-  portal(rN, 'RN_Bridge_Door', 'x', -259.7, -75, -55, 24, 52, 0.3);
+  portal(rN, 'RN_Bridge_Portal', 'x', -318, -77, -53, 24, 52, 1, C.cyan);
+  // v8: full-height slot; a 4-high rail closes it at the Archive floor (Y0)
+  cut('RN_Bridge_VaultWall', [-75, -4, -261.6], [-55, 70, -260]);
+  portal(rN, 'RN_Bridge_Door', 'x', -259.7, -75, -55, 0, 68, 0.3, C.cyan);
+  box(rN, 'RN_SlotRail', 'Rail', [-75, 0, -261.5], [-55, 4, -260.5], 'Metal', C.rail);
+  sign(rN, 'RN_HubSign_Elevated', [-75, 36, -259.6], [-55, 41, -259.2], 'Back', 'N ELEVATED  VAULT');
   routes.push({ id: 'N_Elevated', from: 'Hub.OuterRing_N', to: S, level: 24, width: 20,
-    waypoints: [[-65, 24, -232], [-65, 24, -300], [-65, 24, -420], [-65, 24, -494], [-72, 24, -520], [-72, 24, -630], [-72, 12, -666], [-50, 0, -660], [0, 0, -598]],
-    openings: ['VaultWall_N upper cut X-75..-55 Y22..52', 'north plinth X-77..-53 Y20..52'] });
+    waypoints: [[-65, 24, -232], [-65, 24, -300], [-65, 24, -386], [-65, 24, -494], [-72, 24, -506], [-57.5, 24, -506], [-57.5, 24, -512], [-57.5, 0, -564], [0, 0, -598]],
+    openings: ['VaultWall_N full-height slot X-75..-55 Y-4..70 (rail at Y0)', 'north plinth X-77..-53 Y20..52'] });
 
   // --- Forecourt (objective: Vault Antechamber), Y0, X -90..90, Z -496..-420
   box(g, 'CV_Forecourt_Floor', 'Floor', [-90, -4, -496], [90, 0, -420], 'DiamondPlate', C.floor, { attrs: { Map1Space: 'Objective_VaultAntechamber' } });
@@ -316,7 +363,7 @@ const ISOLATE = [
   for (const [sd, x0, x1, rx0, rx1, side] of [['W', -80, -64, -65, -64, 1], ['E', 64, 80, 64, 65, -1]]) {
     const z0 = sd === 'W' ? -496 : -500;
     box(g, `CV_Balcony${sd}`, 'Floor', [x0, 22, -640], [x1, 24, z0], 'DiamondPlate', C.floor);
-    box(g, `CV_Balcony${sd}_Rail`, 'Rail', [rx0, 24, -640], [rx1, 28, z0], 'Metal', C.rail);
+    box(g, `CV_Balcony${sd}_Rail`, 'Rail', [rx0, 24, -640], [rx1, 28, sd === 'W' ? -512 : z0], 'Metal', C.rail);
     box(g, `CV_Balcony${sd}_Edge`, 'Decor', [rx0, 21.6, -640], [rx1, 22, -500], 'Neon', C.cyan);
     const xm = (x0 + x1) / 2;
     ramp(g, `CV_Ramp${sd}`, [xm, 0, -692], [xm, 24, -640], 16, 'DiamondPlate', C.floor, { rails: [side > 0 ? -1 : 1] });
@@ -324,6 +371,24 @@ const ISOLATE = [
       const cx = sd === 'W' ? -65.5 : 65.5;
       box(g, `CV_Column${sd}${i}`, 'Cover', [cx - 1.5, 0, z - 1.5], [cx + 1.5, 22, z + 1.5], 'Metal', C.plateDark);
     }
+  }
+  // v8 grand stair: west balcony (Y24) -> vault floor, right inside the south wall (the elevated
+  // route now reaches the boss floor in ~5 s instead of walking the balcony to the north ramp)
+  box(g, 'CV_Stair_Landing', 'Floor', [-64, 22, -512], [-51, 24, -500], 'DiamondPlate', C.floor);
+  box(g, 'CV_Stair_LandingRailE', 'Rail', [-52, 24, -512], [-51, 28, -500], 'Metal', C.rail);
+  ramp(g, 'CV_Stair', [-57.5, 0, -564], [-57.5, 24, -512], 12, 'DiamondPlate', C.floor, { rails: [-1, 1] });
+  box(g, 'CV_Stair_Glow', 'Decor', [-63.5, 21.6, -512.4], [-51.5, 22, -512], 'Neon', C.violet);
+  // v8 entry landmark: Containment Gate (two collidable pylons against the south wall + lintel and sign)
+  for (const [nm, x0] of [['W', -26], ['E', 18]]) {
+    box(g, `CV_GatePylon${nm}`, 'Wall', [x0, 0, -496], [x0 + 8, 88, -494], 'Metal', C.plateDark);
+    box(g, `CV_GatePylon${nm}_Strip`, 'Decor', [x0 + 3, 2, -494], [x0 + 5, 86, -493.6], 'Neon', C.violet);
+  }
+  box(g, 'CV_GateLintel', 'Decor', [-26, 80, -496], [26, 90, -493], 'Metal', C.plateDark, { shadow: true });
+  sign(g, 'CV_GateSign', [-18, 81.5, -493], [18, 88.5, -492.6], 'Back', 'CONTAINMENT VAULT  N-01');
+  // human-scale service doors either side of the gate (scale cue)
+  for (const [nm, x] of [['W', -46], ['E', 40]]) {
+    box(g, `CV_ServiceDoor${nm}`, 'Decor', [x - 3, 0, -496], [x + 3, 9, -495.6], 'Metal', C.charcoal);
+    box(g, `CV_ServiceDoor${nm}_Glow`, 'Decor', [x - 3, 9, -496], [x + 3, 9.4, -495.5], 'Neon', C.cyan);
   }
   // dais + steps at the north end
   box(g, 'CV_Dais', 'Floor', [-40, 0, -700], [40, 6, -666], 'SmoothPlastic', C.floorBoss);
@@ -346,7 +411,7 @@ const ISOLATE = [
   // wall bands + exterior buttresses
   for (const x of [-79.8, 79.8]) for (const y of [44, 84]) box(g, `CV_Band${x < 0 ? 'W' : 'E'}${y}`, 'Decor', [x - 0.2, y, -700], [x + 0.2, y + 0.6, -500], 'Neon', C.cyan);
   let bk = 0;
-  for (const z of [-510, -545, -580, -615, -650, -685]) for (const x of [-88, 84]) { bk++; box(g, `CV_Buttress${bk}`, 'Decor', [x, -90, z - 3], [x + 4, 104, z + 3], 'Concrete', C.charcoal, { shadow: true }); }
+  for (const z of [-510, -545, -580, -615, -650, -685]) for (const x of [-88, 84]) { bk++; box(g, `CV_Buttress${bk}`, 'Decor', [x, -90, z - 3], [x + 4, 126, z + 3], 'Concrete', C.charcoal, { shadow: true }); box(g, `CV_ButtressCap${bk}`, 'Decor', [x - 0.2, 126, z - 3.2], [x + 4.2, 127.2, z + 3.2], 'Neon', bk % 2 ? C.violet : C.cyan); }
   for (const x of [-84.2, 84.2]) box(g, `CV_ExtBand${x < 0 ? 'W' : 'E'}`, 'Decor', [x - 0.3, 70, -704], [x + 0.3, 71.2, -496], 'Neon', C.violet);
   // lights
   for (const [i, x, z] of [[1, -40, -540], [2, 40, -540], [3, -40, -640], [4, 40, -640]]) box(g, `CV_Lamp${i}`, 'Decor', [x - 3, 90, z - 3], [x + 3, 91, z + 3], 'Neon', C.cyanSoft, { light: { range: 60, brightness: 1.6, color: [185, 235, 255] } });
@@ -375,7 +440,7 @@ const ISOLATE = [
   const cx = -620, cz = 32;
   // --- Route W ground: YardFloor_W edge (X -260) -> pit rim (X -470), Z 23..41
   corridor(rW, 'RW_Ground', 'x', 32, 18, -472, -260, 0, {
-    railFrom: -469, railTo: -260, railGaps: [[-396, -340, 'B'], [-456, -432, 'L']], piers: [-290, -440],
+    railFrom: -469, railTo: -260, railGaps: [[-396, -340, 'B'], [-456, -432, 'L']], piers: [-290, -440], railGlow: C.violet,
   });
   // mid-corridor objective nook (Agent C review): side alcove with a console and lamp
   box(rW, 'RW_Nook_Floor', 'Floor', [-456, -2, 9], [-432, 0, 23], 'DiamondPlate', C.floor, { attrs: { Map1Space: 'Objective_RW_Nook' } });
@@ -396,27 +461,51 @@ const ISOLATE = [
   box(rW, 'RW_Gate_Cover2', 'Cover', [-371, 0, 43], [-365, 5, 49], 'Metal', C.cover);
   box(rW, 'RW_Gate_Lamp', 'Decor', [-370, 20.5, 28], [-366, 21, 36], 'Neon', C.cyanSoft, { light: { range: 36, brightness: 1.2, color: [170, 230, 255] } });
   // --- Route W elevated: Ring_W (X -237, Y24) -> pit gantry, stacked over the ground route, Z 26..38
-  corridor(rW, 'RW_Bridge', 'x', 32, 12, -470, -237, 24, { arch: 34, archFrom: -470, archTo: -414, archH: 14 });
+  corridor(rW, 'RW_Bridge', 'x', 32, 12, -470, -237, 24, { arch: 34, archFrom: -470, archTo: -430, archH: 14, railGaps: [[-428, -396, 'R']] });
   cut('RW_Plinth', [-337, -6, 21], [-315, 52, 43]);
-  portal(rW, 'RW_Portal', 'z', -318, 21, 43, 0, 52);
+  portal(rW, 'RW_Portal', 'z', -318, 21, 43, 0, 52, 1, C.violet);
+  sign(rW, 'RW_HubSign_Ground', [-317, 8, 46], [-316.6, 16, 68], 'Right', 'W  TESTING PIT  >>');
+  sign(rW, 'RW_HubSign_Elevated', [-317, 28, 46], [-316.6, 34, 68], 'Right', 'W ELEVATED LINE (RING Y24)');
+  // v8 W-Line Junction station (X -428..-396): deck south of the bridge + ramp straight down to the
+  // pit's east rim (split: descend into the pit now, or stay high on the gantry over the arena)
+  box(rW, 'RW_Jct_Deck', 'Floor', [-428, 22, 38], [-396, 24, 56], 'DiamondPlate', C.floor);
+  box(rW, 'RW_Jct_RailE', 'Rail', [-397, 24, 38], [-396, 28, 56], 'Metal', C.rail);
+  box(rW, 'RW_Jct_RailS', 'Rail', [-428, 24, 55], [-397, 28, 56], 'Metal', C.rail);
+  box(rW, 'RW_Jct_RailW', 'Rail', [-428, 24, 38], [-427, 28, 44], 'Metal', C.rail);
+  box(rW, 'RW_Jct_Cover', 'Cover', [-412, 24, 47], [-405, 28.5, 52], 'Metal', C.cover);
+  ramp(rW, 'RW_Jct_Ramp', [-480, 0, 50], [-428, 24, 50], 12, 'DiamondPlate', C.floorRoute, { rails: [-1, 1] });
+  for (const [nm, x0] of [['W', -432], ['E', -394]]) for (const [k, z0] of [[1, 20], [2, 58]]) box(rW, `RW_Jct_Mast${nm}${k}`, 'Decor', [x0, -92, z0], [x0 + 2, 40, z0 + 2], 'Metal', C.plateDark, { shadow: true });
+  box(rW, 'RW_Jct_Roof', 'Decor', [-432, 40, 20], [-392, 41.5, 60], 'Metal', C.plateDark, { shadow: true });
+  box(rW, 'RW_Jct_RoofGlowN', 'Decor', [-430, 39.6, 24], [-394, 40, 24.6], 'Neon', C.cyan);
+  box(rW, 'RW_Jct_RoofGlowS', 'Decor', [-430, 39.6, 55.4], [-394, 40, 56], 'Neon', C.violet);
+  box(rW, 'RW_Jct_Lamp', 'Decor', [-418, 39.4, 40], [-408, 40, 48], 'Neon', C.cyanSoft, { light: { range: 36, brightness: 1.3, color: [170, 230, 255] } });
+  sign(rW, 'RW_Jct_Sign', [-396.4, 31, 25], [-396, 36, 55], 'Right', 'W-LINE JUNCTION   RIM <   GANTRY ^');
+  // v8 entry landmark: test aperture ring around both W routes where they reach the rim
+  apertureX(rW, 'RW_Aperture', -462, 14, 32, 30, 16, 3, 4, 'Metal', C.trim, { shadow: true });
+  apertureX(rW, 'RW_ApertureGlow', -460.2, 14, 32, 27.6, 16, 0.4, 0.6, 'Neon', C.violet);
+  sign(rW, 'RW_ApertureSign', [-460.6, 46, 18], [-460.2, 52, 46], 'Right', 'TESTING PIT  W-02');
+  routes.push({ id: 'W_Junction', from: 'Route_W elevated', to: 'TestingPit east rim', level: 24, width: 12,
+    waypoints: [[-412, 24, 32], [-412, 24, 50], [-428, 24, 50], [-480, 0, 50]], openings: [] });
   // --- the pit (rings descend from the rim at Y0 to the floor at Y-24)
-  cylY(g, 'TP_PitFloor', 'Floor', cx, cz, -28, -24, 146, 'SmoothPlastic', C.floorBoss, { boss: S });
+  // v8: the pit is a 12-sided bowl (was 24-34 segments per tier): 48 tier slabs instead of 116, with
+  // faces centred on E/W so the corridor and the control deck meet flat faces
+  cylY(g, 'TP_PitFloor', 'Floor', cx, cz, -28, -24, 150, 'SmoothPlastic', C.floorBoss, { boss: S });
   const rings = [
-    { nm: 'TierC', r1: 72, r2: 94, top: -18, N: 24, boss: S },
-    { nm: 'TierB', r1: 94, r2: 114, top: -12, N: 28 },
-    { nm: 'TierA', r1: 114, r2: 136, top: -6, N: 30 },
-    { nm: 'Rim', r1: 136, r2: 152, top: 0, N: 34 },
+    { nm: 'TierC', r1: 72, r2: 94, top: -18, N: 12, boss: S },
+    { nm: 'TierB', r1: 94, r2: 114, top: -12, N: 12 },
+    { nm: 'TierA', r1: 114, r2: 136, top: -6, N: 12 },
+    { nm: 'Rim', r1: 136, r2: 152, top: 0, N: 12 },
   ];
   for (const ring of rings) {
     for (let k = 0; k < ring.N; k++) {
-      const th = (k + 0.5) * 2 * Math.PI / ring.N;
+      const th = k * 2 * Math.PI / ring.N;
       ringSeg(g, `TP_${ring.nm}_${k + 1}`, 'Floor', cx, cz, ring.r1, ring.r2, th, ring.N, -30, ring.top, 'Metal', ring.nm === 'Rim' ? C.floor : C.plate, { boss: ring.boss || null, shadow: true });
       if (ring.nm === 'TierC' || ring.nm === 'TierA') ringStrip(g, `TP_${ring.nm}_Edge${k + 1}`, 'Decor', cx, cz, ring.r1 + 0.4, th, ring.N, ring.top, ring.top + 0.15, 0.5, 'Neon', C.cyan);
     }
   }
   // aisle ramps at 45/135/225/315 deg
-  const aisle = [45, 135, 225, 315];
-  for (const deg of aisle) {
+  const aisle = [30, 150, 210, 330]; // v8: on 12-gon face centres
+  for (const deg of [30, 210]) { // v8: two aisle ramps (tiers are 6 studs: jumpable); masts stay on all four
     const th = deg * Math.PI / 180, ux = Math.cos(th), uz = Math.sin(th);
     const P = (r, y) => [cx + r * ux, y, cz + r * uz];
     ramp(g, `TP_Aisle${deg}_0`, P(57, -24), P(72, -18), 10, 'DiamondPlate', C.floor);
@@ -424,21 +513,22 @@ const ISOLATE = [
     ramp(g, `TP_Aisle${deg}_2`, P(99, -12), P(114, -6), 10, 'DiamondPlate', C.floor);
     ramp(g, `TP_Aisle${deg}_3`, P(121, -6), P(136, 0), 10, 'DiamondPlate', C.floor);
   }
-  // rim outer rail (gaps: east route at 0 deg, west objective platform at 180 deg)
-  const N = 40;
-  for (let k = 0; k < N; k++) {
-    const th = (k + 0.5) * 2 * Math.PI / N, deg = th * 180 / Math.PI;
-    const gapE = Math.abs(((deg + 180) % 360) - 180) < 9.1;
-    const gapW = Math.abs(deg - 180) < 9.1;
-    if (gapE || gapW) continue;
-    ringStrip(g, `TP_RimRail${k + 1}`, 'Rail', cx, cz, 151.5, th, N, 0, 4, 1, 'Metal', C.rail);
-  }
-  // close the east gap down to the ground corridor width (corridor Z 23..41 = cz +/- 9)
-  for (const sgn of [1, -1]) {
-    const ta = sgn * Math.asin(9.4 / 151.5), tb = sgn * 9.2 * Math.PI / 180;
-    const p0 = [cx + 151.5 * Math.cos(ta), 2, cz + 151.5 * Math.sin(ta)], p1 = [cx + 151.5 * Math.cos(tb), 2, cz + 151.5 * Math.sin(tb)];
-    const L = len(sub(p1, p0)), mid = mul(add(p0, p1), 0.5), f = lookAt(mid, p1);
-    push({ name: `TP_RimRailGate${sgn > 0 ? 'S' : 'N'}`, grp: g, role: 'Rail', size: [1, 4, L + 0.6], pos: mid, rot: f.rot, mat: 'Metal', color: C.rail });
+  // v8 rim outer rail: one straight rail per 12-gon face (apothem 151.5), with openings on the E face
+  // (ground corridor Z 23..41, junction ramp Z 44..56) and the W face (control deck Z 0..64)
+  const HALF = 152 * Math.tan(Math.PI / 12) + 0.05;
+  const faceGaps = { 0: [[-9, 9], [12, 24]], 6: [[-32, 32]] }; // tangential t (E face: t = Z - cz; W face: t = cz - Z)
+  for (let k = 0; k < 12; k++) {
+    const th = k * Math.PI / 6, n = [Math.cos(th), 0, Math.sin(th)], tv = [-Math.sin(th), 0, Math.cos(th)];
+    const spans = [];
+    let cur = -HALF;
+    for (const gp of faceGaps[k] || []) { spans.push([cur, gp[0]]); cur = gp[1]; }
+    spans.push([cur, HALF]);
+    spans.forEach(([t0, t1], i) => {
+      const tm = (t0 + t1) / 2;
+      const pos = [cx + n[0] * 151.5 + tv[0] * tm, 2, cz + n[2] * 151.5 + tv[2] * tm];
+      const f = lookAt(pos, [cx, 2, cz]);
+      push({ name: `TP_RimRail${k + 1}${spans.length > 1 ? String.fromCharCode(97 + i) : ''}`, grp: g, role: 'Rail', size: [t1 - t0, 4, 1], pos, rot: f.rot, mat: 'Metal', color: C.rail });
+    });
   }
   // pit cover (6 blocks) + central emitter (low, jumpable)
   for (let k = 0; k < 6; k++) {
@@ -481,7 +571,9 @@ const ISOLATE = [
   routes.push({ id: 'W_Ground', from: 'Hub.ResearchYard', to: S, level: 0, width: 18,
     waypoints: [[-255, 0, 32], [-340, 0, 32], [-396, 0, 32], [-466, 0, 32], [-500, 0, 32], [cx + 102, -12, cz + 0], [cx + 60, -24, cz]], openings: ['west plinth X-337..-315 Z21..43 Y-6..52 (shared with elevated)'] });
   routes.push({ id: 'W_Elevated', from: 'Hub.OuterRing_W', to: S, level: 24, width: 12,
-    waypoints: [[-232, 24, 32], [-470, 24, 32], [-620, 24, 32], [-760, 24, 32], [-812, 0, 32], [-772, 0, 32], [cx - 140, 0, cz], [cx - 60, -24, cz]], openings: ['shared west plinth opening'] });
+    waypoints: [[-232, 24, 32], [-412, 24, 32], [-412, 24, 50], [-428, 24, 50], [-480, 0, 50], [cx + 102, -12, cz + 10], [cx + 40, -24, cz]], openings: ['shared west plinth opening'] });
+  routes.push({ id: 'W_Gantry', from: 'Route_W elevated', to: 'Test Control deck', level: 24, width: 12,
+    waypoints: [[-470, 24, 32], [-620, 24, 32], [-760, 24, 32], [-812, 0, 32], [-772, 0, 32], [cx - 140, 0, cz], [cx - 60, -24, cz]], openings: [] });
 }
 
 // =================================================================== EAST: Foundry
@@ -492,7 +584,7 @@ const ISOLATE = [
   const X0 = 510, X1 = 690, Z0 = -110, Z1 = 70, cx = 600, cz = -20;
   // --- Route E ground: SkyBase edge (X 200) -> foundry west door (X 510), Z -30..-10
   corridor(rE, 'RE_Ground', 'x', -20, 20, 200, 510, 0, {
-    railFrom: 200, railTo: 506, railGaps: [[340, 396, 'B'], [432, 456, 'R']], arch: 30, archFrom: 414, archTo: 506, archH: 16, piers: [290, 430, 480],
+    railFrom: 200, railTo: 506, railGaps: [[340, 396, 'B'], [406, 428, 'R'], [432, 456, 'R']], railGlow: C.violet, arch: 30, archFrom: 414, archTo: 506, archH: 16, piers: [290, 430, 480],
   });
   // mid-corridor objective nook (Agent C review): side alcove with a console and lamp
   box(rE, 'RE_Nook_Floor', 'Floor', [432, -2, -10], [456, 0, 6], 'DiamondPlate', C.floor, { attrs: { Map1Space: 'Objective_RE_Nook' } });
@@ -513,16 +605,48 @@ const ISOLATE = [
   box(rE, 'RE_Gate_Cover2', 'Cover', [365, 0, -8], [371, 5, -2], 'Metal', C.cover);
   box(rE, 'RE_Gate_Lamp', 'Decor', [366, 50, -24], [370, 51, -16], 'Neon', C.cyanSoft, { light: { range: 40, brightness: 1.2, color: [170, 230, 255] } });
   cut('RE_Ground_Plinth', [315, -6, -32], [337, 30, -8]);
-  portal(rE, 'RE_Ground_Portal', 'z', 318, -32, -8, 0, 30);
+  portal(rE, 'RE_Ground_Portal', 'z', 318, -32, -8, 0, 30, 1, C.violet);
   // --- Route E elevated: Ring_E (X 237, Y24) -> control gallery (X 540), Z 83..97
-  corridor(rE, 'RE_Bridge', 'x', 90, 14, 237, 540, 24, { arch: 34, archFrom: 414, archTo: 540, archH: 14, piers: [290, 380, 470] });
+  corridor(rE, 'RE_Bridge', 'x', 90, 14, 237, 540, 24, { arch: 34, archFrom: 440, archTo: 540, archH: 14, piers: [290, 380, 470], railGaps: [[399, 435, 'L']] });
+  sign(rE, 'RE_HubSign_Ground', [316.6, 8, -58], [317, 16, -34], 'Left', 'E  FOUNDRY  >>');
+  sign(rE, 'RE_HubSign_Elevated', [316.6, 30, 56], [317, 36, 78], 'Left', 'E ELEVATED LINE (RING Y24)');
+  // v8 E-Line Junction station (X 399..435): deck south of the bridge + ramp down to a platform on the
+  // ground corridor (split decision point; links the two E routes halfway)
+  box(rE, 'RE_Jct_Deck', 'Floor', [399, 22, 67], [435, 24, 83], 'DiamondPlate', C.floor);
+  box(rE, 'RE_Jct_RailW', 'Rail', [399, 24, 67], [400, 28, 83], 'Metal', C.rail);
+  box(rE, 'RE_Jct_RailE', 'Rail', [434, 24, 67], [435, 28, 83], 'Metal', C.rail);
+  box(rE, 'RE_Jct_RailS1', 'Rail', [400, 24, 67], [411, 28, 68], 'Metal', C.rail);
+  box(rE, 'RE_Jct_RailS2', 'Rail', [423, 24, 67], [434, 28, 68], 'Metal', C.rail);
+  box(rE, 'RE_Jct_Cover', 'Cover', [403, 24, 73], [408, 28.5, 79], 'Metal', C.cover);
+  ramp(rE, 'RE_Jct_Ramp', [417, 0, 15], [417, 24, 67], 12, 'DiamondPlate', C.floorRoute, { rails: [-1, 1] });
+  box(rE, 'RE_Jct_Platform', 'Floor', [406, -2, -10], [428, 0, 17], 'DiamondPlate', C.floorRoute);
+  box(rE, 'RE_Jct_PlatRailW', 'Rail', [406, 0, -10], [407, 4, 17], 'Metal', C.rail);
+  box(rE, 'RE_Jct_PlatRailE', 'Rail', [427, 0, -10], [428, 4, 17], 'Metal', C.rail);
+  box(rE, 'RE_Jct_PlatRailN1', 'Rail', [407, 0, 16], [411, 4, 17], 'Metal', C.rail);
+  box(rE, 'RE_Jct_PlatRailN2', 'Rail', [423, 0, 16], [427, 4, 17], 'Metal', C.rail);
+  for (const [nm, x0] of [['W', 395], ['E', 437]]) for (const [k, z0] of [[1, 61], [2, 101]]) box(rE, `RE_Jct_Mast${nm}${k}`, 'Decor', [x0, -92, z0], [x0 + 2, 40, z0 + 2], 'Metal', C.plateDark, { shadow: true });
+  box(rE, 'RE_Jct_Roof', 'Decor', [395, 40, 61], [439, 41.5, 103], 'Metal', C.plateDark, { shadow: true });
+  box(rE, 'RE_Jct_RoofGlowN', 'Decor', [397, 39.6, 64], [437, 40, 64.6], 'Neon', C.violet);
+  box(rE, 'RE_Jct_RoofGlowS', 'Decor', [397, 39.6, 99.4], [437, 40, 100], 'Neon', C.cyan);
+  box(rE, 'RE_Jct_Lamp', 'Decor', [412, 39.4, 72], [422, 40, 80], 'Neon', C.cyanSoft, { light: { range: 36, brightness: 1.3, color: [170, 230, 255] } });
+  sign(rE, 'RE_Jct_Sign', [399, 31, 69], [399.4, 36, 99], 'Left', 'E-LINE JUNCTION   GROUND v   GALLERY ^');
+  // v8 Ring_E drop-down (C13 correction): open both 1.2-high TransitRing edge rails where the E ground
+  // corridor runs 24 studs below, so the drop onto the corridor is an intended route, not a blocked edge
+  cut('RE_RingDrop_Inner', [222.9, 24.02, -30.5], [223.5, 25.5, -9.5]);
+  cut('RE_RingDrop_Outer', [236.5, 24.02, -30.5], [237.2, 25.5, -9.5]);
+  box(rE, 'RE_RingDrop_GlowW', 'Decor', [223.4, 24, -30], [224.2, 24.12, -10], 'Neon', C.violet);
+  box(rE, 'RE_RingDrop_GlowE', 'Decor', [235.8, 24, -30], [236.6, 24.12, -10], 'Neon', C.violet);
+  routes.push({ id: 'E_Junction', from: 'Route_E elevated', to: 'Route_E ground', level: 24, width: 12,
+    waypoints: [[417, 24, 90], [417, 24, 67], [417, 0, 15], [417, 0, -20]], openings: [] });
+  routes.push({ id: 'E_RingDrop', from: 'Hub.OuterRing_E', to: 'Route_E ground (drop 24)', level: 24, width: 20,
+    waypoints: [[230, 24, -20], [246, 0, -20]], openings: ['TransitRing EdgeRail gaps Z-30.5..-9.5 (inner + outer)'] });
   cut('RE_Bridge_Plinth', [315, 20, 81], [337, 52, 99]);
-  portal(rE, 'RE_Bridge_Portal', 'z', 318, 81, 99, 24, 52);
+  portal(rE, 'RE_Bridge_Portal', 'z', 318, 81, 99, 24, 52, 1, C.cyan);
   cut('RE_Bridge_RingEdgeRail', [236.5, 24.02, 83], [237.2, 25.5, 97]);
   routes.push({ id: 'E_Ground', from: 'Hub.Skybridge', to: S, level: 0, width: 20,
     waypoints: [[195, 0, -20], [340, 0, -20], [396, 0, -20], [505, 0, -20], [560, 0, -20], [cx, 0, cz + 40]], openings: ['east plinth X315..337 Z-32..-8 Y-6..30'] });
   routes.push({ id: 'E_Elevated', from: 'Hub.OuterRing_E', to: S, level: 24, width: 14,
-    waypoints: [[232, 24, 90], [420, 24, 90], [538, 24, 90], [600, 24, 80], [600, 24, 63], [530, 24, 63], [517, 24, -18], [530, 24, -18], [530, 0, 40], [cx - 30, 0, cz]],
+    waypoints: [[232, 24, 90], [420, 24, 90], [538, 24, 90], [600, 24, 80], [600, 24, 63], [620, 24, 60], [620, 0, 4], [cx - 30, 0, cz + 20]],
     openings: ['east plinth X315..337 Z81..99 Y20..52', 'TransitRing EdgeRail gap Z83..97'] });
 
   // --- shaft floor + walls
@@ -559,7 +683,7 @@ const ISOLATE = [
     }
   }
   railRun('FD_L24_RailN', 'x', Z0 + 13, Z0 + 14, X0 + 14, X1 - 14, 24, [[548, 560]]);
-  railRun('FD_L24_RailS', 'x', Z1 - 14, Z1 - 13, X0 + 14, X1 - 14, 24, []);
+  railRun('FD_L24_RailS', 'x', Z1 - 14, Z1 - 13, X0 + 14, X1 - 14, 24, [[614, 626]]);
   railRun('FD_L24_RailW', 'z', X0 + 14, X0 + 15, Z0 + 13, Z1 - 13, 24, [[-24, -12]]);
   railRun('FD_L24_RailE', 'z', X1 - 15, X1 - 14, Z0 + 13, Z1 - 13, 24, [[-28, -16]]);
   railRun('FD_L48_RailN', 'x', Z0 + 13, Z0 + 14, X0 + 14, X1 - 14, 48, [[612, 624]]);
@@ -602,6 +726,23 @@ const ISOLATE = [
   box(g, 'FD_R2_LandingHigh', 'Floor', [576, 70, 44], [588, 72, 56], 'DiamondPlate', C.floor);
   box(g, 'FD_R2_LandingHighRail', 'Rail', [576, 72, 44], [588, 76, 45], 'Metal', C.rail);
   box(g, 'FD_R2_LandingHighRailW', 'Rail', [576, 72, 45], [577, 76, 56], 'Metal', C.rail);
+  // v8 gallery stair: the south door threshold drops straight to the floor (elevated route ~15 s shorter)
+  ramp(g, 'FD_R3', [620, 0, 4], [620, 24, 56], 12, 'DiamondPlate', C.floor, { rails: [-1, 1] });
+  box(g, 'FD_R3_Glow', 'Decor', [614, 21.6, 55.6], [626, 22, 56], 'Neon', C.violet);
+  // v8 entry landmark: crane gate over the west door + twin cooling stacks on the north side
+  for (const [nm, z0] of [['N', -42], ['S', -4]]) {
+    box(gl, `FD_CranePost${nm}`, 'Decor', [494, -60, z0], [500, 62, z0 + 6], 'Metal', C.plateDark, { shadow: true });
+    box(gl, `FD_CranePost${nm}_Strip`, 'Decor', [493.6, 2, z0 + 2], [494, 58, z0 + 4], 'Neon', C.violet);
+  }
+  box(gl, 'FD_CraneBeam', 'Decor', [490, 62, -46], [504, 70, 6], 'Metal', C.trim, { shadow: true });
+  sign(gl, 'FD_CraneSign', [489.6, 63, -40], [490, 69, 0], 'Left', 'FOUNDRY  E-03');
+  box(gl, 'FD_CraneHook', 'Decor', [495, 46, -23], [499, 54, -17], 'Metal', C.plateDark, { shadow: true });
+  box(gl, 'FD_CraneCable', 'Decor', [496.6, 54, -20.4], [497.4, 62, -19.6], 'Metal', C.rail);
+  for (const [i, x] of [[1, 555], [2, 645]]) {
+    cylY(gl, `FD_Stack${i}`, 'Decor', x, -150, -90, 200, 22, 'Metal', C.plateDark, { shadow: true });
+    cylY(gl, `FD_StackBand${i}`, 'Decor', x, -150, 150, 153, 23.2, 'Neon', i === 1 ? C.cyan : C.violet);
+    cylY(gl, `FD_StackCap${i}`, 'Decor', x, -150, 200, 203, 25, 'Metal', C.trim);
+  }
   // furnace (collidable base) + chimney landmark
   cylY(g, 'FD_FurnaceBase', 'Cover', cx, cz, 0, 22, 36, 'Metal', C.plateDark);
   cylY(g, 'FD_FurnaceVent', 'Decor', cx, cz, 10, 13, 36.6, 'Neon', C.cyan, { tr: 0.15 });
@@ -638,6 +779,42 @@ const ISOLATE = [
   box(g, 'FD_Gallery_CanopyGlow', 'Decor', [540, 43.6, 110], [660, 44, 110.6], 'Neon', C.cyan, { light: { range: 40, brightness: 1.2, color: [170, 230, 255] } });
   box(g, 'BossSector_Foundry_Bounds', 'Bounds', [X0, 0, Z0], [X1, 120, Z1], 'SmoothPlastic', C.white, { tr: 1, coll: false, attrs: { FloorY: 0, BossSector: S } });
   layoutExtra.landmarks.push({ sector: S, name: 'Furnace chimney (dia 28, to Y266) with violet/cyan bands', pos: [cx, 0, cz] });
+}
+
+// =================================================================== v9 proposed marker placeholders
+// NOT gameplay markers: no CollectionService tags (real tags would change ArenaService's exact marker
+// counts and boot the game Degraded). Invisible, non-collidable, CanQuery off; attribute ProposedMarkerTag
+// names the tag each would become once the map-contract prerequisite (Agent C's checklist) is approved.
+const PROPOSED = [];
+{
+  const M = {
+    ContainmentVault: [
+      ['SupplyLandingPoint', 40, 0, -445, 4], ['FragmentSpawn', -60, 0, -460, 2], ['FragmentSpawn', -72, 24, -600, 2], ['FragmentSpawn', 72, 24, -600, 2],
+      ['CorruptionNode', -50, 0, -600, 3], ['CorruptionNode', 50, 0, -655, 3], ['DroneWaypoint', 0, 30, -462, 2], ['DroneWaypoint', 0, 40, -560, 2],
+      ['DecayTile', 24, 0, -432, 6], ['DecayTile', 34, 0, -432, 6], ['DecayTile', 44, 0, -432, 6], ['DecayTile', 24, 0, -442, 6],
+    ],
+    TestingPit: [
+      ['SupplyLandingPoint', -800, 0, 44, 4], ['FragmentSpawn', -620, 0, -112, 2], ['FragmentSpawn', -620, 0, 176, 2], ['FragmentSpawn', -724, -12, 32, 2],
+      ['CorruptionNode', -580, -24, 80, 3], ['CorruptionNode', -660, -24, -16, 3], ['DroneWaypoint', -620, 45, -60, 2], ['DroneWaypoint', -620, 45, 124, 2],
+      ['DecayTile', -640, 0, 176, 6], ['DecayTile', -630, 0, 176, 6], ['DecayTile', -610, 0, 176, 6], ['DecayTile', -600, 0, 176, 6],
+    ],
+    Foundry: [
+      ['SupplyLandingPoint', 620, 24, 84, 4], ['FragmentSpawn', 600, 48, -103, 2], ['FragmentSpawn', 517, 72, -20, 2], ['FragmentSpawn', 650, 0, -80, 2],
+      ['CorruptionNode', 565, 0, 45, 3], ['CorruptionNode', 650, 0, -30, 3], ['DroneWaypoint', 600, 60, -60, 2], ['DroneWaypoint', 560, 90, 30, 2],
+      ['DecayTile', 683, 24, -70, 6], ['DecayTile', 683, 24, -60, 6], ['DecayTile', 683, 24, -50, 6], ['DecayTile', 683, 24, -40, 6],
+    ],
+  };
+  for (const S of Object.keys(M)) {
+    const g = grp(S + '_ProposedMarkers', S, 'Folder', null, 'ProposedMarkers');
+    const n = {};
+    for (const [tag, x, y, z, w] of M[S]) {
+      n[tag] = (n[tag] || 0) + 1;
+      const nm = `PM_${S}_${tag}${n[tag]}`;
+      box(g, nm, 'ProposedMarker', [x - w / 2, y, z - w / 2], [x + w / 2, y + 0.4, z + w / 2], 'SmoothPlastic', C.white,
+        { tr: 1, coll: false, shadow: false, attrs: { ProposedMarkerTag: tag, ProposedStatus: 'proposed, not active (needs the map-contract prerequisite)' } });
+      PROPOSED.push({ sector: S, tag, pos: [x, y, z] });
+    }
+  }
 }
 
 // =================================================================== Backdrop (calm exterior)
@@ -712,7 +889,7 @@ function luaVal(v) {
   return '{' + Object.keys(v).sort().map((k) => `${k}=${luaVal(v[k])}`).join(',') + '}';
 }
 const rowLines = rows.map((r) => '\t' + luaVal([r.name, r.grp, r.role, r.size, r.pos, r.rot, r.mat, r.color, r.tr, r.coll, r.shape, r.shadow,
-  { boss: r.boss, light: r.light, attrs: r.attrs }]) + ',');
+  { boss: r.boss, light: r.light, attrs: r.attrs, sign: r.sign }]) + ',');
 const contLines = Object.keys(containers).sort().map((k) => `\t[${q(k)}] = ${luaVal(containers[k])},`);
 const spec = [
   `local VERSION = ${q(VERSION)}`,
@@ -768,6 +945,7 @@ const layout = {
   movement: { walkSpeed: 16, jumpHeight: 7.2, jumpRule: 'rise <= 6.5, gap <= 6' },
   sectors, routes,
   landmarks: layoutExtra.landmarks,
+  proposedMarkers: { status: 'proposed, not active: untagged placeholders under Map1Expansion.<Wing>.ProposedMarkers (attribute ProposedMarkerTag); needs the map-contract prerequisite from Agent C', list: PROPOSED },
   bounds: { before: BOUNDS_BEFORE, after: BOUNDS_AFTER, outOfBoundsY: -60, note: 'Working copy only: Config ModuleScript edited in Studio; src/ unchanged.' },
   parts: { total, bySector: stats },
   measured: fs.existsSync(path.join(NOTES, 'measured.json')) ? JSON.parse(fs.readFileSync(path.join(NOTES, 'measured.json'), 'utf8')) : null,

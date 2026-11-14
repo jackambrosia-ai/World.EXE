@@ -436,6 +436,8 @@ local ok, err = pcall(function()
 			local s = d.Parent:GetAttribute("Map1Expansion") or "?"
 			counts[s] = counts[s] or { parts = 0, collidable = 0, lights = 0 }
 			counts[s].lights += 1
+		elseif (d:IsA("SurfaceGui") and d.Name == "Sign" and d.Parent:IsA("BasePart")) or (d:IsA("TextLabel") and d.Name == "Text" and d.Parent:IsA("SurfaceGui")) then
+			-- v8 navigation signs: SurfaceGui + TextLabel only (no scripts, not interactive)
 		elseif not (d:IsA("Folder") or d:IsA("Model")) then
 			table.insert(probs, "unexpected instance: " .. d:GetFullName() .. " " .. d.ClassName)
 		end

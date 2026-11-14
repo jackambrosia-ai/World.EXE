@@ -224,7 +224,7 @@ local ok, err = pcall(function()
 			groupInst[gname] = sectorFolder(c.sector)
 		else
 			local inst = Instance.new(c.cls)
-			inst.Name = gname
+			inst.Name = c.name or gname
 			if c.cls == "Model" and c.streaming then
 				inst.ModelStreamingMode = Enum.ModelStreamingMode[c.streaming]
 			end
@@ -268,6 +268,26 @@ local ok, err = pcall(function()
 			l.Color = Color3.fromRGB(ex.light.color[1], ex.light.color[2], ex.light.color[3])
 			l.Shadows = false
 			l.Parent = p
+		end
+		if ex.sign then
+			-- in-world navigation sign (v8): SurfaceGui + one TextLabel, no scripts, not interactive
+			local sg = Instance.new("SurfaceGui")
+			sg.Name = "Sign"
+			sg.Face = Enum.NormalId[ex.sign.face]
+			sg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+			sg.PixelsPerStud = ex.sign.ppS
+			sg.LightInfluence = 0
+			sg.Brightness = 1.6
+			local t = Instance.new("TextLabel")
+			t.Name = "Text"
+			t.Size = UDim2.fromScale(1, 1)
+			t.BackgroundTransparency = 1
+			t.Text = ex.sign.text
+			t.TextScaled = true
+			t.Font = Enum.Font.GothamBold
+			t.TextColor3 = Color3.fromRGB(ex.sign.color[1], ex.sign.color[2], ex.sign.color[3])
+			t.Parent = sg
+			sg.Parent = p
 		end
 		table.insert(newParts, { p = p, g = gname })
 	end

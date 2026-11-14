@@ -45,3 +45,10 @@ The full list of existing objects that change, and the proposed `Config.luau` ch
 - **Saved working copy:** `C:\WORLD.EXE-Art\TwoMaps\Map1\WorldEXE_Map1_StableSim_WORKING_2026-11-13.rbxl`, SHA-256 `92471D4065925980BEB83E8872B1D3331F4E2CF1F10B7F3909F2A102998E972E`.
 
 Production integration (new bounds in `src/`, budgets, audit changes, adopting the map) needs separate owner approval.
+
+## Results (v9, 2026-11-14, iteration 2)
+- **Changes:** Ring_E edge rails opened over the E ground corridor (legacy C13 fixed by geometry, not waived); Testing Pit rebuilt as a 12-sided bowl (116 -> 48 tier slabs, 38 -> 15 rim rails); full-height VaultWall_N slots; junction stations with ramps on all three lines; vault and foundry stairs from the elevated level to the boss floors; entry landmarks (Containment Gate, test aperture, crane gate), cooling stacks, lit hub jambs and in-world signs (SurfaceGui text, no scripts); 36 invisible, untagged proposed-marker placeholders (`ProposedMarkers`, attribute `ProposedMarkerTag`; not active).
+- **Area:** 425,988 stud² reachable (2.07x). **Map totals:** 2,931 parts / 765 collidable / 76 lights (expansion 1,000 / 367 / 25).
+- **Walks (solo Play):** N 24.6 / 27.7 s, W 22.1 / 25.1 s, E 26.0 / 34.3 s (ground / elevated; v7 elevated 39.8 / 50.4 / 44.6).
+- **Checks:** `5_check_map1` K1-K7 PASS; Play probe BootstrapStatus Ready, 0 validation errors. Legacy audit: 3 C10 cap failures (map after sprint, design total, DataArchive 171 > 170); C13 passes.
+- Notes and evidence: `C:\WORLD.EXE-Art\TwoMaps\iter2\agentA\`. Saved working copy `WorldEXE_Map1_StableSim_WORKING_v2_2026-11-14.rbxl`, SHA-256 `F30D116E…C185E`.

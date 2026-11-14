@@ -9,12 +9,19 @@
 -- _G.MAP1_WALK (state, results[]).
 _G.MAP1_ROUTES = {
 	-- hub start -> boss floor centre. Waypoints avoid cover and ramp rails (MoveTo never jumps).
+	-- v7 paths (unchanged geometry on the ground routes; W_Gantry = the v7 W elevated path, still built)
 	N_Ground = { start = Vector3.new(65, 3, -245), pts = { { 65, -262 }, { 65, -340 }, { 65, -420 }, { 30, -478 }, { 0, -510 }, { 20, -540 }, { 15, -598 } } },
-	N_Elevated = { start = Vector3.new(-65, 27, -231), pts = { { -65, -300 }, { -65, -400 }, { -65, -490 }, { -72, -540 }, { -72, -636 }, { -72, -690 }, { -60, -696 }, { -50, -660 }, { 15, -598 } } },
 	W_Ground = { start = Vector3.new(-254, 3, 32), pts = { { -340, 32 }, { -440, 32 }, { -490, 32 }, { -560, 32 }, { -600, 32 } } },
-	W_Elevated = { start = Vector3.new(-231, 27, 32), pts = { { -320, 32 }, { -420, 32 }, { -520, 32 }, { -620, 32 }, { -720, 32 }, { -762, 32 }, { -812, 32 }, { -805, 52 }, { -772, 52 }, { -700, 52 }, { -640, 40 } } },
 	E_Ground = { start = Vector3.new(196, 3, -20), pts = { { 300, -20 }, { 400, -20 }, { 500, -20 }, { 540, -20 }, { 590, -62 } } },
-	E_Elevated = { start = Vector3.new(232, 27, 90), pts = { { 330, 90 }, { 430, 90 }, { 530, 90 }, { 600, 92 }, { 600, 63 }, { 518, 63 }, { 517, -18 }, { 530, -18 }, { 530, 46 }, { 570, 10 } } },
+	W_Gantry = { start = Vector3.new(-231, 27, 32), pts = { { -320, 32 }, { -420, 32 }, { -520, 32 }, { -620, 32 }, { -720, 32 }, { -762, 32 }, { -812, 32 }, { -820, 32 }, { -805, 52 }, { -772, 52 }, { -700, 52 }, { -640, 40 } } },
+	-- v8 elevated paths (same start points as v7 N/W/E_Elevated)
+	N_Elevated = { start = Vector3.new(-65, 27, -231), pts = { { -65, -300 }, { -65, -400 }, { -70, -490 }, { -70, -506 }, { -57.5, -506 }, { -57.5, -514 }, { -57.5, -566 }, { 15, -598 } } },
+	W_Elevated = { start = Vector3.new(-231, 27, 32), pts = { { -320, 32 }, { -412, 32 }, { -412, 46 }, { -430, 50 }, { -478, 50 }, { -500, 46 }, { -560, 36 }, { -600, 32 } } },
+	E_Elevated = { start = Vector3.new(232, 27, 90), pts = { { 330, 90 }, { 430, 90 }, { 530, 90 }, { 600, 92 }, { 600, 64 }, { 620, 60 }, { 620, 2 }, { 620, -5 }, { 570, 10 } } },
+	-- v8 junctions / drop-down (prove the split points connect both levels)
+	N_Junction = { start = Vector3.new(-65, 27, -231), pts = { { -65, -300 }, { -65, -386 }, { -45, -386 }, { 10, -386 }, { 42, -386 }, { 65, -386 }, { 65, -420 }, { 30, -478 }, { 0, -510 }, { 20, -540 }, { 15, -598 } } },
+	E_Junction = { start = Vector3.new(232, 27, 90), pts = { { 330, 90 }, { 417, 90 }, { 417, 70 }, { 417, 17 }, { 417, -5 }, { 417, -20 }, { 500, -20 }, { 540, -20 }, { 590, -62 } } },
+	E_RingDrop = { start = Vector3.new(230, 27, -20), pts = { { 252, -20 }, { 300, -20 }, { 400, -20 }, { 500, -20 }, { 540, -20 }, { 590, -62 } } },
 }
 _G.MAP1_RUNWALK = function(order)
 	_G.MAP1_WALK = { state = "running", results = {} }
@@ -78,4 +85,4 @@ _G.MAP1_RUNWALK = function(order)
 	end)
 	_G.MAP1_WALK.state = ok and "done" or ("error: " .. tostring(err))
 end
-task.spawn(_G.MAP1_RUNWALK, _G.MAP1_WALK_ROUTES or { "N_Ground", "N_Elevated", "W_Ground", "W_Elevated", "E_Ground", "E_Elevated" })
+task.spawn(_G.MAP1_RUNWALK, _G.MAP1_WALK_ROUTES or { "N_Ground", "N_Elevated", "W_Ground", "W_Elevated", "E_Ground", "E_Elevated", "W_Gantry", "N_Junction", "E_Junction", "E_RingDrop" })

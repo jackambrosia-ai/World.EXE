@@ -46,6 +46,10 @@ if root then
 			n += 1
 		elseif d:IsA("PointLight") and d.Parent:IsA("BasePart") and d.Parent:GetAttribute("Map1Expansion") ~= nil then
 			-- ok
+		elseif d:IsA("SurfaceGui") and d.Name == "Sign" and d.Parent:IsA("BasePart") and d.Parent:GetAttribute("Map1Expansion") ~= nil then
+			-- ok (v8 navigation sign)
+		elseif d:IsA("TextLabel") and d.Name == "Text" and d.Parent:IsA("SurfaceGui") and d.Parent.Name == "Sign" then
+			-- ok (v8 navigation sign text)
 		else
 			table.insert(problems, "unrecognised instance " .. d:GetFullName() .. " (" .. d.ClassName .. ")")
 		end
