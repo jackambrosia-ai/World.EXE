@@ -1,10 +1,10 @@
 {
   "map": "Map1 Stable Simulation",
-  "version": "map1-expansion v7 2026-11-13",
+  "version": "map1-expansion v9 2026-11-14",
   "units": "Roblox studs, Y up, reactor at origin",
   "agent": "A",
   "generatedBy": "tools/studio/map1/gen_expansion.js",
-  "generated": "2026-11-14T04:36:35.820Z",
+  "generated": "2026-11-14T05:50:53.187Z",
   "movement": {
     "walkSpeed": 16,
     "jumpHeight": 7.2,
@@ -116,7 +116,7 @@
           -120
         ],
         "max": [
-          -467,
+          -465,
           9,
           184
         ]
@@ -214,9 +214,44 @@
         ]
       ],
       "openings": [
-        "VaultWall_N door X55..75 Y-4..28",
+        "VaultWall_N full-height slot X55..75 Y-4..70",
         "north plinth X53..77 Y-6..30"
       ]
+    },
+    {
+      "id": "N_Junction",
+      "from": "Route_N elevated",
+      "to": "Route_N ground gatehouse",
+      "level": 24,
+      "width": 12,
+      "waypoints": [
+        [
+          -65,
+          24,
+          -386
+        ],
+        [
+          -39,
+          24,
+          -386
+        ],
+        [
+          13,
+          0,
+          -386
+        ],
+        [
+          43,
+          0,
+          -386
+        ],
+        [
+          65,
+          0,
+          -386
+        ]
+      ],
+      "openings": []
     },
     {
       "id": "N_Elevated",
@@ -238,7 +273,7 @@
         [
           -65,
           24,
-          -420
+          -386
         ],
         [
           -65,
@@ -248,22 +283,22 @@
         [
           -72,
           24,
-          -520
+          -506
         ],
         [
-          -72,
+          -57.5,
           24,
-          -630
+          -506
         ],
         [
-          -72,
-          12,
-          -666
+          -57.5,
+          24,
+          -512
         ],
         [
-          -50,
+          -57.5,
           0,
-          -660
+          -564
         ],
         [
           0,
@@ -272,9 +307,39 @@
         ]
       ],
       "openings": [
-        "VaultWall_N upper cut X-75..-55 Y22..52",
+        "VaultWall_N full-height slot X-75..-55 Y-4..70 (rail at Y0)",
         "north plinth X-77..-53 Y20..52"
       ]
+    },
+    {
+      "id": "W_Junction",
+      "from": "Route_W elevated",
+      "to": "TestingPit east rim",
+      "level": 24,
+      "width": 12,
+      "waypoints": [
+        [
+          -412,
+          24,
+          32
+        ],
+        [
+          -412,
+          24,
+          50
+        ],
+        [
+          -428,
+          24,
+          50
+        ],
+        [
+          -480,
+          0,
+          50
+        ]
+      ],
+      "openings": []
     },
     {
       "id": "W_Ground",
@@ -336,6 +401,48 @@
           32
         ],
         [
+          -412,
+          24,
+          32
+        ],
+        [
+          -412,
+          24,
+          50
+        ],
+        [
+          -428,
+          24,
+          50
+        ],
+        [
+          -480,
+          0,
+          50
+        ],
+        [
+          -518,
+          -12,
+          42
+        ],
+        [
+          -580,
+          -24,
+          32
+        ]
+      ],
+      "openings": [
+        "shared west plinth opening"
+      ]
+    },
+    {
+      "id": "W_Gantry",
+      "from": "Route_W elevated",
+      "to": "Test Control deck",
+      "level": 24,
+      "width": 12,
+      "waypoints": [
+        [
           -470,
           24,
           32
@@ -371,8 +478,58 @@
           32
         ]
       ],
+      "openings": []
+    },
+    {
+      "id": "E_Junction",
+      "from": "Route_E elevated",
+      "to": "Route_E ground",
+      "level": 24,
+      "width": 12,
+      "waypoints": [
+        [
+          417,
+          24,
+          90
+        ],
+        [
+          417,
+          24,
+          67
+        ],
+        [
+          417,
+          0,
+          15
+        ],
+        [
+          417,
+          0,
+          -20
+        ]
+      ],
+      "openings": []
+    },
+    {
+      "id": "E_RingDrop",
+      "from": "Hub.OuterRing_E",
+      "to": "Route_E ground (drop 24)",
+      "level": 24,
+      "width": 20,
+      "waypoints": [
+        [
+          230,
+          24,
+          -20
+        ],
+        [
+          246,
+          0,
+          -20
+        ]
+      ],
       "openings": [
-        "shared west plinth opening"
+        "TransitRing EdgeRail gaps Z-30.5..-9.5 (inner + outer)"
       ]
     },
     {
@@ -450,29 +607,19 @@
           63
         ],
         [
-          530,
+          620,
           24,
-          63
+          60
         ],
         [
-          517,
-          24,
-          -18
-        ],
-        [
-          530,
-          24,
-          -18
-        ],
-        [
-          530,
+          620,
           0,
-          40
+          4
         ],
         [
           570,
           0,
-          -20
+          0
         ]
       ],
       "openings": [
@@ -510,6 +657,335 @@
       ]
     }
   ],
+  "proposedMarkers": {
+    "status": "proposed, not active: untagged placeholders under Map1Expansion.<Wing>.ProposedMarkers (attribute ProposedMarkerTag); needs the map-contract prerequisite from Agent C",
+    "list": [
+      {
+        "sector": "ContainmentVault",
+        "tag": "SupplyLandingPoint",
+        "pos": [
+          40,
+          0,
+          -445
+        ]
+      },
+      {
+        "sector": "ContainmentVault",
+        "tag": "FragmentSpawn",
+        "pos": [
+          -60,
+          0,
+          -460
+        ]
+      },
+      {
+        "sector": "ContainmentVault",
+        "tag": "FragmentSpawn",
+        "pos": [
+          -72,
+          24,
+          -600
+        ]
+      },
+      {
+        "sector": "ContainmentVault",
+        "tag": "FragmentSpawn",
+        "pos": [
+          72,
+          24,
+          -600
+        ]
+      },
+      {
+        "sector": "ContainmentVault",
+        "tag": "CorruptionNode",
+        "pos": [
+          -50,
+          0,
+          -600
+        ]
+      },
+      {
+        "sector": "ContainmentVault",
+        "tag": "CorruptionNode",
+        "pos": [
+          50,
+          0,
+          -655
+        ]
+      },
+      {
+        "sector": "ContainmentVault",
+        "tag": "DroneWaypoint",
+        "pos": [
+          0,
+          30,
+          -462
+        ]
+      },
+      {
+        "sector": "ContainmentVault",
+        "tag": "DroneWaypoint",
+        "pos": [
+          0,
+          40,
+          -560
+        ]
+      },
+      {
+        "sector": "ContainmentVault",
+        "tag": "DecayTile",
+        "pos": [
+          24,
+          0,
+          -432
+        ]
+      },
+      {
+        "sector": "ContainmentVault",
+        "tag": "DecayTile",
+        "pos": [
+          34,
+          0,
+          -432
+        ]
+      },
+      {
+        "sector": "ContainmentVault",
+        "tag": "DecayTile",
+        "pos": [
+          44,
+          0,
+          -432
+        ]
+      },
+      {
+        "sector": "ContainmentVault",
+        "tag": "DecayTile",
+        "pos": [
+          24,
+          0,
+          -442
+        ]
+      },
+      {
+        "sector": "TestingPit",
+        "tag": "SupplyLandingPoint",
+        "pos": [
+          -800,
+          0,
+          44
+        ]
+      },
+      {
+        "sector": "TestingPit",
+        "tag": "FragmentSpawn",
+        "pos": [
+          -620,
+          0,
+          -112
+        ]
+      },
+      {
+        "sector": "TestingPit",
+        "tag": "FragmentSpawn",
+        "pos": [
+          -620,
+          0,
+          176
+        ]
+      },
+      {
+        "sector": "TestingPit",
+        "tag": "FragmentSpawn",
+        "pos": [
+          -724,
+          -12,
+          32
+        ]
+      },
+      {
+        "sector": "TestingPit",
+        "tag": "CorruptionNode",
+        "pos": [
+          -580,
+          -24,
+          80
+        ]
+      },
+      {
+        "sector": "TestingPit",
+        "tag": "CorruptionNode",
+        "pos": [
+          -660,
+          -24,
+          -16
+        ]
+      },
+      {
+        "sector": "TestingPit",
+        "tag": "DroneWaypoint",
+        "pos": [
+          -620,
+          45,
+          -60
+        ]
+      },
+      {
+        "sector": "TestingPit",
+        "tag": "DroneWaypoint",
+        "pos": [
+          -620,
+          45,
+          124
+        ]
+      },
+      {
+        "sector": "TestingPit",
+        "tag": "DecayTile",
+        "pos": [
+          -640,
+          0,
+          176
+        ]
+      },
+      {
+        "sector": "TestingPit",
+        "tag": "DecayTile",
+        "pos": [
+          -630,
+          0,
+          176
+        ]
+      },
+      {
+        "sector": "TestingPit",
+        "tag": "DecayTile",
+        "pos": [
+          -610,
+          0,
+          176
+        ]
+      },
+      {
+        "sector": "TestingPit",
+        "tag": "DecayTile",
+        "pos": [
+          -600,
+          0,
+          176
+        ]
+      },
+      {
+        "sector": "Foundry",
+        "tag": "SupplyLandingPoint",
+        "pos": [
+          620,
+          24,
+          84
+        ]
+      },
+      {
+        "sector": "Foundry",
+        "tag": "FragmentSpawn",
+        "pos": [
+          600,
+          48,
+          -103
+        ]
+      },
+      {
+        "sector": "Foundry",
+        "tag": "FragmentSpawn",
+        "pos": [
+          517,
+          72,
+          -20
+        ]
+      },
+      {
+        "sector": "Foundry",
+        "tag": "FragmentSpawn",
+        "pos": [
+          650,
+          0,
+          -80
+        ]
+      },
+      {
+        "sector": "Foundry",
+        "tag": "CorruptionNode",
+        "pos": [
+          565,
+          0,
+          45
+        ]
+      },
+      {
+        "sector": "Foundry",
+        "tag": "CorruptionNode",
+        "pos": [
+          650,
+          0,
+          -30
+        ]
+      },
+      {
+        "sector": "Foundry",
+        "tag": "DroneWaypoint",
+        "pos": [
+          600,
+          60,
+          -60
+        ]
+      },
+      {
+        "sector": "Foundry",
+        "tag": "DroneWaypoint",
+        "pos": [
+          560,
+          90,
+          30
+        ]
+      },
+      {
+        "sector": "Foundry",
+        "tag": "DecayTile",
+        "pos": [
+          683,
+          24,
+          -70
+        ]
+      },
+      {
+        "sector": "Foundry",
+        "tag": "DecayTile",
+        "pos": [
+          683,
+          24,
+          -60
+        ]
+      },
+      {
+        "sector": "Foundry",
+        "tag": "DecayTile",
+        "pos": [
+          683,
+          24,
+          -50
+        ]
+      },
+      {
+        "sector": "Foundry",
+        "tag": "DecayTile",
+        "pos": [
+          683,
+          24,
+          -40
+        ]
+      }
+    ]
+  },
   "bounds": {
     "before": {
       "min": [
@@ -540,39 +1016,39 @@
   },
   "parts": {
     "total": {
-      "parts": 871,
-      "collidable": 407,
-      "lights": 22
+      "parts": 959,
+      "collidable": 359,
+      "lights": 25
     },
     "bySector": {
       "Route_N": {
-        "parts": 58,
-        "collidable": 17,
-        "lights": 1
+        "parts": 101,
+        "collidable": 32,
+        "lights": 2
       },
       "ContainmentVault": {
-        "parts": 125,
-        "collidable": 58,
+        "parts": 165,
+        "collidable": 65,
         "lights": 7
       },
       "Route_W": {
-        "parts": 53,
-        "collidable": 29,
-        "lights": 2
+        "parts": 109,
+        "collidable": 38,
+        "lights": 3
       },
       "TestingPit": {
-        "parts": 309,
-        "collidable": 184,
+        "parts": 192,
+        "collidable": 85,
         "lights": 4
       },
       "Route_E": {
-        "parts": 73,
-        "collidable": 23,
-        "lights": 2
+        "parts": 108,
+        "collidable": 39,
+        "lights": 3
       },
       "Foundry": {
-        "parts": 133,
-        "collidable": 96,
+        "parts": 164,
+        "collidable": 100,
         "lights": 6
       },
       "Backdrop": {
@@ -583,52 +1059,88 @@
     }
   },
   "measured": {
-    "source": "Studio working copy, map1-expansion v5 (geometry identical in v7: palette-only changes, E_Ground re-walked 26.0 s and Validate ok on v7), 2026-11-13. Graph = tools/studio/map1/lib_walkgraph.luau (3-stud grid, walk |dy|<=2.1, jump rise<=6.5 gap<=6, drops); area = union of walkable top faces reachable from the 16 ArenaSpawns. Walk tests = solo Play, server Humanoid:MoveTo, legs < 8 s.",
+    "source": "Studio working copy WorldEXE_Map1_StableSim_WORKING_v2_2026-11-14.rbxl. Area + graph: tools/studio/map1/3_measure_area.luau on map1-expansion v8 (v9 adds only invisible non-collidable placeholders and decor, so collidable geometry is identical). Walks: solo Play MoveTo on v8 final (raw/walks_v8.json).",
     "areaReachableStuds2": {
-      "before": {
-        "total": 205551,
-        "T0": 144819,
-        "T24": 50751,
-        "T48": 7902,
-        "T72": 2079
-      },
-      "after": {
-        "total": 419535,
-        "T0": 307944,
-        "T24": 83214,
+      "v7": 419535,
+      "v8": 425988,
+      "v8_byTier": {
+        "T0": 311337,
+        "T24": 86274,
         "T48": 16605,
         "T72": 11772
       },
-      "ratio": 2.04
+      "ratioToProduction": 2.07
     },
     "bossFloorAreaStuds2": {
-      "ContainmentVault": 27783,
-      "TestingPit": 24705,
-      "Foundry": 29997
+      "ContainmentVault": 27540,
+      "TestingPit": 25920,
+      "Foundry": 29808
     },
-    "graphWalkSeconds_CentralCore_to": {
-      "ContainmentVault": 45,
-      "TestingPit": 42.4,
-      "Foundry": 40.3
+    "playWalkSeconds": {
+      "before_v7": {
+        "N_Ground": 25.2,
+        "N_Elevated": 39.8,
+        "W_Ground": 22.1,
+        "W_Elevated": 50.4,
+        "E_Ground": 26,
+        "E_Elevated": 44.6
+      },
+      "after_v8": {
+        "N_Ground": 24.6,
+        "N_Elevated": 27.7,
+        "W_Ground": 22.1,
+        "W_Elevated": 25.1,
+        "E_Ground": 26,
+        "E_Elevated": 34.3,
+        "W_Gantry (v7 elevated path, still built)": 50.2,
+        "N_Junction (Ring_N->ramp->ground->vault)": 34.1,
+        "E_Junction (Ring_E->ramp->ground->foundry)": 31.4,
+        "E_RingDrop (Ring_E drop->foundry)": 24
+      },
+      "elevated_arrival_in_wing_v8": {
+        "N stair foot on vault floor": 22.7,
+        "W pit rim": 17,
+        "E foundry floor (FD_R3 foot)": 30.5
+      }
     },
-    "graphWalkSeconds_nearestHubDistrict_to": {
-      "ContainmentVault (DataArchive)": 27.7,
-      "TestingPit (ResearchYard)": 32.3,
-      "Foundry (Skybridge)": 27.8
+    "graphWalkSeconds_v8": {
+      "OuterRing_N->Vault": 24.6,
+      "OuterRing_W->Pit": 25.1,
+      "OuterRing_E->Foundry": 29,
+      "RingE_Drop->Foundry": 23.6,
+      "Archive_NDoor->Vault": 23.5,
+      "Yard_WEdge->Pit": 23.6,
+      "SkyBase_EEdge->Foundry": 25.8,
+      "CentralCore->Vault": 45,
+      "CentralCore->Pit": 42.4,
+      "CentralCore->Foundry": 40.3,
+      "bossToBoss": {
+        "Vault-Pit": 74.6,
+        "Vault-Foundry": 73.6,
+        "Pit-Foundry": 80.2
+      },
+      "bossToBoss_v5raw_same_tool": {
+        "Vault-Pit": 77.7,
+        "Vault-Foundry": 73.6,
+        "Pit-Foundry": 80.2
+      },
+      "OuterRing_N->Vault_v5raw": 34
     },
-    "graphWalkSeconds_bossToBoss": {
-      "Vault-Pit": 74.6,
-      "Vault-Foundry": 66.6,
-      "Pit-Foundry": 80.2
-    },
-    "playWalkTests_seconds": {
-      "N_Ground (Archive (65,-245) -> vault centre)": 25.2,
-      "N_Elevated (Ring_N (-65,24,-231) -> balcony -> ramp -> vault centre)": 39.8,
-      "W_Ground (Yard edge (-254,32) -> pit floor)": 22.1,
-      "W_Elevated (Ring_W (-231,24,32) -> gantry -> control deck -> pit floor)": 50.4,
-      "E_Ground (SkyBase edge (196,-20) -> foundry floor)": 26,
-      "E_Elevated (Ring_E (232,24,90) -> gallery -> catwalks -> ramp -> foundry floor)": 44.6
-    },
-    "playWalkNotes": "All six completed. N_Elevated/E_Elevated/W_Elevated were run on v4 (identical routes in v5); W_Ground and E_Ground re-run on v5. A ZERO_G / MAGNETIC / SLIPPERY patch was active during part of the first v4 batch."
+    "counts": {
+      "v7": {
+        "parts": 2843,
+        "collidable": 814,
+        "lights": 73
+      },
+      "v9": {
+        "parts": 2931,
+        "collidable": 765,
+        "lights": 76
+      },
+      "expansionCollidable": {
+        "v7": 407,
+        "v9": 367
+      }
+    }
   }
 }
