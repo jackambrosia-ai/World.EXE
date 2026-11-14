@@ -52,3 +52,10 @@ Production integration (new bounds in `src/`, budgets, audit changes, adopting t
 - **Walks (solo Play):** N 24.6 / 27.7 s, W 22.1 / 25.1 s, E 26.0 / 34.3 s (ground / elevated; v7 elevated 39.8 / 50.4 / 44.6).
 - **Checks:** `5_check_map1` K1-K7 PASS; Play probe BootstrapStatus Ready, 0 validation errors. Legacy audit: 3 C10 cap failures (map after sprint, design total, DataArchive 171 > 170); C13 passes.
 - Notes and evidence: `C:\WORLD.EXE-Art\TwoMaps\iter2\agentA\`. Saved working copy `WorldEXE_Map1_StableSim_WORKING_v2_2026-11-14.rbxl`, SHA-256 `F30D116E…C185E`.
+
+## Results (v10, 2026-11-14, iteration 3: readability and safety refinement, no growth)
+- **Changes:** vault and foundry lamps lowered into PointLight range of the boss floors (Y36 / Y40 on drop rods), +2 lights (dais bar, furnace vent), cyan Y12 wall strips, lighter floor/wall/column colours; high-contrast navigation signs (larger W/E hub signs, all hub and junction signs restyled; template option `bg`/`font`/`bright`); flat neon floor chevrons at the three junctions; open ramp feet (`ramp(..., { railFoot })`: side rails start 14 studs up the slope, 10 on RW_Jct_Ramp) where the floor beside the foot is within 6 studs; Ring_E drop opening kept inside the corridor rails (EdgeRail cut Z -29.6..-10.4) with 4 step-off bollards and landing bars.
+- **Map totals:** 2,968 parts / 769 collidable / 78 lights (expansion spec 996 / 363 / 27 + 41 cut pieces).
+- **Checks:** `5_check_map1` K1-K7 PASS. Legacy audit: the same 3 C10 cap failures (map after sprint, design total, DataArchive 171 > 170); C13 passes.
+- **Walks:** the v8 detour waypoints are no longer needed (`E_Elevated_v10`, `W_Gantry_v10`); Ring_E drop tested at both ends of both edges (`E_RingDrop_Edge*`), 100 hp.
+- Notes and evidence: `C:\WORLD.EXE-Art\TwoMaps\iter3\agentA\`. Saved working copy `WorldEXE_Map1_StableSim_WORKING_v3_2026-11-14.rbxl`, SHA-256 `C0818967…98FA6`.

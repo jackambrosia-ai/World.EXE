@@ -22,6 +22,12 @@ _G.MAP1_ROUTES = {
 	N_Junction = { start = Vector3.new(-65, 27, -231), pts = { { -65, -300 }, { -65, -386 }, { -45, -386 }, { 10, -386 }, { 42, -386 }, { 65, -386 }, { 65, -420 }, { 30, -478 }, { 0, -510 }, { 20, -540 }, { 15, -598 } } },
 	E_Junction = { start = Vector3.new(232, 27, 90), pts = { { 330, 90 }, { 417, 90 }, { 417, 70 }, { 417, 17 }, { 417, -5 }, { 417, -20 }, { 500, -20 }, { 540, -20 }, { 590, -62 } } },
 	E_RingDrop = { start = Vector3.new(230, 27, -20), pts = { { 252, -20 }, { 300, -20 }, { 400, -20 }, { 500, -20 }, { 540, -20 }, { 590, -62 } } },
+	-- v10: open ramp feet (side rails end 14 studs up the slope), so the v8 detour waypoints are dropped
+	E_Elevated_v10 = { start = Vector3.new(232, 27, 90), pts = { { 330, 90 }, { 430, 90 }, { 530, 90 }, { 600, 92 }, { 600, 64 }, { 620, 60 }, { 620, 2 }, { 570, 10 } } },
+	W_Gantry_v10 = { start = Vector3.new(-231, 27, 32), pts = { { -320, 32 }, { -420, 32 }, { -520, 32 }, { -620, 32 }, { -720, 32 }, { -762, 32 }, { -812, 32 }, { -805, 52 }, { -772, 52 }, { -700, 52 }, { -640, 40 } } },
+	-- v10: Ring_E drop at the extreme ends of the step-off zone between the bollards (Z -27.6..-12.4), both ring edges
+	E_RingDrop_EdgeN_E = { start = Vector3.new(230, 27, -27.2), pts = { { 252, -27.2 }, { 300, -20 } } },
+	E_RingDrop_EdgeS_W = { start = Vector3.new(230, 27, -12.8), pts = { { 210, -12.8 }, { 260, -20 } } },
 }
 _G.MAP1_RUNWALK = function(order)
 	_G.MAP1_WALK = { state = "running", results = {} }
@@ -40,6 +46,10 @@ _G.MAP1_RUNWALK = function(order)
 			end
 			char:PivotTo(CFrame.new(r.start))
 			task.wait(1.0)
+			local minHealth = hum.Health
+			local hconn = hum.HealthChanged:Connect(function(h)
+				minHealth = math.min(minHealth, h)
+			end)
 			local total, dist = 0, 0
 			local prev = hrp.Position
 			for i, pt in r.pts do
@@ -80,9 +90,11 @@ _G.MAP1_RUNWALK = function(order)
 			res.completed = res.stuckAt == nil
 			res.roleAfter = plr:GetAttribute("WORLD_EXE_Role")
 			res.health = hum.Health
+			hconn:Disconnect()
+			res.minHealth = minHealth
 			table.insert(_G.MAP1_WALK.results, res)
 		end
 	end)
 	_G.MAP1_WALK.state = ok and "done" or ("error: " .. tostring(err))
 end
-task.spawn(_G.MAP1_RUNWALK, _G.MAP1_WALK_ROUTES or { "N_Ground", "N_Elevated", "W_Ground", "W_Elevated", "E_Ground", "E_Elevated", "W_Gantry", "N_Junction", "E_Junction", "E_RingDrop" })
+task.spawn(_G.MAP1_RUNWALK, _G.MAP1_WALK_ROUTES or { "N_Ground", "N_Elevated", "W_Ground", "W_Elevated", "E_Ground", "E_Elevated", "W_Gantry", "N_Junction", "E_Junction", "E_RingDrop", "E_Elevated_v10", "W_Gantry_v10", "E_RingDrop_EdgeN_E", "E_RingDrop_EdgeS_W" })

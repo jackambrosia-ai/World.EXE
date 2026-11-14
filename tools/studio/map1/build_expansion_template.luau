@@ -277,14 +277,20 @@ local ok, err = pcall(function()
 			sg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
 			sg.PixelsPerStud = ex.sign.ppS
 			sg.LightInfluence = 0
-			sg.Brightness = 1.6
+			sg.Brightness = ex.sign.bright or 1.6
 			local t = Instance.new("TextLabel")
 			t.Name = "Text"
 			t.Size = UDim2.fromScale(1, 1)
 			t.BackgroundTransparency = 1
+			if ex.sign.bg then
+				-- v10 high-contrast navigation sign: solid light panel, dark heavy text
+				t.BackgroundTransparency = 0
+				t.BackgroundColor3 = Color3.fromRGB(ex.sign.bg[1], ex.sign.bg[2], ex.sign.bg[3])
+				t.BorderSizePixel = 0
+			end
 			t.Text = ex.sign.text
 			t.TextScaled = true
-			t.Font = Enum.Font.GothamBold
+			t.Font = ex.sign.font and Enum.Font[ex.sign.font] or Enum.Font.GothamBold
 			t.TextColor3 = Color3.fromRGB(ex.sign.color[1], ex.sign.color[2], ex.sign.color[3])
 			t.Parent = sg
 			sg.Parent = p
