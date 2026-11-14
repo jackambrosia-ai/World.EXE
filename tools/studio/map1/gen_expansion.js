@@ -10,13 +10,13 @@ const fs = require('fs');
 const path = require('path');
 const HERE = __dirname;
 const NOTES = process.argv[2] || 'C:/WORLD.EXE-Art/TwoMaps/Map1/notes';
-const VERSION = 'map1-expansion v5 2026-11-13';
+const VERSION = 'map1-expansion v7 2026-11-13';
 
 // ---------------------------------------------------------------- palette
 const C = {
   floor: [58, 70, 112], floorBoss: [64, 78, 124], floorRoute: [52, 62, 100],
   plate: [44, 54, 92], plateDark: [32, 38, 62], charcoal: [30, 34, 46], trim: [120, 136, 176],
-  rail: [96, 112, 158], cyan: [0, 225, 255], cyanSoft: [110, 220, 255], violet: [140, 92, 255],
+  rail: [96, 112, 158], cyan: [0, 225, 255], cyanSoft: [110, 220, 255], violet: [95, 85, 255],
   glass: [120, 200, 255], white: [210, 225, 255], cover: [70, 84, 128], amber: [255, 190, 90],
 };
 const rows = [];
@@ -604,7 +604,7 @@ const ISOLATE = [
   box(g, 'FD_R2_LandingHighRailW', 'Rail', [576, 72, 45], [577, 76, 56], 'Metal', C.rail);
   // furnace (collidable base) + chimney landmark
   cylY(g, 'FD_FurnaceBase', 'Cover', cx, cz, 0, 22, 36, 'Metal', C.plateDark);
-  cylY(g, 'FD_FurnaceVent', 'Decor', cx, cz, 10, 13, 36.6, 'Neon', C.amber, { tr: 0.15 });
+  cylY(g, 'FD_FurnaceVent', 'Decor', cx, cz, 10, 13, 36.6, 'Neon', C.cyan, { tr: 0.15 });
   cylY(gl, 'FD_Chimney', 'Decor', cx, cz, 22, 262, 28, 'Metal', C.plateDark, { shadow: true });
   for (const [i, y] of [[1, 60], [2, 120], [3, 180], [4, 240]]) cylY(gl, `FD_ChimneyBand${i}`, 'Decor', cx, cz, y, y + 2, 29.6, 'Neon', i % 2 ? C.violet : C.cyan);
   cylY(gl, 'FD_ChimneyCap', 'Decor', cx, cz, 262, 266, 34, 'Metal', C.trim, { light: { range: 60, brightness: 2, color: [160, 120, 255] } });
