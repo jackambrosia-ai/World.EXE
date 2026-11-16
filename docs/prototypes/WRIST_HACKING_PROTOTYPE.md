@@ -359,3 +359,32 @@ Directive: "WORLD.EXE — Hacking, cyberware & boss gameplay prototype". Same is
 - a real player as the target (two clients);
 - shift-lock;
 - touch or gamepad.
+
+## 14. Revision 8 — owner clip review: low sideways slide-throw; ring dodge removed (2026-11-16)
+**Source:** an owner screen recording with voice, 89 s. I reviewed 382 extracted frames (headless Blender) and a rough offline transcript (Windows System.Speech; low confidence). The interpretation was confirmed by the owner through three multiple-choice questions.
+
+**Findings from the clip:**
+1. **Throws read as "up", not "where I slid".** The no-slide throw is Up 112 / Forward 32 (about 74° from horizontal), so even correct slides looked like vertical launches.
+2. **The ring made a hack fail.** At 8–12 s the patrolling dummy walked out of its warning ring while the owner typed the arrows, and the fling was dodged. The owner said, roughly, that he doesn't like it "to be countered by getting out of the circle".
+
+**Owner decisions (2026-11-16):**
+- **Slide-throw:** mostly sideways with a low arc. Players/NPCs use `AimedUp` 50 / `AimedForward` 80; the boss uses `BossAimedUp` 40 / `BossAimedForward` 55. A throw with no slide keeps the tall reference launch.
+- **Ring:** removed for **all** hacks. `evaded_dodge` no longer exists, and the ring visuals are gone. Defences are SHIELD and breaking line of sight behind cover.
+- **Gesture:** unchanged — just slide the mouse after the cast.
+
+**Results (solo Studio):**
+
+| Case | Thrown | Rise |
+|---|---|---|
+| Dummy, slide left | (−1.00, 0.02), 75.8 studs (flight plus ground tumble) | 6.6 |
+| Dummy, slide right | (1.00, −0.06), 56.7 studs | 6.5 |
+| Boss, slide right | (1.00, −0.10), 46.4 studs | 4.2 |
+| Dummy walks away during the cast ("dodge" reaction) | **hit**; no slide, so the tall default throw | 32 |
+
+- No ring parts were drawn during a cast (0 found).
+- **Saved place:** 59/59 scripts; hash 497A1EBC…. Protected files: 9/9 unchanged.
+- **Capture:** burst sheet `evidence/ui/m6_slide_right_sheet.jpg` (low arc across the screen).
+
+**Notes:**
+- The test-station "dodge" dummy reaction still walks away, but no longer evades. It is kept so the "walking does not dodge" case can be checked.
+- Slide distance is tunable live (`HackTune_FlingTarget_AimedForward` / `AimedUp`). The ground tumble roughly doubles the flight distance on flat ground.

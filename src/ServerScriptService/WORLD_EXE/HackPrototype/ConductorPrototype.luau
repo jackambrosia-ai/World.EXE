@@ -307,11 +307,16 @@ function ConductorPrototype.ApplyHack(hackId: string, from: Vector3?, aim: Vecto
 		end
 		local away = Vector3.new(r.Position.X - (from or home.Position).X, 0, r.Position.Z - (from or home.Position).Z)
 		local aimH = if aim then Vector3.new(aim.X, 0, aim.Z) else nil
+		local aimed = false
 		if aimH and aimH.Magnitude > 0.1 then
-			away = aimH -- the attacker's mouse aim (owner 2026-11-16)
+			away = aimH -- the attacker's mouse slide (owner 2026-11-16)
+			aimed = true
 		end
 		away = if away.Magnitude > 0.1 then away.Unit else -home.LookVector
-		local v = away * HackCatalog.Tune("FlingTarget", "BossForward") + Vector3.new(0, HackCatalog.Tune("FlingTarget", "BossUp"), 0)
+		local T = HackCatalog.Tune
+		local v = if aimed
+			then away * T("FlingTarget", "BossAimedForward") + Vector3.new(0, T("FlingTarget", "BossAimedUp"), 0)
+			else away * T("FlingTarget", "BossForward") + Vector3.new(0, T("FlingTarget", "BossUp"), 0)
 		local ok, why = HackEffects.RagdollLaunch(b, hum, r, v, 1.3)
 		if not ok then
 			for _, p in b:GetDescendants() do

@@ -110,6 +110,12 @@ HackCatalog.Tuning = table.freeze({
 		BossUp = 80, -- the boss ragdolls too (owner rule), with a lower arc than players
 		BossForward = 24,
 		FlickWindow = 0.6, -- after a successful FLING cast: slide the mouse within this to aim; else thrown away
+		-- Slide-thrown (aimed) FLING, owner 2026-11-16 "mostly sideways, low arc": the target travels
+		-- along the slid direction with a small hop instead of the tall launch (kept for no-slide throws).
+		AimedUp = 50,
+		AimedForward = 80,
+		BossAimedUp = 40,
+		BossAimedForward = 55,
 	}),
 	Freeze = table.freeze({
 		Seconds = 3, -- owner setting

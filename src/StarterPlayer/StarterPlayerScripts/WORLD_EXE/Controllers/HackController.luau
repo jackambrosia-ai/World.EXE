@@ -934,7 +934,7 @@ function HackController.Start()
 		if info then
 			local def = HackCatalog.Get(info.hackId)
 			incTitle.Text = "⚠ INCOMING " .. (if def then string.upper(def.DisplayName) else info.hackId) .. (if info.armed then " · being cast" else "")
-			incHint.Text = if touch then "SHIELD · break line of sight · leave the ring" else "[C] SHIELD · break line of sight behind cover · leave the ring"
+			incHint.Text = if touch then "SHIELD · or break line of sight" else "[C] SHIELD · or break line of sight behind cover"
 			quickShield.Visible = touch
 			incBanner.Size = UDim2.fromOffset(if touch then 330 else 440, 0)
 			incBanner.Position = UDim2.new(0.5, 0, 0, if touch then 40 else 64)

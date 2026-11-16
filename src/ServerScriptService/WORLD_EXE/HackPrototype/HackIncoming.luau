@@ -12,9 +12,9 @@
 --        b) SHIELD active on the target               -> "deflected"; "perfect" if it was raised
 --           within PerfectWindow seconds of resolveAt (refunds part of the defender's SHIELD cooldown)
 --        c) line of sight attacker -> target blocked   -> "evaded_cover"
---        d) target root outside the impact ring       -> "evaded_dodge"
---        e) otherwise the effect is applied            -> "hit"
--- Moving a little is not a miss: only leaving the ring (an explicit, visible radius) counts.
+--        d) otherwise the effect is applied            -> "hit"
+-- (The impact ring and "evaded_dodge" were removed 2026-11-16 by owner decision: walking out of a
+-- circle no longer counters a hack. Defences are SHIELD and breaking line of sight behind cover.)
 -- Clients never report outcomes; the server uses its own replicated positions and its own clock.
 
 local Players = game:GetService("Players")
@@ -161,9 +161,8 @@ function HackIncoming.Start(attacker: Player, hackId: string, target: HackTarget
 				outcome = "lost" -- attacker gone: the hack fizzles
 			elseif not HackTargets.LineOfSight(aChar2, live) then
 				outcome = "evaded_cover"
-			elseif flat(live.Root.Position - center).Magnitude > radius then
-				outcome = "evaded_dodge"
 			else
+				-- (owner 2026-11-16: leaving the circle no longer dodges any hack; the ring is gone)
 				local ok, why = apply(live, aRoot2.Position, aim)
 				outcome = if ok then "hit" else ("failed:" .. tostring(why))
 			end

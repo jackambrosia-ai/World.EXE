@@ -304,7 +304,10 @@ function HackEffects.FlingTarget(target: HackTargets.Target, from: Vector3, aim:
 	local root = target.Root
 	local tune = HackCatalog.Tune
 	local dir = (aim and horizontal(aim)) or horizontal(root.Position - from) or horizontal(root.CFrame.LookVector) or Vector3.zAxis
-	local v = (dir :: Vector3) * tune("FlingTarget", "Forward") + Vector3.new(0, tune("FlingTarget", "Up"), 0)
+	local aimed = aim ~= nil and horizontal(aim) ~= nil
+	local v = if aimed
+		then (dir :: Vector3) * tune("FlingTarget", "AimedForward") + Vector3.new(0, tune("FlingTarget", "AimedUp"), 0)
+		else (dir :: Vector3) * tune("FlingTarget", "Forward") + Vector3.new(0, tune("FlingTarget", "Up"), 0)
 	return ragdollLaunch(target.Model, target.Humanoid, root, target.Player, v, 0.9)
 end
 

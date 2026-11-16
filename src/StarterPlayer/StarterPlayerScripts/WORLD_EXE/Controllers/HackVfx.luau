@@ -281,28 +281,17 @@ function HackVfx.Launch(model: Model?, pos: Vector3, scale: number?)
 	end
 end
 
--- Incoming targeted hack (seen by everyone): the impact ring on the ground (the explicit dodge zone),
--- a faint pulsing tether from the attacker, and an overhead warning. Returns a cleanup function.
+-- Incoming targeted hack (seen by everyone): a faint pulsing tether from the attacker and an overhead
+-- warning (the defender also gets a screen banner). Returns a cleanup function.
 local HACK_COLOR: { [string]: Color3 } = { FREEZE = Color3.fromRGB(175, 230, 255), FLING_TARGET = Color3.fromRGB(255, 140, 30) }
 local HACK_WORD: { [string]: string } = { FREEZE = "FREEZE", FLING_TARGET = "FLING" }
 function HackVfx.Incoming(attacker: Model?, target: Model, center: Vector3, radius: number, startAt: number, resolveAt: number, hackId: string): () -> ()
 	local made: { Instance } = {}
 	local col = HACK_COLOR[hackId] or Color3.fromRGB(255, 111, 97)
-	local floor = floorBelow(center, { target, root() })
-	-- faint fill (no Neon: bloom turned the first version into an opaque dome) + a thin segmented edge
-	local ring = vpart("ImpactRing", Vector3.new(0.1, radius * 2, radius * 2), CFrame.new(floor + Vector3.new(0, 0.06, 0)) * CFrame.Angles(0, 0, math.rad(90)), col, Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
-	ring.Transparency = 0.88
-	table.insert(made, ring)
-	local SEG = 28
-	local segLen = 2 * math.pi * radius / SEG * 0.62 -- dashed edge
-	for i = 1, SEG do
-		local a = (i / SEG) * 2 * math.pi
-		local p = floor + Vector3.new(math.cos(a) * radius, 0.12, math.sin(a) * radius)
-		local seg = vpart("ImpactEdge", Vector3.new(segLen, 0.12, 0.35), CFrame.new(p) * CFrame.Angles(0, -a + math.pi / 2, 0), col, Enum.Material.Neon)
-		seg.Transparency = 0.25
-		table.insert(made, seg)
-	end
-	-- faint tether (presentation only; the rules are the ring, cover and shield)
+	local _ = center
+	local _ = radius
+	-- (the ground dodge ring was removed 2026-11-16, owner: leaving a circle no longer counters a hack)
+	-- faint tether (presentation only; the rules are cover and shield)
 	local aRoot = attacker and attacker:FindFirstChild("HumanoidRootPart") :: BasePart?
 	local tRoot = target:FindFirstChild("HumanoidRootPart") :: BasePart?
 	if aRoot and tRoot then
@@ -378,7 +367,6 @@ function HackVfx.Incoming(attacker: Model?, target: Model, center: Vector3, radi
 		if bar then
 			bar.Size = UDim2.fromScale(f, 1)
 		end
-		ring.Transparency = 0.82 + 0.1 * math.abs(math.sin(os.clock() * 8))
 	end)
 	return function()
 		conn:Disconnect()
