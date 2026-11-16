@@ -243,7 +243,7 @@ local function damageIntegrity(amount: number)
 end
 
 -- Called by HackService after a boss hack succeeded. Returns a short description for feedback.
-function ConductorPrototype.ApplyHack(hackId: string): (boolean, string)
+function ConductorPrototype.ApplyHack(hackId: string, from: Vector3?): (boolean, string)
 	if not boss then
 		return false, "no_boss"
 	end
@@ -269,32 +269,57 @@ function ConductorPrototype.ApplyHack(hackId: string): (boolean, string)
 		if (boss:GetAttribute(A.FlingImmuneUntil) or 0) > t then
 			return false, "boss_immune"
 		end
+		if HackEffects.IsRagdolled(boss) then
+			return false, "target_busy"
+		end
 		interrupted = true
 		damageIntegrity(HACK_DAMAGE.FLING_TARGET)
-		busyUntil = os.clock() + T.FlingTarget.BossStaggerSeconds
-		boss:SetAttribute(A.FlingImmuneUntil, t + T.FlingTarget.BossStaggerSeconds + T.FlingTarget.ImmunitySeconds)
 		setState("STAGGERED")
 		refreshLabel()
-		-- Visible knock-back and return (anchored boss: tween the pivot).
-		local look = boss:GetPivot().LookVector
-		local back = boss:GetPivot() - Vector3.new(look.X, 0, look.Z).Unit * T.FlingTarget.BossPushStuds
-		local cv = Instance.new("CFrameValue")
-		cv.Value = boss:GetPivot()
-		cv.Changed:Connect(function(v)
-			if boss then
-				boss:PivotTo(v)
+		-- Owner rule (2026-11-16): FLING ragdolls boss-type enemies too. The anchored placeholder is
+		-- released, launched with the shared ragdoll launch (lower arc than players), and re-homed
+		-- (anchored at its post) after it has landed and stood up. The attack loop waits meanwhile.
+		busyUntil = math.huge
+		local b = boss :: Model
+		local hum = b:FindFirstChildOfClass("Humanoid") :: Humanoid
+		local r = b:FindFirstChild("HumanoidRootPart") :: BasePart
+		for _, p in b:GetDescendants() do
+			if p:IsA("BasePart") then
+				p.Anchored = false
 			end
+		end
+		local away = Vector3.new(r.Position.X - (from or home.Position).X, 0, r.Position.Z - (from or home.Position).Z)
+		away = if away.Magnitude > 0.1 then away.Unit else -home.LookVector
+		local v = away * HackCatalog.Tune("FlingTarget", "BossForward") + Vector3.new(0, HackCatalog.Tune("FlingTarget", "BossUp"), 0)
+		local ok, why = HackEffects.RagdollLaunch(b, hum, r, v, 1.3)
+		if not ok then
+			for _, p in b:GetDescendants() do
+				if p:IsA("BasePart") then
+					p.Anchored = true
+				end
+			end
+			busyUntil = os.clock()
+			return false, why or "no_effect"
+		end
+		note("RAGDOLLED by fling")
+		task.spawn(function()
+			local t0 = os.clock()
+			while HackEffects.IsRagdolled(b) and os.clock() - t0 < 8 do
+				task.wait(0.1)
+			end
+			task.wait(0.3)
+			for _, p in b:GetDescendants() do
+				if p:IsA("BasePart") then
+					p.AssemblyLinearVelocity = Vector3.zero
+					p.AssemblyAngularVelocity = Vector3.zero
+					p.Anchored = true
+				end
+			end
+			b:PivotTo(home)
+			note("re-homed after ragdoll")
+			busyUntil = os.clock()
 		end)
-		local tw = TweenService:Create(cv, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Value = back * CFrame.Angles(math.rad(-12), 0, 0) })
-		tw:Play()
-		task.delay(T.FlingTarget.BossStaggerSeconds, function()
-			local tw2 = TweenService:Create(cv, TweenInfo.new(0.4), { Value = home })
-			tw2:Play()
-			tw2.Completed:Wait()
-			cv:Destroy()
-		end)
-		note("STAGGERED by fling")
-		return true, "Conductor staggered — knocked back."
+		return true, "Conductor flung — ragdolled!"
 	end
 	return false, "no_effect"
 end
@@ -312,6 +337,17 @@ function ConductorPrototype.Start(hit: (Player) -> ())
 	end
 	local b = boss :: Model
 	root = b:FindFirstChild("HumanoidRootPart") :: BasePart
+	-- Decorative parts without a rig joint are welded so the boss can be unanchored for a ragdoll.
+	for name, to in { CoreLight = "Torso", ClampArm = "Right Arm" } do
+		local p, q = b:FindFirstChild(name), b:FindFirstChild(to)
+		if p and q and p:IsA("BasePart") and q:IsA("BasePart") and not p:FindFirstChildOfClass("WeldConstraint") then
+			p.Massless = true
+			local w = Instance.new("WeldConstraint")
+			w.Part0 = p
+			w.Part1 = q
+			w.Parent = p
+		end
+	end
 	home = b:GetPivot()
 	for _, p in b:GetDescendants() do
 		if p:IsA("BasePart") then

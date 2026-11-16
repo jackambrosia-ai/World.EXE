@@ -76,11 +76,6 @@ function HackEffects.FlingSelf(player: Player, dirHint: any): (boolean, string?)
 	end
 	dir = dir or horizontal(hum.MoveDirection) or horizontal(root.CFrame.LookVector)
 	local tune = HackCatalog.Tune
-	if tune("FlingSelf", "Ragdoll") >= 1 then
-		-- Owner reference mode: the same ragdoll launch as FLING TARGET, on yourself.
-		local rv = (dir :: Vector3) * tune("FlingSelf", "RagdollForward") + Vector3.new(0, tune("FlingSelf", "RagdollUp"), 0)
-		return ragdollLaunch(character, hum, root, player, rv, 1)
-	end
 	local v = (dir :: Vector3) * tune("FlingSelf", "Forward") + Vector3.new(0, tune("FlingSelf", "Up"), 0)
 	send(player, { op = "fling_self", v = v, steer = tune("FlingSelf", "SteerSpeed"), minAir = tune("FlingSelf", "MinAirSeconds"), maxT = tune("FlingSelf", "MaxFlightSeconds"), blocked = tune("FlingSelf", "BlockedSpeedFraction") })
 	broadcast({ op = "vfx", kind = "launch", model = character, pos = root.Position, scale = 1 })
@@ -176,7 +171,8 @@ HackEffects.Recover = recover
 
 -- Shared ragdoll launch (owner reference clip 2026-11-16): a tall, fast upward arc with the body
 -- limp and tumbling for the whole flight; it gets up shortly AFTER landing (not on a fixed timer).
--- Used by FLING TARGET and, when HackTune_FlingSelf_Ragdoll = 1, by FLING SELF.
+-- Used by FLING TARGET on players, NPCs and the boss. Owner rule (2026-11-16): FLING ragdolls only
+-- OTHER players and boss-type enemies; FLING SELF never ragdolls you.
 ragdollLaunch = function(model: Model, hum: Humanoid, root: BasePart, player: Player?, v: Vector3, vfxScale: number): (boolean, string?)
 	if ragdolls[model] then
 		return false, "target_busy"
@@ -285,6 +281,11 @@ ragdollLaunch = function(model: Model, hum: Humanoid, root: BasePart, player: Pl
 		recover(model) -- cleans up constraints; no stand-up on a dead body
 	end)
 	return true, nil
+end
+
+-- Exposed for the boss module (it unanchors the boss first and re-homes it after recovery).
+function HackEffects.RagdollLaunch(model: Model, hum: Humanoid, root: BasePart, v: Vector3, vfxScale: number): (boolean, string?)
+	return ragdollLaunch(model, hum, root, nil, v, vfxScale)
 end
 
 function HackEffects.FlingTarget(target: HackTargets.Target, from: Vector3): (boolean, string?)

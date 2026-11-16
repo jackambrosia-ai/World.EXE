@@ -166,3 +166,23 @@ Status: **isolated prototype, draft PR, not for merge.** The owner approved the 
 - **Dial:** spins locally while the terminal is open (faster during a challenge).
 
 **Recorded, not built:** the owner found the existing **Architect patches visually underwhelming**. The same launch/impact language (burst, crater, trail, camera kick) is a candidate for patch presentation. That needs a separate owner decision.
+
+## 8. Revision 3 — owner rule on ragdoll (2026-11-16)
+**Owner:** "It should only ragdoll when done on another player or boss type of enemy, but when you're doing it on yourself, it should not ragdoll you."
+
+**FLING SELF**
+- **Never ragdolls.** The `HackTune_FlingSelf_Ragdoll` switch is removed.
+- **Kept:** the controlled arc (Up 90 / Forward 42) plus the launch VFX.
+- **Verified:** 0 ragdoll samples during a self fling (even with the old attribute set). Landed on the 14-high platform, Running, tilt 0.
+
+**FLING TARGET on players and NPCs:** unchanged from revision 2 (tumbling ragdoll launch, gets up after landing).
+
+**FLING TARGET on the boss**
+- **Now a real ragdoll** (it was a scripted stagger before):
+  - The anchored placeholder is released.
+  - Decorative parts are welded at start-up.
+  - It is launched with the shared ragdoll launch (BossUp 80 / BossForward 24).
+  - Once it has stood up it is re-anchored at its post. Its attack loop waits meanwhile and then resumes with the vulnerability window.
+- **Measured:** rise +16.1, landed 0.92 s, back at its post 2.20 s after launch, all motors restored. Attacks resumed.
+
+**Saved place:** 56/56 scripts match `src/`, hash D4D84B24….

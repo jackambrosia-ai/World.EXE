@@ -85,11 +85,7 @@ HackCatalog.Tuning = table.freeze({
 		MaxFlightSeconds = 2.5, -- the horizontal carry always ends by this time
 		BlockedSpeedFraction = 0.3, -- carry ends early when the measured speed falls below this share (wall)
 		Cooldown = 3,
-		-- Owner reference mode (clip 2026-11-16): 1 = FLING SELF uses the tumbling ragdoll launch below.
-		-- Default 0 keeps the 2026-11-16 directive (no ragdoll on FLING SELF) until the owner decides.
-		Ragdoll = 0,
-		RagdollUp = 112,
-		RagdollForward = 32,
+		-- Owner rule (2026-11-16): FLING SELF never ragdolls you (only other players / bosses ragdoll).
 	}),
 	FlingTarget = table.freeze({
 		-- Matched to the owner reference clip: apex ~32 studs, ~1.2 s airtime, ~35 studs travel.
@@ -103,8 +99,8 @@ HackCatalog.Tuning = table.freeze({
 		ImmunitySeconds = 4, -- after recovery the same target cannot be flung again
 		Range = 55,
 		Cooldown = 8,
-		BossStaggerSeconds = 1.0,
-		BossPushStuds = 6,
+		BossUp = 80, -- the boss ragdolls too (owner rule), with a lower arc than players
+		BossForward = 24,
 	}),
 	Freeze = table.freeze({
 		Seconds = 3, -- owner setting

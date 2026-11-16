@@ -204,10 +204,8 @@ local function apply(player: Player, hackId: string, targetId: string?, dir: Vec
 			return false, terr :: string, nil
 		end
 		if target.Kind == "boss" then
-			ok, text = Conductor.ApplyHack(hackId)
-			if ok and hackId == "FLING_TARGET" then
-				HackEffects.Broadcast({ op = "vfx", kind = "launch", pos = target.Root.Position, scale = 1.3 })
-			end
+			local myRoot = character:FindFirstChild("HumanoidRootPart") :: BasePart
+			ok, text = Conductor.ApplyHack(hackId, myRoot.Position)
 			reason = if ok then "applied" else text :: string
 			if not ok then
 				text = nil
