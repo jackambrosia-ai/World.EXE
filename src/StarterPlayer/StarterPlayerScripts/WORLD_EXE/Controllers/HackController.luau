@@ -915,7 +915,7 @@ function HackController.Start()
 		end
 		table.clear(flingParts)
 	end
-	local function flingSelf(v: Vector3, steer: number, minAir: number, maxT: number, blockedFrac: number)
+	local function flingSelf(v: Vector3, steer: number, minAir: number, maxT: number, blockedFrac: number, ctl: { turn: number, brake: number, fallCap: number, glideCap: number })
 		endFling()
 		local c = player.Character
 		local hrp = c and c:FindFirstChild("HumanoidRootPart") :: BasePart?
@@ -952,8 +952,36 @@ function HackController.Start()
 				return
 			end
 			local md = hum.MoveDirection
-			local plane = base + Vector2.new(md.X, md.Z) * steer
+			local want = Vector2.new(md.X, md.Z)
+			-- Air control (owner 2026-11-16 "control your fall a bit more"):
+			-- holding a direction turns the launch carry toward it; holding the opposite direction brakes it.
+			if want.Magnitude > 0.1 and base.Magnitude > 0.5 then
+				local w = want.Unit
+				local b = base.Unit
+				local dot = math.clamp(b:Dot(w), -1, 1)
+				if dot < -0.3 then
+					base = b * math.max(0, base.Magnitude - ctl.brake * dt)
+				else
+					local ang = math.acos(dot)
+					local step = math.min(ang, ctl.turn * dt)
+					local cross = b.X * w.Y - b.Y * w.X
+					local a = if cross >= 0 then step else -step
+					local c, s = math.cos(a), math.sin(a)
+					base = Vector2.new(b.X * c - b.Y * s, b.X * s + b.Y * c) * base.Magnitude
+				end
+			end
+			local plane = base + want * steer
 			lv.PlaneVelocity = plane
+			-- Fall control: cap the descent; holding Jump while falling glides (lower cap).
+			local vel = hrp.AssemblyLinearVelocity
+			if vel.Y < 0 then
+				local holding = hum.Jump or UserInputService:IsKeyDown(Enum.KeyCode.Space) or UserInputService:IsGamepadButtonDown(Enum.UserInputType.Gamepad1, Enum.KeyCode.ButtonA)
+				local cap = if holding then ctl.glideCap else ctl.fallCap
+				if vel.Y < -cap then
+					hrp.AssemblyLinearVelocity = Vector3.new(vel.X, -cap, vel.Z)
+				end
+				gui:SetAttribute("FlingGlide", holding)
+			end
 			stats.apexY = math.max(stats.apexY, hrp.Position.Y)
 			local elapsed = os.clock() - t0
 			local hv = Vector2.new(hrp.AssemblyLinearVelocity.X, hrp.AssemblyLinearVelocity.Z).Magnitude
@@ -1012,7 +1040,8 @@ function HackController.Start()
 			renderChips()
 		elseif op == "fling_self" then
 			if typeof(data.v) == "Vector3" then
-				flingSelf(data.v, tonumber(data.steer) or 0, tonumber(data.minAir) or 0.2, tonumber(data.maxT) or 2.5, tonumber(data.blocked) or 0.3)
+				flingSelf(data.v, tonumber(data.steer) or 0, tonumber(data.minAir) or 0.2, tonumber(data.maxT) or 4, tonumber(data.blocked) or 0.3, {
+					turn = tonumber(data.turn) or 3, brake = tonumber(data.brake) or 45, fallCap = tonumber(data.fallCap) or 75, glideCap = tonumber(data.glideCap) or 28 })
 			end
 		elseif op == "ragdoll" then
 			local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")

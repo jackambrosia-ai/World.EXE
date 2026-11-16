@@ -77,7 +77,8 @@ function HackEffects.FlingSelf(player: Player, dirHint: any): (boolean, string?)
 	dir = dir or horizontal(hum.MoveDirection) or horizontal(root.CFrame.LookVector)
 	local tune = HackCatalog.Tune
 	local v = (dir :: Vector3) * tune("FlingSelf", "Forward") + Vector3.new(0, tune("FlingSelf", "Up"), 0)
-	send(player, { op = "fling_self", v = v, steer = tune("FlingSelf", "SteerSpeed"), minAir = tune("FlingSelf", "MinAirSeconds"), maxT = tune("FlingSelf", "MaxFlightSeconds"), blocked = tune("FlingSelf", "BlockedSpeedFraction") })
+	send(player, { op = "fling_self", v = v, steer = tune("FlingSelf", "SteerSpeed"), minAir = tune("FlingSelf", "MinAirSeconds"), maxT = tune("FlingSelf", "MaxFlightSeconds"), blocked = tune("FlingSelf", "BlockedSpeedFraction"),
+		turn = tune("FlingSelf", "TurnRate"), brake = tune("FlingSelf", "BrakeRate"), fallCap = tune("FlingSelf", "MaxFallSpeed"), glideCap = tune("FlingSelf", "GlideFallSpeed") })
 	broadcast({ op = "vfx", kind = "launch", model = character, pos = root.Position, scale = 1 })
 	return true, nil
 end

@@ -80,9 +80,13 @@ HackCatalog.Tuning = table.freeze({
 	FlingSelf = table.freeze({
 		Up = 90, -- initial vertical velocity (apex ~ Up^2 / (2 * 196.2) = 20.6 studs). Sweep 2026-11-16: A 78/48, B 90/42 (chosen), C 98/48
 		Forward = 42, -- horizontal launch speed along the intended direction (~39 studs on flat ground)
-		SteerSpeed = 16, -- extra horizontal speed the player can add/subtract with movement input mid-air
+		SteerSpeed = 24, -- extra horizontal speed from movement input mid-air (owner 2026-11-16: more fall control; was 16)
+		TurnRate = 3.0, -- rad/s the launch carry turns toward the held direction
+		BrakeRate = 45, -- studs/s per s the carry slows when holding the opposite direction
+		MaxFallSpeed = 75, -- downward speed cap during the fling (free fall would reach ~90)
+		GlideFallSpeed = 28, -- holding Jump while falling caps the descent here (slow, steerable fall)
 		MinAirSeconds = 0.2, -- landing is not checked before this
-		MaxFlightSeconds = 2.5, -- the horizontal carry always ends by this time
+		MaxFlightSeconds = 4.0, -- the carry and fall control always end by this time (longer for gliding)
 		BlockedSpeedFraction = 0.3, -- carry ends early when the measured speed falls below this share (wall)
 		Cooldown = 3,
 		-- Owner rule (2026-11-16): FLING SELF never ragdolls you (only other players / bosses ragdoll).

@@ -186,3 +186,29 @@ Status: **isolated prototype, draft PR, not for merge.** The owner approved the 
 - **Measured:** rise +16.1, landed 0.92 s, back at its post 2.20 s after launch, all motors restored. Attacks resumed.
 
 **Saved place:** 56/56 scripts match `src/`, hash D4D84B24….
+
+## 9. Revision 4 — more fall control on FLING SELF (2026-11-16)
+**Owner:** "make it so you can control your fall a bit more on the fling."
+
+**Air control** (client executor, server-sent tuning; still no ragdoll):
+- **Turn:** holding a direction rotates the launch carry toward it (`TurnRate` 3 rad/s).
+- **Brake:** holding the opposite direction slows the carry (`BrakeRate` 45/s).
+- **Steer:** extra steer speed is now 24 (was 16).
+- **Fall cap:** the descent is capped at 75 studs/s.
+- **Glide:** holding Jump while falling caps it at 28 studs/s.
+- **Flight window:** the carry/fall control lasts up to 4 s (was 2.5).
+
+**Solo Studio results, real key presses** (H → `1`,`1`; camera facing +Z):
+
+| Input | Rise | Distance | Airtime | Notes |
+|---|---|---|---|---|
+| None | 20.5 | 39.2 | 0.92 s | baseline |
+| Hold S (brake) | 20.5 | 29.7 | 1.00 s | about 25 % shorter |
+| Hold A (turn) | 20.5 | 40.6 | 0.92 s | velocity swung from +Z to +X mid-air; landed 36 studs to the side |
+| Hold Space after the apex (glide) | 20.5 | 48.8 | 1.15 s | descent held at about −31 studs/s (free fall reached −77) |
+
+**Notes:**
+- Emulated key input took about 0.2 s to show in `MoveDirection`.
+- Holding Jump after landing performs normal Roblox repeat jumps.
+
+**Saved place:** 56/56 scripts match `src/`, hash C078ABD3….
