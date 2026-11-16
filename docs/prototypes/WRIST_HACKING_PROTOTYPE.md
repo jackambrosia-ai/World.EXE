@@ -390,3 +390,34 @@ Directive: "WORLD.EXE — Hacking, cyberware & boss gameplay prototype". Same is
 - Slide distance is tunable live (`HackTune_FlingTarget_AimedForward` / `AimedUp`). The ground tumble roughly doubles the flight distance on flat ground.
 
 **Owner decision (2026-11-16):** slide-throw distance (57–76 studs incl. tumble) "Feels right"; AimedUp 50 / AimedForward 80 kept.
+
+## 15. Revision 9 — banana-peel style GLIDE for slide-throws (2026-11-16)
+**Owner:** "the fling still feels like an explosion and less like the player getting sent in the direction of the cursor"; reference: the banana peel item in another Roblox game.
+
+**Research:** public pages only describe that item as a trap that trips the victim; none describe the motion, and the game's Fandom wiki and NamuWiki blocked automated reading. The owner chose to have my own interpretation built ("build the glide"); it was not matched to a clip.
+
+**Built:**
+- **Style switch:** slide-throws now default to `FlingTarget.AimedStyle = 1` (GLIDE). TestStation pads "Slide-fling: GLIDE / LAUNCH" switch it live, and the board shows the current style.
+- **Glide (`ragdollGlide`):** the target goes limp, drops flat on its back with its feet leading in the slid direction, and slides along the ground.
+  - **Speed:** a plane `LinearVelocity` drives it at `GlideSpeed × (1 − t/GlideSeconds)^1.6` (85 / 1.8 s; boss 55 / 1.3 s).
+  - **No spin:** an `AlignOrientation` keeps the body flat.
+  - **Ledges:** only horizontal motion is driven, so the target can fall off ledges.
+  - **Recovery:** it gets up `GlideRestSeconds` (0.6) after stopping.
+- **No explosion:** no launch burst, crater or camera kick. Clients draw a light dust scuff (≤ 30 puffs) under the sliding body instead.
+- **Shared setup:** the ragdoll setup was split out into `ragdollBegin`, used by both the launch and the glide.
+- **Unchanged:** a no-slide throw keeps the tall reference launch.
+
+**Results (solo Studio, real arrow keys plus emulated mouse slide):**
+
+| Case | Result |
+|---|---|
+| DUMMY-A, slide left | slid 60.9 studs at (−1.00, 0.00); max rise **0.3** studs; lay flat within ~0.2 s; stood up afterwards with no leftover constraints |
+| Boss, slide right | slid 28.3 studs at (0.97, −0.24); max rise 0.4; re-homed after recovery |
+
+- **Capture:** `evidence/ui/m7_glide_sheet.jpg` (flat body skidding left with a dust trail). The dust was lightened after this capture.
+- **Saved place:** 59/59 scripts; hash BAD09D7B…. Protected files: 9/9 unchanged.
+
+**Not tested:**
+- the LAUNCH pad in play (it uses the unchanged rev 8 code path);
+- a real player as the glide target (client physics ownership is handed to the server as for the launch);
+- a human feel test.

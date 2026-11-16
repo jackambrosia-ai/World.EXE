@@ -310,8 +310,10 @@ local options = {
 	{ "DummyReaction", "none", "Dummies: no reaction", Color3.fromRGB(163, 172, 198) },
 	{ "DummyReaction", "shield", "Dummies: SHIELD (late)", Color3.fromRGB(163, 172, 198) },
 	{ "DummyReaction", "perfect", "Dummies: PERFECT shield", Color3.fromRGB(163, 172, 198) },
-	{ "DummyReaction", "dodge", "Dummies: DODGE (leave ring)", Color3.fromRGB(163, 172, 198) },
+	{ "DummyReaction", "dodge", "Dummies: WALK AWAY (no longer dodges)", Color3.fromRGB(163, 172, 198) },
 	{ "ResetBoss", true, "Reset the Conductor", Color3.fromRGB(214, 38, 170) },
+	{ "FlingStyle", 1, "Slide-fling: GLIDE", Color3.fromRGB(255, 70, 40) },
+	{ "FlingStyle", 0, "Slide-fling: LAUNCH", Color3.fromRGB(255, 70, 40) },
 }
 for i, o in options do
 	local col = (i - 1) % 7
@@ -330,7 +332,7 @@ local pvp = Instance.new("Folder")
 pvp.Name = "PvPArea"
 pvp.Parent = ROOT
 local pvpFloor = part(pvp, "PvPFloor", Vector3.new(60, 0.4, 60), CFrame.new(590, 0.2, 0), Color3.fromRGB(40, 30, 48), Enum.Material.Slate)
-label(pvp, pvpFloor, "PVP TEST AREA · cover blocks line of sight · leave the ring to dodge", 4, Color3.fromRGB(255, 111, 97))
+label(pvp, pvpFloor, "PVP TEST AREA · cover blocks line of sight", 4, Color3.fromRGB(255, 111, 97))
 for i, c in { { -12, -10, 8, 6 }, { 12, 8, 8, 6 }, { 0, 0, 3, 10 }, { -18, 16, 4, 8 }, { 18, -18, 4, 8 } } do
 	part(pvp, "Cover" .. i, Vector3.new(c[3], c[4], 3), CFrame.new(590 + c[1], c[4] / 2 + 0.4, c[2]) * CFrame.Angles(0, math.rad(i * 33), 0), C_PAD, Enum.Material.Concrete)
 end

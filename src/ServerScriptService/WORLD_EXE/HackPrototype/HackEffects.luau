@@ -21,6 +21,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local HackCatalog = require(ReplicatedStorage:WaitForChild("WORLD_EXE"):WaitForChild("Shared"):WaitForChild("HackCatalog"))
 local HackTargets = require(script.Parent:WaitForChild("HackTargets"))
@@ -179,22 +180,15 @@ local function recover(model: Model)
 end
 HackEffects.Recover = recover
 
--- Shared ragdoll launch (owner reference clip 2026-11-16): a tall, fast upward arc with the body
--- limp and tumbling for the whole flight; it gets up shortly AFTER landing (not on a fixed timer).
--- Used by FLING TARGET on players, NPCs and the boss. Owner rule (2026-11-16): FLING ragdolls only
--- OTHER players and boss-type enemies; FLING SELF never ragdolls you.
-ragdollLaunch = function(model: Model, hum: Humanoid, root: BasePart, player: Player?, v: Vector3, vfxScale: number): (boolean, string?)
+-- Shared ragdoll setup: limp joints (Motor6D -> BallSocket), limbs collide, server owns the physics.
+local function ragdollBegin(model: Model, hum: Humanoid, root: BasePart, player: Player?): (RagdollState?, string?)
 	if ragdolls[model] then
-		return false, "target_busy"
+		return nil, "target_busy"
 	end
 	if root.Anchored then
-		return false, "target_frozen"
+		return nil, "target_frozen"
 	end
-	local tune = HackCatalog.Tune
-	local minLimp = tune("FlingTarget", "RagdollSeconds")
-	local minAir = tune("FlingTarget", "MinAirSeconds")
-	local landDelay = tune("FlingTarget", "LandRecoverDelay")
-	local maxRagdoll = math.max(minLimp + 0.5, tune("FlingTarget", "MaxRagdollSeconds"))
+	local minLimp = HackCatalog.Tune("FlingTarget", "RagdollSeconds")
 	local s: RagdollState = { motors = {}, made = {}, collide = {}, requiresNeck = hum.RequiresNeck, player = player, done = false }
 	ragdolls[model] = s
 	hum.RequiresNeck = false
@@ -243,6 +237,31 @@ ragdollLaunch = function(model: Model, hum: Humanoid, root: BasePart, player: Pl
 	else
 		hum:ChangeState(Enum.HumanoidStateType.Physics)
 	end
+	local diedConn: RBXScriptConnection? = nil
+	diedConn = hum.Died:Connect(function()
+		if diedConn then
+			diedConn:Disconnect()
+		end
+		recover(model) -- cleans up constraints; no stand-up on a dead body
+	end)
+	return s, nil
+end
+
+-- Shared ragdoll launch (owner reference clip 2026-11-16): a tall, fast upward arc with the body
+-- limp and tumbling for the whole flight; it gets up shortly AFTER landing (not on a fixed timer).
+-- Used by FLING TARGET without a slide (players, NPCs, boss). Owner rule (2026-11-16): FLING ragdolls
+-- only OTHER players and boss-type enemies; FLING SELF never ragdolls you.
+ragdollLaunch = function(model: Model, hum: Humanoid, root: BasePart, player: Player?, v: Vector3, vfxScale: number): (boolean, string?)
+	local s, why = ragdollBegin(model, hum, root, player)
+	if not s then
+		return false, why
+	end
+	local st = s :: RagdollState
+	local tune = HackCatalog.Tune
+	local minLimp = tune("FlingTarget", "RagdollSeconds")
+	local minAir = tune("FlingTarget", "MinAirSeconds")
+	local landDelay = tune("FlingTarget", "LandRecoverDelay")
+	local maxRagdoll = math.max(minLimp + 0.5, tune("FlingTarget", "MaxRagdollSeconds"))
 	-- launch every limb, plus a tumble around a horizontal axis across the flight direction
 	local flat = horizontal(v) or Vector3.zAxis
 	local tumbleAxis = Vector3.yAxis:Cross(flat :: Vector3)
@@ -264,7 +283,7 @@ ragdollLaunch = function(model: Model, hum: Humanoid, root: BasePart, player: Pl
 	local t0 = os.clock()
 	task.spawn(function()
 		local landedAt: number? = nil
-		while not s.done do
+		while not st.done do
 			local el = os.clock() - t0
 			if el >= maxRagdoll then
 				break
@@ -283,12 +302,93 @@ ragdollLaunch = function(model: Model, hum: Humanoid, root: BasePart, player: Pl
 		end
 		recover(model)
 	end)
-	local diedConn: RBXScriptConnection? = nil
-	diedConn = hum.Died:Connect(function()
-		if diedConn then
-			diedConn:Disconnect()
+	return true, nil
+end
+
+-- Ragdoll GLIDE (owner 2026-11-16: the slide-throw "feels like an explosion"; banana-peel style
+-- requested): the target's feet go out, it drops flat on its back with the feet leading, and it
+-- glides ALONG THE GROUND in the slid direction, slowing smoothly (speed × (1 - t/T)^1.6). No spin
+-- (an AlignOrientation keeps it flat), no blast; clients draw a dust scuff. It falls off ledges
+-- naturally (only the horizontal plane is driven). It gets up GlideRestSeconds after stopping.
+local ragdollGlide = function(model: Model, hum: Humanoid, root: BasePart, player: Player?, dir: Vector3, speed: number, seconds: number): (boolean, string?)
+	local s, why = ragdollBegin(model, hum, root, player)
+	if not s then
+		return false, why
+	end
+	local st = s :: RagdollState
+	local tune = HackCatalog.Tune
+	local rest = tune("FlingTarget", "GlideRestSeconds")
+	local minLimp = tune("FlingTarget", "RagdollSeconds")
+	local maxRagdoll = math.max(minLimp + 0.5, seconds + rest + 2)
+	-- tip over: lying on the back, head trailing, feet leading in the throw direction
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { model }
+	params.RespectCanCollide = true
+	local hit = workspace:Raycast(root.Position, Vector3.new(0, -8, 0), params)
+	local base = if hit then hit.Position else root.Position - Vector3.new(0, 2.5, 0)
+	local pos = base + Vector3.new(0, 1.3, 0)
+	local lying = CFrame.lookAt(pos, pos + Vector3.yAxis, -dir) -- front faces the sky, head points back
+	root.CFrame = lying
+	for _, p in model:GetDescendants() do
+		if p:IsA("BasePart") and not p.Anchored then
+			p.AssemblyLinearVelocity = dir * speed
+			p.AssemblyAngularVelocity = Vector3.zero
 		end
-		recover(model) -- cleans up constraints; no stand-up on a dead body
+	end
+	local att = Instance.new("Attachment")
+	att.Name = "HackGlideAttachment"
+	att.Parent = root
+	local lv = Instance.new("LinearVelocity")
+	lv.Name = "HackGlideVelocity"
+	lv.Attachment0 = att
+	lv.RelativeTo = Enum.ActuatorRelativeTo.World
+	lv.VelocityConstraintMode = Enum.VelocityConstraintMode.Plane
+	lv.PrimaryTangentAxis = Vector3.xAxis
+	lv.SecondaryTangentAxis = Vector3.zAxis
+	lv.ForceLimitMode = Enum.ForceLimitMode.Magnitude
+	lv.MaxForce = root.AssemblyMass * 4000
+	lv.PlaneVelocity = Vector2.new(dir.X, dir.Z) * speed
+	lv.Parent = root
+	local ao = Instance.new("AlignOrientation")
+	ao.Name = "HackGlideUpright"
+	ao.Mode = Enum.OrientationAlignmentMode.OneAttachment
+	ao.Attachment0 = att
+	ao.CFrame = lying.Rotation
+	ao.MaxTorque = root.AssemblyMass * 20000
+	ao.Responsiveness = 40
+	ao.Parent = root
+	table.insert(st.made, att)
+	table.insert(st.made, lv)
+	table.insert(st.made, ao)
+	model:SetAttribute(A.RagdollUntil, now() + maxRagdoll)
+	broadcast({ op = "vfx", kind = "glide", model = model, dir = dir, seconds = seconds })
+	local t0 = os.clock()
+	local conn: RBXScriptConnection? = nil
+	conn = RunService.Heartbeat:Connect(function()
+		if st.done or not root.Parent then
+			if conn then
+				conn:Disconnect()
+			end
+			return
+		end
+		local el = os.clock() - t0
+		local k = math.max(0, 1 - el / seconds) ^ 1.6
+		lv.PlaneVelocity = Vector2.new(dir.X, dir.Z) * speed * k
+		if el >= seconds then
+			if conn then
+				conn:Disconnect()
+			end
+			lv.Enabled = false
+			ao.Enabled = false
+			model:SetAttribute("HackLandedAt", now())
+			task.delay(math.max(rest, minLimp - el), function()
+				recover(model)
+			end)
+		end
+	end)
+	task.delay(maxRagdoll, function()
+		recover(model) -- hard cap
 	end)
 	return true, nil
 end
@@ -297,14 +397,21 @@ end
 function HackEffects.RagdollLaunch(model: Model, hum: Humanoid, root: BasePart, v: Vector3, vfxScale: number): (boolean, string?)
 	return ragdollLaunch(model, hum, root, nil, v, vfxScale)
 end
+function HackEffects.RagdollGlide(model: Model, hum: Humanoid, root: BasePart, dir: Vector3, speed: number, seconds: number): (boolean, string?)
+	return ragdollGlide(model, hum, root, nil, dir, speed, seconds)
+end
 
--- aim (owner 2026-11-16): the attacker's mouse-aimed horizontal direction; without it the target
--- is thrown straight away from the attacker (touch / gamepad fallback).
+-- aim (owner 2026-11-16): the attacker's slide direction. Slide + AimedStyle 1 = glide (default);
+-- AimedStyle 0 = the low-arc launch of rev 8. No slide (touch / gamepad / no flick): the tall launch,
+-- straight away from the attacker.
 function HackEffects.FlingTarget(target: HackTargets.Target, from: Vector3, aim: Vector3?): (boolean, string?)
 	local root = target.Root
 	local tune = HackCatalog.Tune
 	local dir = (aim and horizontal(aim)) or horizontal(root.Position - from) or horizontal(root.CFrame.LookVector) or Vector3.zAxis
 	local aimed = aim ~= nil and horizontal(aim) ~= nil
+	if aimed and tune("FlingTarget", "AimedStyle") >= 1 then
+		return ragdollGlide(target.Model, target.Humanoid, root, target.Player, dir :: Vector3, tune("FlingTarget", "GlideSpeed"), tune("FlingTarget", "GlideSeconds"))
+	end
 	local v = if aimed
 		then (dir :: Vector3) * tune("FlingTarget", "AimedForward") + Vector3.new(0, tune("FlingTarget", "AimedUp"), 0)
 		else (dir :: Vector3) * tune("FlingTarget", "Forward") + Vector3.new(0, tune("FlingTarget", "Up"), 0)

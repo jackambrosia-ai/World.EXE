@@ -116,6 +116,15 @@ HackCatalog.Tuning = table.freeze({
 		AimedForward = 80,
 		BossAimedUp = 40,
 		BossAimedForward = 55,
+		-- Slide-throw style (owner 2026-11-16: the low-arc launch still "feels like an explosion"):
+		-- 1 = GLIDE (banana-peel style: drops flat, glides along the ground in the slid direction,
+		-- slowing smoothly; distance ≈ GlideSpeed × GlideSeconds / 2.6), 0 = the rev 8 low-arc launch.
+		AimedStyle = 1,
+		GlideSpeed = 85,
+		GlideSeconds = 1.8,
+		GlideRestSeconds = 0.6, -- stays down this long after the glide stops, then gets up
+		BossGlideSpeed = 55,
+		BossGlideSeconds = 1.3,
 	}),
 	Freeze = table.freeze({
 		Seconds = 3, -- owner setting

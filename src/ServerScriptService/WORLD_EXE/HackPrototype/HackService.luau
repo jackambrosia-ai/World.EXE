@@ -529,6 +529,7 @@ local function stationText(player: Player?): string
 		string.format("Reaction window: %.1f s", HackCatalog.Tune("Incoming", "ReactionWindow")),
 		string.format("Perfect deflect: %s", if HackCatalog.Tune("Incoming", "PerfectWindow") > 0 then "ON" else "OFF"),
 		"Dummy reaction: " .. string.upper(tostring(w("HackProto_DummyReaction", "none"))),
+		"Slide-fling: " .. (if HackCatalog.Tune("FlingTarget", "AimedStyle") >= 1 then "GLIDE" else "LAUNCH"),
 		"Boots: per player (step on a boots console)",
 	}
 	return table.concat(lines, "\n")
@@ -564,6 +565,8 @@ local function setupStation()
 					workspace:SetAttribute("HackTune_Incoming_PerfectWindow", value)
 				elseif setting == "DummyReaction" and typeof(value) == "string" then
 					workspace:SetAttribute("HackProto_DummyReaction", value)
+				elseif setting == "FlingStyle" and typeof(value) == "number" then
+					workspace:SetAttribute("HackTune_FlingTarget_AimedStyle", value)
 				elseif setting == "ResetBoss" then
 					Conductor.Reset("station")
 				end

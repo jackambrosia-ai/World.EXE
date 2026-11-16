@@ -1371,6 +1371,8 @@ function HackController.Start()
 		elseif op == "vfx" then
 			if data.kind == "launch" and typeof(data.pos) == "Vector3" then
 				HackVfx.Launch(if typeof(data.model) == "Instance" and data.model:IsA("Model") then data.model else nil, data.pos, tonumber(data.scale) or 1)
+			elseif data.kind == "glide" and typeof(data.model) == "Instance" and data.model:IsA("Model") then
+				HackVfx.Glide(data.model, tonumber(data.seconds) or 1.5)
 			end
 		elseif op == "incoming" then
 			local tgt = data.target

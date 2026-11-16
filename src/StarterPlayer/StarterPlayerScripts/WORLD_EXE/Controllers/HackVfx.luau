@@ -376,6 +376,40 @@ function HackVfx.Incoming(attacker: Model?, target: Model, center: Vector3, radi
 	end
 end
 
+-- Glide scuff (banana-peel style slide-fling, owner 2026-11-16): no blast — small dust puffs kicked
+-- up under the sliding body while it moves, thinning out as it slows. Bounded (≤ 30 puffs).
+function HackVfx.Glide(model: Model, seconds: number)
+	if UITheme.reducedEffects() then
+		return
+	end
+	local body = (model:FindFirstChild("UpperTorso") or model:FindFirstChild("Torso") or model:FindFirstChild("HumanoidRootPart")) :: BasePart?
+	if not body then
+		return
+	end
+	task.spawn(function()
+		local t0 = os.clock()
+		local n = 0
+		local last: Vector3? = nil
+		while os.clock() - t0 < seconds and n < 30 and body.Parent do
+			local pos = body.Position
+			local moved = if last then (pos - last).Magnitude else 99
+			if moved > 1.2 then -- only while actually sliding
+				last = pos
+				n += 1
+				local floor = floorBelow(pos, { model, root() })
+				local size = 1.4 + math.random() * 0.8
+				local puff = vpart("GlideDust", Vector3.new(size, size, size), CFrame.new(floor + Vector3.new(0, 0.5, 0)), Color3.fromRGB(215, 208, 192), Enum.Material.SmoothPlastic, Enum.PartType.Ball)
+				puff.Transparency = 0.6
+				tween(puff, 0.7, { Size = Vector3.new(size * 2.4, size * 1.4, size * 2.4), Transparency = 1 })
+				task.delay(0.75, function()
+					puff:Destroy()
+				end)
+			end
+			task.wait(0.06)
+		end
+	end)
+end
+
 -- Deflection burst on the defender (seen by everyone); perfect = bigger, whiter, longer.
 function HackVfx.Deflect(target: Model, perfect: boolean)
 	local tRoot = target:FindFirstChild("HumanoidRootPart") :: BasePart?

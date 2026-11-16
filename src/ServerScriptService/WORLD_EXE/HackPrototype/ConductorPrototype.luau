@@ -317,7 +317,12 @@ function ConductorPrototype.ApplyHack(hackId: string, from: Vector3?, aim: Vecto
 		local v = if aimed
 			then away * T("FlingTarget", "BossAimedForward") + Vector3.new(0, T("FlingTarget", "BossAimedUp"), 0)
 			else away * T("FlingTarget", "BossForward") + Vector3.new(0, T("FlingTarget", "BossUp"), 0)
-		local ok, why = HackEffects.RagdollLaunch(b, hum, r, v, 1.3)
+		local ok, why
+		if aimed and T("FlingTarget", "AimedStyle") >= 1 then
+			ok, why = HackEffects.RagdollGlide(b, hum, r, away, T("FlingTarget", "BossGlideSpeed"), T("FlingTarget", "BossGlideSeconds"))
+		else
+			ok, why = HackEffects.RagdollLaunch(b, hum, r, v, 1.3)
+		end
 		if not ok then
 			for _, p in b:GetDescendants() do
 				if p:IsA("BasePart") then
