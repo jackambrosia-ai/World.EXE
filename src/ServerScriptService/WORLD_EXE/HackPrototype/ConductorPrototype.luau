@@ -259,7 +259,7 @@ local function damageIntegrity(amount: number)
 end
 
 -- Called by HackService after a boss hack succeeded. Returns a short description for feedback.
-function ConductorPrototype.ApplyHack(hackId: string, from: Vector3?): (boolean, string)
+function ConductorPrototype.ApplyHack(hackId: string, from: Vector3?, aim: Vector3?): (boolean, string)
 	if not boss then
 		return false, "no_boss"
 	end
@@ -306,6 +306,10 @@ function ConductorPrototype.ApplyHack(hackId: string, from: Vector3?): (boolean,
 			end
 		end
 		local away = Vector3.new(r.Position.X - (from or home.Position).X, 0, r.Position.Z - (from or home.Position).Z)
+		local aimH = if aim then Vector3.new(aim.X, 0, aim.Z) else nil
+		if aimH and aimH.Magnitude > 0.1 then
+			away = aimH -- the attacker's mouse aim (owner 2026-11-16)
+		end
 		away = if away.Magnitude > 0.1 then away.Unit else -home.LookVector
 		local v = away * HackCatalog.Tune("FlingTarget", "BossForward") + Vector3.new(0, HackCatalog.Tune("FlingTarget", "BossUp"), 0)
 		local ok, why = HackEffects.RagdollLaunch(b, hum, r, v, 1.3)

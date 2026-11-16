@@ -51,7 +51,7 @@ local definitions: { HackDef } = {
 	{ Id = "FLING_SELF", DisplayName = "Fling Self", Short = "FLING SELF", Icon = "▲", Serial = "HX-01", Category = "Physics", Target = "self",
 		Effect = "Launch yourself up and forward. You keep control; no ragdoll.", Order = 1 },
 	{ Id = "FLING_TARGET", DisplayName = "Fling Target", Short = "FLING", Icon = "»", Serial = "HX-02", Category = "Entity", Target = "other",
-		Effect = "Launch a target away from you. It ragdolls briefly, then recovers.", Order = 2 },
+		Effect = "Launch a target where your mouse points (no mouse: away from you). It ragdolls, then recovers.", Order = 2 },
 	{ Id = "FREEZE", DisplayName = "Freeze", Short = "FREEZE", Icon = "❄", Serial = "HX-03", Category = "Environment", Target = "other",
 		Effect = "Freeze a target for about 3 s. Bosses resist (shorter).", Order = 3 },
 	{ Id = "SHIELD", DisplayName = "Shield", Short = "SHIELD", Icon = "◈", Serial = "HX-04", Category = "Beneficial", Target = "self",

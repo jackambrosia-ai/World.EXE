@@ -252,3 +252,36 @@ Directive: "WORLD.EXE — Hacking, cyberware & boss gameplay prototype". Same is
 - per-boot lane reachability in play (model-derived only);
 - a re-run of the integrity-0 fix;
 - a desktop re-capture after the arrow-row height fix.
+
+## 11. Revision 5 — aim FLING with the mouse (2026-11-16)
+**Owner:** "make it so when you fling on someone else or boss, you can fling them in the direction you move the mouse."
+
+**How it works:**
+- **When aiming is active:**
+  - FLING is selected with a target;
+  - the FLING challenge is running;
+  - your FLING is in its warning window.
+- **Direction:** the client projects the cursor onto the ground; the throw goes from the target toward the cursor.
+- **Ground arrow:** a flat orange-red arrow (local only) runs from the target's feet along the aim, ending in a landing ring at the predicted throw distance (≈ 2·Up·Forward / g). It is a different colour from the yellow lane markers.
+- **Sending:** the client sends `{op = "aim", dir}` when the aim changes by more than 4° (at most 10/s), plus a 1 s keep-alive.
+  - The server accepts at most one aim per 0.08 s. Aim messages get no reply and do not use the input rate limit.
+  - Invalid vectors (NaN, vertical, huge, wrong type) are dropped. Aims expire after 3 s.
+- **Resolution:** the server reads the latest aim when the fling resolves, so the attacker keeps steering through the 1.0 s warning window. The boss fling uses it at challenge success.
+- **No mouse (touch / gamepad):** no aim is sent, and the target is thrown straight away from the attacker (previous behaviour).
+- **Logs:** the server logs `fling aim (x, z)` or `fling aim none -> away from attacker` for every fling.
+
+**Results (solo Studio, real mouse and arrow keys; dummy moved to open ground):**
+
+| Case | Server aim used | Actual throw direction | Distance / rise |
+|---|---|---|---|
+| Cursor left of target | (−1.00, 0.02) | (−1.00, 0.05) | 37.7 / 31.6 |
+| Cursor moved during the warning window (window stretched to 4 s for tool latency) | (−0.93, 0.37), updated from (−1.00, 0.02) | (−0.90, 0.44) | 47.9 / 31.5 |
+| Boss, Resistance Battle | (0.26, −0.97) | (0.23, −0.97) | 22.0 / 16.1 |
+| 60 junk or spam aim messages, then a real request | — | the request was answered normally, not rate limited; no replies to the aim messages | — |
+
+**Saved place:** 59/59 scripts match `src/`; hash 67A8E4B7…. Protected files: 9/9 unchanged.
+
+**Not tested:**
+- two real clients (a real player as the target);
+- real touch or gamepad fallback (the Studio touch preview still has a mouse);
+- whether free aim is fair in PvP (e.g. throwing someone off a ledge). This is an owner design question.

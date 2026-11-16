@@ -57,6 +57,35 @@ local sessions: { [Player]: Session } = {}
 local ready: { [Player]: { [string]: number } } = {}
 local retry: { [Player]: { [string]: number } } = {}
 local buckets: { [Player]: { tokens: number, t: number } } = {}
+-- FLING aim (owner 2026-11-16: "fling them in the direction you move the mouse"). The client sends
+-- the horizontal direction from the target toward its mouse cursor; the latest one is used at the
+-- moment the fling resolves, so the attacker can keep steering through the warning window.
+local AIM_MIN_INTERVAL = 0.08 -- seconds between accepted aim updates (they bypass the input bucket)
+local AIM_MAX_AGE = 3 -- the client re-sends every 1 s while aiming
+local aims: { [Player]: { dir: Vector3, t: number } } = {}
+local function setAim(player: Player, v: any): boolean
+	if typeof(v) ~= "Vector3" or v.X ~= v.X or v.Z ~= v.Z then
+		return false
+	end
+	local h = Vector3.new(v.X, 0, v.Z)
+	if h.Magnitude < 0.1 or h.Magnitude > 1e4 then
+		return false
+	end
+	local a = aims[player]
+	local t = os.clock()
+	if a and t - a.t < AIM_MIN_INTERVAL then
+		return false
+	end
+	aims[player] = { dir = h.Unit, t = t }
+	return true
+end
+local function getAim(player: Player): Vector3?
+	local a = aims[player]
+	if a and os.clock() - a.t <= AIM_MAX_AGE then
+		return a.dir
+	end
+	return nil
+end
 local tokenSeq = 0
 local rng = Random.new()
 local events: { string } = {}
@@ -225,7 +254,11 @@ local function apply(player: Player, hackId: string, targetId: string?, dir: Vec
 		end
 		if target.Kind == "boss" then
 			local myRoot = character:FindFirstChild("HumanoidRootPart") :: BasePart
-			ok, text = Conductor.ApplyHack(hackId, myRoot.Position)
+			local bossAim = if hackId == "FLING_TARGET" then getAim(player) else nil
+			if hackId == "FLING_TARGET" then
+				logEvent(if bossAim then string.format("boss fling aim (%.2f, %.2f)", bossAim.X, bossAim.Z) else "boss fling aim none -> away from attacker")
+			end
+			ok, text = Conductor.ApplyHack(hackId, myRoot.Position, bossAim)
 			reason = if ok then "applied" else text :: string
 			if not ok then
 				text = nil
@@ -236,7 +269,9 @@ local function apply(player: Player, hackId: string, targetId: string?, dir: Vec
 				if hackId == "FREEZE" then
 					return HackEffects.Freeze(t)
 				end
-				return HackEffects.FlingTarget(t, from)
+				local aim = getAim(player) -- read at resolve time: the attacker steers through the window
+				logEvent(if aim then string.format("fling aim (%.2f, %.2f)", aim.X, aim.Z) else "fling aim none -> away from attacker")
+				return HackEffects.FlingTarget(t, from, aim)
 			end)
 			if okI then
 				setReady(player, hackId, cooldownOf(hackId)) -- the attempt costs the cooldown even if defended
@@ -635,6 +670,12 @@ function HackService.Start()
 	startPatrols()
 	startRespawns()
 	requestRemote.OnServerEvent:Connect(function(player: Player, p: any)
+		-- aim updates follow mouse movement: own throttle (AIM_MIN_INTERVAL), no reply, and they do not
+		-- spend the input rate bucket
+		if typeof(p) == "table" and p.op == "aim" then
+			setAim(player, p.dir)
+			return
+		end
 		if not rateOk(player) then
 			return reply(player, nil, false, "rate_limited")
 		end
@@ -643,6 +684,10 @@ function HackService.Start()
 		end
 		local op = p.op
 		if op == "begin" then
+			if p.hackId == "FLING_TARGET" and typeof(p.aim) == "Vector3" then
+				aims[player] = nil
+				setAim(player, p.aim)
+			end
 			timed("begin", function()
 				begin(player, p)
 			end)
@@ -667,6 +712,7 @@ function HackService.Start()
 		ready[pl] = nil
 		retry[pl] = nil
 		buckets[pl] = nil
+		aims[pl] = nil
 	end)
 	-- Session clock: drain, appends, missed signals, deadlines.
 	local acc = 0

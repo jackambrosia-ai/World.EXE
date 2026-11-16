@@ -209,7 +209,9 @@ function HackController.Start()
 	local candidates: { Candidate } = {}
 	local pickedTarget: string? = nil -- user's explicit pick (sticky while valid)
 	local currentTarget: Candidate? = nil
-	local challenge: { token: number, hackId: string, snap: { [string]: any }, recv: number, n: number }? = nil
+	local challenge: { token: number, hackId: string, snap: { [string]: any }, recv: number, n: number, targetId: string? }? = nil
+	local currentAim: Vector3? = nil -- FLING mouse aim (horizontal unit), nil without a mouse
+	local outgoingFling: { id: number, target: Model, boss: boolean }? = nil -- my FLING in its warning window
 	local frozenUntil = 0
 	local architectOpen = false
 	local targetMarker: Highlight? = nil
@@ -431,7 +433,7 @@ function HackController.Start()
 		lastResult[hackId] = nil
 		setInfo(if source == "typed" then `> {text} → {def.DisplayName}{if targetId and currentTarget then " › " .. currentTarget.name else ""}` else "Hacking…", C.Amber)
 		renderChips()
-		request:FireServer({ op = "begin", hackId = hackId, targetId = if def.Target == "other" then targetId else nil, source = source, text = text, dir = aimHint() })
+		request:FireServer({ op = "begin", hackId = hackId, targetId = if def.Target == "other" then targetId else nil, source = source, text = text, dir = aimHint(), aim = if hackId == "FLING_TARGET" then currentAim else nil })
 	end
 
 	local function executeSelected()
@@ -1017,6 +1019,136 @@ function HackController.Start()
 	end
 
 	-----------------------------------------------------------------------------------------------
+	-- FLING aim (owner 2026-11-16: "fling them in the direction you move the mouse").
+	-- While a FLING on someone else is selected, being hacked in, or in its warning window, the
+	-- cursor is projected onto the ground and the throw direction is target → cursor. A flat arrow
+	-- at the target's feet shows it (local only, length ≈ the predicted throw). The latest aim is
+	-- streamed to the server, which reads it when the fling resolves. No mouse (touch / gamepad):
+	-- no aim is sent and the server throws the target straight away from the attacker.
+	local aimFolder = Instance.new("Folder")
+	aimFolder.Name = "WORLD_EXE_FlingAim"
+	local function aimBar(name: string): Part
+		local p = Instance.new("Part")
+		p.Name = name
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.CastShadow = false
+		p.Material = Enum.Material.Neon
+		p.Color = Color3.fromRGB(255, 70, 40) -- orange-red: distinct from the yellow lane markers
+		p.Transparency = 0.2
+		p.Parent = aimFolder
+		return p
+	end
+	local aimShaft, aimHeadA, aimHeadB = aimBar("Shaft"), aimBar("HeadA"), aimBar("HeadB")
+	local aimLand = aimBar("Landing")
+	aimLand.Shape = Enum.PartType.Cylinder
+	aimLand.Material = Enum.Material.SmoothPlastic
+	aimLand.Transparency = 0.55
+	local lastAimSent: Vector3? = nil
+	local lastAimSentT = 0
+
+	local function flat(v: Vector3): Vector3?
+		local h = Vector3.new(v.X, 0, v.Z)
+		return if h.Magnitude > 0.05 then h.Unit else nil
+	end
+
+	local function aimTargetModel(): (Model?, boolean)
+		if outgoingFling and outgoingFling.target.Parent then
+			return outgoingFling.target, outgoingFling.boss
+		end
+		if challenge and challenge.hackId == "FLING_TARGET" and challenge.targetId then
+			for _, cand in candidates do
+				if cand.id == challenge.targetId then
+					return cand.model, cand.boss
+				end
+			end
+		end
+		if open and selected == "FLING_TARGET" and currentTarget and not pending then
+			return currentTarget.model, currentTarget.boss
+		end
+		return nil, false
+	end
+
+	local function cursorGround(model: Model, rootPos: Vector3): Vector3?
+		local cam = workspace.CurrentCamera
+		if not cam or not UserInputService.MouseEnabled then
+			return nil
+		end
+		local m = UserInputService:GetMouseLocation()
+		local ray = cam:ViewportPointToRay(m.X, m.Y)
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = { model, player.Character :: any, aimFolder }
+		local hit = workspace:Raycast(ray.Origin, ray.Direction * 600, params)
+		if hit then
+			return hit.Position
+		end
+		-- nothing under the cursor (sky): use the horizontal plane through the target
+		if math.abs(ray.Direction.Y) > 1e-3 then
+			local t = (rootPos.Y - ray.Origin.Y) / ray.Direction.Y
+			if t > 0 then
+				return ray.Origin + ray.Direction * t
+			end
+		end
+		return ray.Origin + (flat(ray.Direction) or Vector3.zAxis) * 100
+	end
+
+	local function predictedThrow(boss: boolean): number
+		local up = HackCatalog.Tune("FlingTarget", if boss then "BossUp" else "Up")
+		local fwd = HackCatalog.Tune("FlingTarget", if boss then "BossForward" else "Forward")
+		return math.clamp(fwd * 2 * up / workspace.Gravity, 6, 80)
+	end
+
+	RunService.RenderStepped:Connect(function()
+		local model, boss = aimTargetModel()
+		local root = model and model:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local hitPos = model and root and cursorGround(model, root.Position)
+		local dir = if root and hitPos then flat(hitPos - root.Position) else nil
+		if dir and root and (hitPos :: Vector3 - root.Position).Magnitude < 2.5 then
+			dir = currentAim -- cursor right on the target: keep the previous aim
+		end
+		currentAim = if model then dir else nil
+		gui:SetAttribute("FlingAim", if currentAim then string.format("%.2f,%.2f", currentAim.X, currentAim.Z) else nil)
+		if not currentAim or not root then
+			aimFolder.Parent = nil
+			return
+		end
+		local aim = currentAim :: Vector3
+		-- stream: on a real change (> 4°) at most ~10/s, plus a 1 s keep-alive so a long challenge never
+		-- lets the server-side aim expire; the server throttles too
+		local tnow = os.clock()
+		local changed = not lastAimSent or lastAimSent:Dot(aim) < 0.9976
+		if (changed and tnow - lastAimSentT >= 0.1) or tnow - lastAimSentT >= 1 then
+			lastAimSent, lastAimSentT = aim, tnow
+			request:FireServer({ op = "aim", dir = aim })
+		end
+		-- draw: shaft from the feet along the aim, head at the predicted landing distance
+		local len = predictedThrow(boss)
+		local feet = root.Position - Vector3.new(0, 2.8, 0)
+		local fromRay = workspace:Raycast(root.Position, Vector3.new(0, -12, 0), RaycastParams.new())
+		if fromRay then
+			feet = fromRay.Position
+		end
+		local y = Vector3.new(0, 0.15, 0)
+		local start = feet + aim * 2.5 + y
+		local tip = feet + aim * len + y
+		aimShaft.Size = Vector3.new(0.8, 0.1, (tip - start).Magnitude)
+		aimShaft.CFrame = CFrame.lookAt((start + tip) / 2, tip)
+		local headLen = math.min(4, len * 0.3)
+		for i, h in { aimHeadA, aimHeadB } do
+			local side = (if i == 1 then 1 else -1)
+			local back = CFrame.lookAt(tip, tip + aim) * CFrame.Angles(0, math.rad(150 * side), 0)
+			h.Size = Vector3.new(0.8, 0.1, headLen)
+			h.CFrame = back * CFrame.new(0, 0, -headLen / 2)
+		end
+		aimLand.Size = Vector3.new(0.1, 6, 6)
+		aimLand.CFrame = CFrame.new(tip) * CFrame.Angles(0, 0, math.rad(90)) -- predicted landing area
+		aimFolder.Parent = workspace.CurrentCamera
+	end)
+
+	-----------------------------------------------------------------------------------------------
 	-- Server events
 	local function showChallenge(on: boolean)
 		grid.Visible = not on
@@ -1172,7 +1304,7 @@ function HackController.Start()
 			if not sameToken then
 				setInfo("") -- a new challenge clears the previous attempt's result line
 			end
-			challenge = { token = data.token, hackId = data.hackId, snap = data.snap, recv = os.clock(), n = if sameToken and challenge then challenge.n else 0 }
+			challenge = { token = data.token, hackId = data.hackId, snap = data.snap, recv = os.clock(), n = if sameToken and challenge then challenge.n else 0, targetId = if typeof(data.targetId) == "string" then data.targetId else nil }
 			showChallenge(true)
 			renderChallengeStatic()
 			diffSnapshot(data.token, data.snap)
@@ -1223,6 +1355,9 @@ function HackController.Start()
 						setIncoming(nil)
 					end
 				end)
+				if atk == player.Character and data.hackId == "FLING_TARGET" then
+					outgoingFling = { id = id, target = tgt, boss = false } -- keep aiming through the window
+				end
 				if tgt == player.Character then
 					HackFeel.Cue("incoming")
 					setIncoming({ id = id, attacker = atk, resolveAt = tonumber(data.resolveAt) or nowT() + 1, startAt = tonumber(data.startAt) or nowT(), hackId = tostring(data.hackId) })
@@ -1237,6 +1372,9 @@ function HackController.Start()
 			end
 			if incoming and incoming.id == id then
 				setIncoming(nil)
+			end
+			if outgoingFling and outgoingFling.id == id then
+				outgoingFling = nil
 			end
 			if (data.outcome == "deflected" or data.outcome == "perfect") and typeof(data.target) == "Instance" and data.target:IsA("Model") then
 				HackVfx.Deflect(data.target, data.outcome == "perfect")

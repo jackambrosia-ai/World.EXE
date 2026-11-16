@@ -298,10 +298,12 @@ function HackEffects.RagdollLaunch(model: Model, hum: Humanoid, root: BasePart, 
 	return ragdollLaunch(model, hum, root, nil, v, vfxScale)
 end
 
-function HackEffects.FlingTarget(target: HackTargets.Target, from: Vector3): (boolean, string?)
+-- aim (owner 2026-11-16): the attacker's mouse-aimed horizontal direction; without it the target
+-- is thrown straight away from the attacker (touch / gamepad fallback).
+function HackEffects.FlingTarget(target: HackTargets.Target, from: Vector3, aim: Vector3?): (boolean, string?)
 	local root = target.Root
 	local tune = HackCatalog.Tune
-	local dir = horizontal(root.Position - from) or horizontal(root.CFrame.LookVector) or Vector3.zAxis
+	local dir = (aim and horizontal(aim)) or horizontal(root.Position - from) or horizontal(root.CFrame.LookVector) or Vector3.zAxis
 	local v = (dir :: Vector3) * tune("FlingTarget", "Forward") + Vector3.new(0, tune("FlingTarget", "Up"), 0)
 	return ragdollLaunch(target.Model, target.Humanoid, root, target.Player, v, 0.9)
 end
