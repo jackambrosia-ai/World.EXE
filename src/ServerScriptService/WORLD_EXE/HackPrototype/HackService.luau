@@ -57,9 +57,11 @@ local sessions: { [Player]: Session } = {}
 local ready: { [Player]: { [string]: number } } = {}
 local retry: { [Player]: { [string]: number } } = {}
 local buckets: { [Player]: { tokens: number, t: number } } = {}
--- FLING aim (owner 2026-11-16: "fling them in the direction you move the mouse"). The client sends
--- the horizontal direction from the target toward its mouse cursor; the latest one is used at the
--- moment the fling resolves, so the attacker can keep steering through the warning window.
+-- FLING aim (owner 2026-11-16: "in the direction the cursor moves after casting"). After a FLING on
+-- someone else is cast, a flick window opens (the warning window for players/NPCs, BossFlickWindow
+-- for the boss). The client turns the direction of its mouse MOVEMENT into a horizontal world
+-- direction and streams it; aims from before the cast are discarded. The latest one is read when
+-- the throw happens. No flick: thrown straight away from the attacker.
 local AIM_MIN_INTERVAL = 0.08 -- seconds between accepted aim updates (they bypass the input bucket)
 local AIM_MAX_AGE = 3 -- the client re-sends every 1 s while aiming
 local aims: { [Player]: { dir: Vector3, t: number } } = {}
@@ -254,14 +256,29 @@ local function apply(player: Player, hackId: string, targetId: string?, dir: Vec
 		end
 		if target.Kind == "boss" then
 			local myRoot = character:FindFirstChild("HumanoidRootPart") :: BasePart
-			local bossAim = if hackId == "FLING_TARGET" then getAim(player) else nil
 			if hackId == "FLING_TARGET" then
-				logEvent(if bossAim then string.format("boss fling aim (%.2f, %.2f)", bossAim.X, bossAim.Z) else "boss fling aim none -> away from attacker")
-			end
-			ok, text = Conductor.ApplyHack(hackId, myRoot.Position, bossAim)
-			reason = if ok then "applied" else text :: string
-			if not ok then
-				text = nil
+				-- flick window: the throw happens BossFlickWindow after the cast, in the flicked direction
+				local window = HackCatalog.Tune("FlingTarget", "BossFlickWindow")
+				aims[player] = nil
+				send(player, { op = "flick", target = target.Model, boss = true, untilT = now() + window })
+				task.delay(window, function()
+					local c = player.Character
+					local r = c and c:FindFirstChild("HumanoidRootPart") :: BasePart?
+					local bossAim = getAim(player)
+					logEvent(if bossAim then string.format("boss fling aim (%.2f, %.2f)", bossAim.X, bossAim.Z) else "boss fling aim none -> away from attacker")
+					local okB, why = Conductor.ApplyHack(hackId, if r then r.Position else myRoot.Position, bossAim)
+					aims[player] = nil
+					if not okB then
+						reply(player, hackId, false, why)
+					end
+				end)
+				ok, reason, text = true, "applied", "Flick the mouse to aim the throw."
+			else
+				ok, text = Conductor.ApplyHack(hackId, myRoot.Position, nil)
+				reason = if ok then "applied" else text :: string
+				if not ok then
+					text = nil
+				end
 			end
 		else
 			-- Targeted hack on a player / NPC: warning + counterplay window, resolved by HackIncoming.
@@ -269,10 +286,16 @@ local function apply(player: Player, hackId: string, targetId: string?, dir: Vec
 				if hackId == "FREEZE" then
 					return HackEffects.Freeze(t)
 				end
-				local aim = getAim(player) -- read at resolve time: the attacker steers through the window
+				local aim = getAim(player) -- read at resolve time: the flick made during the window
+				aims[player] = nil
 				logEvent(if aim then string.format("fling aim (%.2f, %.2f)", aim.X, aim.Z) else "fling aim none -> away from attacker")
 				return HackEffects.FlingTarget(t, from, aim)
 			end)
+			if okI and hackId == "FLING_TARGET" then
+				aims[player] = nil -- only flicks made after the cast count
+				send(player, { op = "flick", target = target.Model, boss = false,
+					untilT = now() + HackCatalog.Tune("Incoming", "ReactionWindow") + HackCatalog.Tune("Incoming", "LatencyGrace") })
+			end
 			if okI then
 				setReady(player, hackId, cooldownOf(hackId)) -- the attempt costs the cooldown even if defended
 				HackDevice.SetState(player.Character, "hacking")
@@ -684,10 +707,6 @@ function HackService.Start()
 		end
 		local op = p.op
 		if op == "begin" then
-			if p.hackId == "FLING_TARGET" and typeof(p.aim) == "Vector3" then
-				aims[player] = nil
-				setAim(player, p.aim)
-			end
 			timed("begin", function()
 				begin(player, p)
 			end)

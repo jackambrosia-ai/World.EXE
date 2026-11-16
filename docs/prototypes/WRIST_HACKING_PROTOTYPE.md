@@ -285,3 +285,39 @@ Directive: "WORLD.EXE — Hacking, cyberware & boss gameplay prototype". Same is
 - two real clients (a real player as the target);
 - real touch or gamepad fallback (the Studio touch preview still has a mouse);
 - whether free aim is fair in PvP (e.g. throwing someone off a ledge). This is an owner design question.
+
+## 12. Revision 6 — flick after casting (2026-11-16, replaces rev 5's cursor-position aim)
+**Owner (correction):** "no it should be in the direction the cursor moves after casting."
+
+**How it works now:**
+- **No aiming before or during the challenge.** Aims from before the cast are discarded.
+- **Flick window:** after a FLING on someone else succeeds, the server sends `{op = "flick", target, boss, untilT}`.
+  - Players and NPCs: the 1.0 s warning window (+0.12 s grace).
+  - Boss: `HackTune_FlingTarget_BossFlickWindow`, default 0.6 s. The boss throw now happens at the end of that window instead of instantly.
+- **Direction:** the direction the mouse **moves** during the window.
+  - Only the last 0.25 s of movement counts, and it needs at least 14 px, so the latest flick wins.
+  - Screen right = camera right; screen up = camera forward (flattened).
+  - With a free cursor, the client samples cursor position each frame. With a locked cursor (shift-lock or camera drag), it uses raw mouse deltas.
+- **Arrow:** at the target's feet, bright for your flick, dim for the default.
+- **No flick:** thrown straight away from the attacker (also the touch/gamepad behaviour).
+- **Unchanged from rev 5:** aim streaming, throttling, validation and the per-throw log line.
+
+**Results (solo Studio; real arrow keys for the cast, then emulated mouse moves; windows stretched to 4 s / 3 s for tool latency):**
+
+| Case | Server aim | Thrown | Distance / rise |
+|---|---|---|---|
+| Dummy, flick up (camera faces −Z) | (0.00, −1.00) | (−0.03, −1.00) | 49.5 / 31.6 |
+| Dummy, flick up then left (latest wins) | (−1.00, 0.00) | (−1.00, 0.00) | 13.0 / 28.8 (aimed straight back at me; the dummy hit my character and dropped) |
+| Dummy, no mouse movement | none | (1.00, −0.02), away from attacker | 52.3 / 31.5 |
+| Boss, flick right (camera right = +X) | (1.00, 0.00) | (1.00, −0.09) | 27.0 / 16.1 |
+
+**Notes and findings:**
+- Emulated `moveTo` produced no `MouseMovement` deltas, so the first attempt fell back. Sampling cursor position per frame fixed it. A real mouse produces both.
+- One flick threw DUMMY-A off the edge of the ground (it respawned). Throwing targets off ledges is now possible: an owner design question for PvP.
+- **Saved place:** 59/59 scripts; hash 533A871E…. Protected files: 9/9 unchanged.
+
+**Not tested:**
+- a human flicking within the real 1.0 s and 0.6 s windows (only stretched windows were used);
+- a real second player;
+- locked-cursor (shift-lock) flicks;
+- touch and gamepad.
