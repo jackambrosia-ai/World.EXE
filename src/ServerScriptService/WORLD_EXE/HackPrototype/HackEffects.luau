@@ -35,6 +35,15 @@ function HackEffects.SetSender(fn: (Player, { [string]: any }) -> ())
 	send = fn
 end
 
+-- Cosmetic broadcast to every client (launch VFX); never carries gameplay state.
+local broadcast: (payload: { [string]: any }) -> () = function() end
+function HackEffects.SetBroadcaster(fn: ({ [string]: any }) -> ())
+	broadcast = fn
+end
+HackEffects.Broadcast = function(payload: { [string]: any })
+	broadcast(payload)
+end
+
 local function now(): number
 	return workspace:GetServerTimeNow()
 end
@@ -49,6 +58,8 @@ end
 
 ---------------------------------------------------------------------------------------------------
 -- FLING SELF
+
+local ragdollLaunch: (Model, Humanoid, BasePart, Player?, Vector3, number) -> (boolean, string?) -- defined below
 
 function HackEffects.FlingSelf(player: Player, dirHint: any): (boolean, string?)
 	local character = player.Character
@@ -65,8 +76,14 @@ function HackEffects.FlingSelf(player: Player, dirHint: any): (boolean, string?)
 	end
 	dir = dir or horizontal(hum.MoveDirection) or horizontal(root.CFrame.LookVector)
 	local tune = HackCatalog.Tune
+	if tune("FlingSelf", "Ragdoll") >= 1 then
+		-- Owner reference mode: the same ragdoll launch as FLING TARGET, on yourself.
+		local rv = (dir :: Vector3) * tune("FlingSelf", "RagdollForward") + Vector3.new(0, tune("FlingSelf", "RagdollUp"), 0)
+		return ragdollLaunch(character, hum, root, player, rv, 1)
+	end
 	local v = (dir :: Vector3) * tune("FlingSelf", "Forward") + Vector3.new(0, tune("FlingSelf", "Up"), 0)
 	send(player, { op = "fling_self", v = v, steer = tune("FlingSelf", "SteerSpeed"), minAir = tune("FlingSelf", "MinAirSeconds"), maxT = tune("FlingSelf", "MaxFlightSeconds"), blocked = tune("FlingSelf", "BlockedSpeedFraction") })
+	broadcast({ op = "vfx", kind = "launch", model = character, pos = root.Position, scale = 1 })
 	return true, nil
 end
 
@@ -157,22 +174,22 @@ local function recover(model: Model)
 end
 HackEffects.Recover = recover
 
-function HackEffects.FlingTarget(target: HackTargets.Target, from: Vector3): (boolean, string?)
-	local model = target.Model
+-- Shared ragdoll launch (owner reference clip 2026-11-16): a tall, fast upward arc with the body
+-- limp and tumbling for the whole flight; it gets up shortly AFTER landing (not on a fixed timer).
+-- Used by FLING TARGET and, when HackTune_FlingSelf_Ragdoll = 1, by FLING SELF.
+ragdollLaunch = function(model: Model, hum: Humanoid, root: BasePart, player: Player?, v: Vector3, vfxScale: number): (boolean, string?)
 	if ragdolls[model] then
 		return false, "target_busy"
 	end
-	local hum, root = target.Humanoid, target.Root
-	local tune = HackCatalog.Tune
-	local ragdollSeconds = tune("FlingTarget", "RagdollSeconds")
-	local maxRagdoll = math.max(ragdollSeconds + 0.5, tune("FlingTarget", "MaxRagdollSeconds"))
-	local dir = horizontal(root.Position - from) or horizontal(root.CFrame.LookVector) or Vector3.zAxis
-	local v = (dir :: Vector3) * tune("FlingTarget", "Forward") + Vector3.new(0, tune("FlingTarget", "Up"), 0)
-	-- Unfreeze first if frozen (FLING wins and is the only way to move a frozen target).
 	if root.Anchored then
 		return false, "target_frozen"
 	end
-	local s: RagdollState = { motors = {}, made = {}, collide = {}, requiresNeck = hum.RequiresNeck, player = target.Player, done = false }
+	local tune = HackCatalog.Tune
+	local minLimp = tune("FlingTarget", "RagdollSeconds")
+	local minAir = tune("FlingTarget", "MinAirSeconds")
+	local landDelay = tune("FlingTarget", "LandRecoverDelay")
+	local maxRagdoll = math.max(minLimp + 0.5, tune("FlingTarget", "MaxRagdollSeconds"))
+	local s: RagdollState = { motors = {}, made = {}, collide = {}, requiresNeck = hum.RequiresNeck, player = player, done = false }
 	ragdolls[model] = s
 	hum.RequiresNeck = false
 	hum.PlatformStand = true
@@ -199,7 +216,6 @@ function HackEffects.FlingTarget(target: HackTargets.Target, from: Vector3): (bo
 			table.insert(s.made, a0)
 			table.insert(s.made, a1)
 			table.insert(s.made, bs)
-			-- Limbs must not fight their own torso.
 			local nc = Instance.new("NoCollisionConstraint")
 			nc.Part0 = m.Part0
 			nc.Part1 = m.Part1
@@ -210,28 +226,55 @@ function HackEffects.FlingTarget(target: HackTargets.Target, from: Vector3): (bo
 		end
 	end
 	for _, p in model:GetDescendants() do
-		if p:IsA("BasePart") and p ~= root then
+		if p:IsA("BasePart") and p ~= root and p.Parent and p.Parent.Name ~= "WristDevice" then
 			s.collide[p] = p.CanCollide
 			p.CanCollide = true
 		end
 	end
 	setOwner(model, nil)
-	if target.Player then
-		send(target.Player, { op = "ragdoll", on = true, seconds = ragdollSeconds })
+	if player then
+		send(player, { op = "ragdoll", on = true, seconds = minLimp })
 	else
 		hum:ChangeState(Enum.HumanoidStateType.Physics)
 	end
+	-- launch every limb, plus a tumble around a horizontal axis across the flight direction
+	local flat = horizontal(v) or Vector3.zAxis
+	local tumbleAxis = Vector3.yAxis:Cross(flat :: Vector3)
+	local spin = tumbleAxis * tune("FlingTarget", "TumbleSpeed") * (if math.random() < 0.5 then 1 else -1)
 	for _, p in model:GetDescendants() do
 		if p:IsA("BasePart") and not p.Anchored then
 			p.AssemblyLinearVelocity = v
+			p.AssemblyAngularVelocity = spin
 		end
 	end
-	model:SetAttribute(A.RagdollUntil, now() + ragdollSeconds)
-	-- Recovery: after RagdollSeconds; hard cap MaxRagdollSeconds even if something stalls.
-	task.delay(ragdollSeconds, function()
-		recover(model)
-	end)
-	task.delay(maxRagdoll, function()
+	model:SetAttribute(A.RagdollUntil, now() + maxRagdoll)
+	broadcast({ op = "vfx", kind = "launch", model = model, pos = root.Position, scale = vfxScale })
+	-- Recovery: limp for at least minLimp; get up landDelay after touching the ground; hard cap maxRagdoll.
+	local torso = (model:FindFirstChild("UpperTorso") or model:FindFirstChild("Torso") or root) :: BasePart
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { model }
+	params.RespectCanCollide = true
+	local t0 = os.clock()
+	task.spawn(function()
+		local landedAt: number? = nil
+		while not s.done do
+			local el = os.clock() - t0
+			if el >= maxRagdoll then
+				break
+			end
+			if not landedAt and el >= minAir and torso.Parent then
+				local vy = torso.AssemblyLinearVelocity.Y
+				if vy > -4 and workspace:Raycast(torso.Position, Vector3.new(0, -4.5, 0), params) then
+					landedAt = os.clock()
+					model:SetAttribute("HackLandedAt", now())
+				end
+			end
+			if landedAt and os.clock() - landedAt >= landDelay and el >= minLimp then
+				break
+			end
+			task.wait(0.05)
+		end
 		recover(model)
 	end)
 	local diedConn: RBXScriptConnection? = nil
@@ -242,6 +285,14 @@ function HackEffects.FlingTarget(target: HackTargets.Target, from: Vector3): (bo
 		recover(model) -- cleans up constraints; no stand-up on a dead body
 	end)
 	return true, nil
+end
+
+function HackEffects.FlingTarget(target: HackTargets.Target, from: Vector3): (boolean, string?)
+	local root = target.Root
+	local tune = HackCatalog.Tune
+	local dir = horizontal(root.Position - from) or horizontal(root.CFrame.LookVector) or Vector3.zAxis
+	local v = (dir :: Vector3) * tune("FlingTarget", "Forward") + Vector3.new(0, tune("FlingTarget", "Up"), 0)
+	return ragdollLaunch(target.Model, target.Humanoid, root, target.Player, v, 0.9)
 end
 
 ---------------------------------------------------------------------------------------------------

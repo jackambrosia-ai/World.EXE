@@ -27,6 +27,7 @@ local HackTargets = require(script.Parent:WaitForChild("HackTargets"))
 local HackEffects = require(script.Parent:WaitForChild("HackEffects"))
 local HackChallenges = require(script.Parent:WaitForChild("HackChallenges"))
 local Conductor = require(script.Parent:WaitForChild("ConductorPrototype"))
+local HackDevice = require(script.Parent:WaitForChild("HackDevice"))
 
 local A = HackCatalog.Attr
 local T = HackCatalog.Tuning
@@ -204,6 +205,9 @@ local function apply(player: Player, hackId: string, targetId: string?, dir: Vec
 		end
 		if target.Kind == "boss" then
 			ok, text = Conductor.ApplyHack(hackId)
+			if ok and hackId == "FLING_TARGET" then
+				HackEffects.Broadcast({ op = "vfx", kind = "launch", pos = target.Root.Position, scale = 1.3 })
+			end
 			reason = if ok then "applied" else text :: string
 			if not ok then
 				text = nil
@@ -219,8 +223,10 @@ local function apply(player: Player, hackId: string, targetId: string?, dir: Vec
 	end
 	if ok then
 		setReady(player, hackId, cooldownOf(hackId))
+		HackDevice.SetState(player.Character, "ok")
 		return true, "applied", text
 	end
+	HackDevice.SetState(player.Character, "fail")
 	return false, reason or "no_effect", nil
 end
 
@@ -236,6 +242,7 @@ local function endSession(player: Player, result: string)
 		local ok, reason, text = apply(player, s.hackId, s.targetId, s.dir)
 		reply(player, s.hackId, ok, reason, text)
 	else
+		HackDevice.SetState(player.Character, "fail")
 		retry[player] = retry[player] or {}
 		retry[player][s.hackId] = now() + (HackCatalog.Tuning :: any).RetrySeconds
 		reply(player, s.hackId, false, result, nil)
@@ -321,6 +328,7 @@ local function begin(player: Player, p: { [string]: any })
 		source = source,
 	}
 	sessions[player] = s
+	HackDevice.SetState(player.Character, "hacking")
 	logEvent(string.format("%s begin %s via %s -> %s on %s", player.Name, hackId, source, kind, tostring(targetId)))
 	sendSnapshot(player, s)
 end
@@ -456,7 +464,19 @@ local function startPatrols()
 end
 
 local function hookPlayer(player: Player)
+	local function attachDevice(character: Model)
+		task.spawn(function()
+			local arm = character:WaitForChild("LeftLowerArm", 5) or character:FindFirstChild("Left Arm") or character:WaitForChild("Left Arm", 5)
+			if arm then
+				HackDevice.Attach(character)
+			end
+		end)
+	end
+	if player.Character then
+		attachDevice(player.Character)
+	end
 	player.CharacterAdded:Connect(function(character)
+		attachDevice(character)
 		HackService.CancelFor(player, "respawned")
 		local hum = character:WaitForChild("Humanoid", 10) :: Humanoid?
 		if hum then
@@ -491,6 +511,9 @@ function HackService.Start()
 	requestRemote = remote(HackCatalog.RequestRemote)
 	eventRemote = remote(HackCatalog.EventRemote)
 	HackEffects.SetSender(send)
+	HackEffects.SetBroadcaster(function(payload)
+		eventRemote:FireAllClients(payload)
+	end)
 	Conductor.Start(onPlayerHit)
 	setupConsoles()
 	startPatrols()

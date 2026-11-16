@@ -126,3 +126,43 @@ Status: **isolated prototype, draft PR, not for merge.** The owner approved the 
 - **FLING SELF** is executed by the client and has no server-side trajectory check.
 - **Not built:** victim counterplay, diminishing returns beyond fixed immunity, and team rules.
 - **Boss:** a placeholder humanoid, anchored and stationary. Two attacks; balance not tuned.
+
+## 7. Revision 2 — owner reference clip (2026-11-16)
+**Owner direction:**
+- The fling should work like a reference clip from another Roblox experience. The key takeaway is **how it flings upward and how the character gets ragdolled**.
+- "When I first saw the patches, they looked underwhelming."
+- Make the wrist device look omnitrix-like as a placeholder.
+
+**Reading of the clip** (frames 28–74 at 30 fps):
+- **Launch:** an orange starburst and sparks at the feet; a ring of broken, tilted floor tiles stays behind.
+- **Flight:** about 30 studs high, about 1.25 s airtime, about 35–40 studs of travel. The camera chases it up. The body is limp and tumbles; it lands and then gets up.
+
+**Changes:**
+
+*Ragdoll launch (shared by FLING TARGET and, optionally, FLING SELF)*
+- **New path:** `ragdollLaunch` (HackEffects).
+  - Up 112, Forward 32, plus a tumble of 7 rad/s around the axis across the flight direction.
+  - Limp for the whole flight.
+  - Landing is detected on the server (torso ray, low fall speed); the target stands up `LandRecoverDelay` 0.9 s after touching down (minimum limp 1.2 s, cap 5 s).
+  - The fixed 2 s timer is gone.
+- **Measured** (Dummy-A): rise +26.2 (peak at 0.53 s), landed 1.18 s, standing 2.10 s, travel 36.2, tumble tilt up to −76°/−138°, final state Running.
+
+*FLING SELF reference mode*
+- **Switch:** `HackTune_FlingSelf_Ragdoll = 1` gives FLING SELF the same ragdoll launch (Up 112 / Forward 32).
+- **Measured** on the player's own R15 character: rise +28.7, landed 1.17 s, standing 2.12 s. Physics was **server-owned during the flight and returned to the player** afterwards.
+- **Clean recovery:** 0 ragdoll sockets left, full health, and real WASD + jump worked right after recovery.
+- **Default left at 0:** the 2026-11-16 directive said FLING SELF does not ragdoll. **Owner decision pending.**
+
+*Launch and landing VFX (`HackVfx`, client, broadcast to all clients, cosmetic)*
+- **Launch:** starburst spikes, core flash and light, spark burst (built-in particle texture), orange shockwave, crater ring of tilted tiles plus scorch (fades after about 4 s), and a flight trail.
+- **Camera:** an FOV kick and shake for the flung player, and a light shake for nearby viewers.
+- **Landing:** a dust ring, a small crater and sparks.
+- **Reduced Effects** turns all of it off.
+- **Fix:** a mid-air "landing" crater, caused by a missed floor ray being treated as a landing.
+
+*Placeholder wrist device (`HackDevice`, server)*
+- **Look:** an original chunky gauntlet on the left forearm (band, trims, raised round face, bezel, glowing green core, dial ring with ticks, side buttons). Native, massless, non-colliding parts. No franchise emblem copied.
+- **Core colour:** idle green, hacking amber, success cyan, failure red.
+- **Dial:** spins locally while the terminal is open (faster during a challenge).
+
+**Recorded, not built:** the owner found the existing **Architect patches visually underwhelming**. The same launch/impact language (burst, crater, trail, camera kick) is a candidate for patch presentation. That needs a separate owner decision.

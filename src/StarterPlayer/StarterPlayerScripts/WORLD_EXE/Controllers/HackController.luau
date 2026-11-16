@@ -35,6 +35,7 @@ local HackCatalog = require(sharedRoot:WaitForChild("Shared"):WaitForChild("Hack
 local UITheme = require(script.Parent:WaitForChild("UITheme"))
 local UIUtil = require(script.Parent:WaitForChild("UIUtil"))
 local CyberChip = require(script.Parent:WaitForChild("CyberChip"))
+local HackVfx = require(script.Parent:WaitForChild("HackVfx"))
 
 local C = UITheme.Color
 local F = UITheme.Font
@@ -92,6 +93,7 @@ local HackController = {}
 
 function HackController.Start()
 	UITheme.init()
+	HackVfx.Start()
 	local player = Players.LocalPlayer
 	local remotes = sharedRoot:WaitForChild(HackCatalog.RemoteFolder, 30)
 	if not remotes then
@@ -1018,6 +1020,10 @@ function HackController.Start()
 				endFling()
 				hum:ChangeState(if data.on then Enum.HumanoidStateType.Physics else Enum.HumanoidStateType.GettingUp)
 			end
+		elseif op == "vfx" then
+			if data.kind == "launch" and typeof(data.pos) == "Vector3" then
+				HackVfx.Launch(if typeof(data.model) == "Instance" and data.model:IsA("Model") then data.model else nil, data.pos, tonumber(data.scale) or 1)
+			end
 		elseif op == "frozen" then
 			frozenUntil = if data.on then nowT() + (tonumber(data.seconds) or 3) else 0
 			if data.on then
@@ -1076,6 +1082,26 @@ function HackController.Start()
 				frozenBanner.Visible = false
 			end
 			task.wait(0.1)
+		end
+	end)
+
+	local dialAngle = 0
+	RunService.RenderStepped:Connect(function(dt)
+		if not (open or challenge) then
+			return
+		end
+		local c = player.Character
+		local dev = c and c:FindFirstChild("WristDevice")
+		local dial = dev and dev:FindFirstChild("Dial")
+		local weld = dial and dial:FindFirstChild("DialWeld")
+		if weld and weld:IsA("Weld") then
+			local base = weld:GetAttribute("BaseC0")
+			if typeof(base) ~= "CFrame" then
+				base = weld.C0
+				weld:SetAttribute("BaseC0", base)
+			end
+			dialAngle += dt * (if challenge then 9 else 3)
+			weld.C0 = (base :: CFrame) * CFrame.Angles(dialAngle, 0, 0)
 		end
 	end)
 
