@@ -247,7 +247,7 @@ Directive: "WORLD.EXE — Hacking, cyberware & boss gameplay prototype". Same is
 - Saved place: 59/59 scripts match `src/`; hash 973D6F2C…. Protected files: 9/9 unchanged since the milestone start.
 
 **Not tested:**
-- two real clients;
+- two real clients (owner decision 2026-11-16: leave untested for this milestone);
 - real touch or gamepad hardware;
 - per-boot lane reachability in play (model-derived only);
 - a re-run of the integrity-0 fix;
