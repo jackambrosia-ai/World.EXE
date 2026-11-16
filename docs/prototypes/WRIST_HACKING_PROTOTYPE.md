@@ -1,0 +1,128 @@
+# Wrist-hacking prototype (FLING / FREEZE / SHIELD + boss challenges)
+
+Status: **isolated prototype, draft PR, not for merge.** The owner approved the milestone on 2026-11-16. This is **not** an adopted gameplay design. Every number is provisional.
+
+## 1. Scope and isolation
+- **New code only**, active only when `Workspace.WORLD_EXE_HackPrototype == true`. Only the local prototype place sets it. In Place1 every new script returns immediately.
+- **No existing file is modified.** ArchitectController, HUDController, AbilityController, UITheme, UIUtil, the services and the patches are untouched.
+- **Separate from Architect patches:** own catalog (`HackCatalog`), own remotes (`HackRemotes/HackRequest`, `HackEvent`), own service and cooldowns. Hacks never read Architect turn state.
+
+## 2. Files
+| File | Role |
+|---|---|
+| `ReplicatedStorage/WORLD_EXE/Shared/HackCatalog.luau` | The one effect library for chips **and** typed commands. It holds the definitions, provisional tuning, live overrides (`Tune`), challenge configuration and the bounded parser (`Parse`). |
+| `ServerScriptService/WORLD_EXE/HackPrototype/Main.server.luau` | Gated server entry. |
+| `…/HackPrototype/HackService.luau` | Remotes, rate limit, validation, cooldown and retry, challenge sessions, effect dispatch, cleanup, NPC patrol and respawn, Studio test hooks. |
+| `…/HackPrototype/HackChallenges.luau` | Server-authoritative challenges: Sequence, ResistanceBattle, InputChase, SignalLock, plus the assist scale. |
+| `…/HackPrototype/HackEffects.luau` | FLING_SELF hand-off, reversible ragdoll (FLING_TARGET), FREEZE, SHIELD, and their cleanup. |
+| `…/HackPrototype/HackTargets.luau` | Server-side target resolution and line-of-sight checks. |
+| `…/HackPrototype/ConductorPrototype.luau` | Placeholder boss: telegraphs, strikes, vulnerability windows, reactions, integrity. |
+| `StarterPlayerScripts/WORLD_EXE/HackPrototype.client.luau` | Gated client entry. |
+| `…/Controllers/HackController.luau` | Wrist terminal (chips, targets, command line, challenge views, touch pad), input arbitration, FLING_SELF client executor. |
+| `…/Controllers/CyberChip.luau` | The 8B-1B data-chip look as a reusable builder. |
+| `tools/studio/hackproto/*` | Server, code sync, place builder, saved-file verifier, client test kit, capture script, README. |
+
+## 3. Mechanics as built (owner requirements → implementation)
+
+**FLING SELF**
+- **Launch:** the server computes `dir × Forward + up × Up`. Direction comes from camera-relative move intent, falling back to camera facing.
+- **Execution:** the owning client applies it (Roblox simulates a character on its own client).
+- **Control in flight:** the Humanoid stays in normal states (Jumping → Freefall → Landed). There is no ragdoll and no PlatformStand.
+- **Carry and steer:** a plane `LinearVelocity` keeps the horizontal carry, and move input adds or subtracts up to `SteerSpeed`.
+- **Release:** on landing, after a wall stop (speed under 30 % for 0.15 s), or at a 2.5 s cap.
+
+**FLING TARGET**
+- **Limits:** server-chosen target, range 55, line of sight, cooldown 8, and 4 s fling immunity after recovery.
+- **Ragdoll:** every non-root Motor6D is disabled and mirrored by a limited `BallSocketConstraint` plus a `NoCollisionConstraint`. Limbs collide, `RequiresNeck` is off during the ragdoll, and the server owns network physics.
+- **Recovery:** after 2.0 s (hard cap 4.0 s) motors are re-enabled, constraints destroyed and collisions restored. The root stands upright with its yaw kept. Ownership returns to the player (or the server for NPCs), followed by GettingUp.
+- **Death mid-ragdoll:** constraints are cleaned up with no stand-up.
+
+**FREEZE**
+- **Effect:** about 3 s (anchors the root), with an ice highlight and a countdown label. The victim's client shows a banner.
+- **Limits:** no stacking ("already_frozen"), then 4 s freeze immunity, which prevents stun-lock. A frozen target cannot be flung.
+- **Cleanup:** on death or removal.
+- **Boss:** 1.5 s, then 6 s immunity. It cancels an attack being charged.
+
+**SHIELD**
+- **Effect:** self only, 6 s, server attribute plus a bubble. The client shows the remaining-duration bar.
+- **No refresh:** the 12 s cooldown starts at activation.
+- **Scope:** only Conductor strikes check it (blocked strikes flash the bubble). It is not general invulnerability.
+- **Cleanup:** cleared on death or respawn.
+
+**Challenges** (all decided on the server; the client sends one direction per press)
+- **Self:** FLING SELF has none. SHIELD has 1 arrow (2.5 s).
+- **Player or NPC targets:** 3 ordered arrows chosen by the **hacker**, within 4.5 s, with up to 2 misses (no reset).
+- **Boss**, one variant at a time (boss attribute, switched at the arena consoles):
+  - **Resistance Battle:** +0.2 per correct arrow; drain 0.16/s (0.22 while the boss charges, 0.06 while it is vulnerable); needs 6 arrows **and** a full bar; misses cost 0.08.
+  - **Input Chase:** starts with 3 arrows; the boss appends one every 0.9 s (0.7 charging, 1.3 vulnerable); success needs an empty queue **and** at least 7 cleared; fails if the queue exceeds 6.
+  - **Signal Lock:** 4 locks within ±0.22 s of arrival (0.32 vulnerable); 2 misses allowed; client press time accepted only within 0.25 s before receipt.
+- **Interruption:** an unblocked boss hit cancels the boss challenge.
+- **Retry:** a failed or cancelled challenge costs only a 1.5 s retry wait. Cooldowns start only when an effect applies.
+- **Assist:** `HackTune_Challenge_TimeScale` (1-8) gives longer limits and windows and a slower boss, under the same rules.
+
+**Typed commands**
+- **One parser:** `HackCatalog.Parse` maps verbs, aliases and target words to an id and a hint. It never evaluates text.
+- **Same validation:** the client resolves the hint to a target and sends the **same** `begin` request as a chip. The server re-parses the text and rejects a mismatch (`parse_mismatch`).
+- **Contextual rules:**
+  - Bare `fling` means fling the selected target if there is one, else fling yourself.
+  - `jump`, `leap` and `boost` always mean yourself.
+  - `freeze me` is refused.
+
+## 4. Architect UI adaptation
+- **Shared look:** the 8B-1B chip look (chamfers, serial, icon tile, state label, pins) is extracted into `CyberChip`, which the wrist terminal uses. It has the states default, focus, selected, pending, accepted, rejected, disabled and recharging, plus a cooldown shade.
+- **Reused patterns:**
+  - SELECT → CONFIRM (a second press of the same chip also confirms).
+  - The keyword field, here as the typed command line.
+  - The feedback line.
+  - Touch placement via `UITheme.touchPanelRegion`.
+  - Reserved rectangles (`"wrist"`).
+- **Not copied:** turn identity, countdown and server patch logic.
+- **Arbitration:**
+  - While `WORLD_EXE_Architect` is enabled, the terminal closes, any challenge is cancelled and H/L1 do nothing.
+  - Challenge directions are bound at a priority above the HUD (D-pad Down) and abilities (D-pad Up).
+  - The toggle moved from G to H after testing showed G is the HUD details key.
+
+## 5. Tests run (solo Studio, 2026-11-16; Server + Client in one Play session)
+
+| Test | Result |
+|---|---|
+| FLING SELF sweep A 78/48, B 90/42, C 98/48 over 3 lanes, 4 gaps and flat ground | **B chosen.** Rise 20.5, about 39 on flat ground. Reaches the 8-high/24-away lane, the 14/32 lane, and the 24- and 32-stud gaps. C reaches the 20/36 lane and the 40 gap but overshoots short targets. No ragdoll; state Running on landing; tilt 0. |
+| FLING SELF via chip keys `1`,`1` onto the 14/32 platform | Landed on top; rise 20.5, 32.4 across, 0.76 s in the air. |
+| FLING TARGET, Dummy-A, wall 22 behind it | Flung into the wall; full recovery (motors on, 0 sockets, upright, server-owned). |
+| FLING TARGET, Dummy-C off a 12-high ledge (time series) | Arc to the ground, limp 2.0 s (tilt −75°), then upright and Running. |
+| NPC killed mid-ragdoll / mid-freeze | 0 leftover effects, constraints or highlights; dummy respawns healthy after 3 s. |
+| FREEZE, patrolling Dummy-B | Frozen 3.06 s, then the patrol resumes. Fling-on-frozen → `target_frozen`; re-freeze → `cooldown`. |
+| SHIELD | 1-arrow activation; second activation rejected. Two Conductor strikes logged **"BLOCKED by shield"** during the 6 s; hits before and after it. |
+| Death mid-challenge / with shield | Result `died`; session cleared; shield attribute cleared; UI reset. |
+| Resistance Battle | Solve (6 arrows, about 1.1 s) ✓; wrong arrows → `resisted`; no input → `resisted` (3 s). |
+| Input Chase (after fix) | Fast (0.2 s per press) ✓ 1.4 s; medium (0.6 s) ✓ 3.8 s; slow (1.2 s) → `timeout`; wrong → `overrun`. |
+| Signal Lock | On time ✓ (4 locks, about 5.7 s); 0.4 s late → `too_many_misses`; forged early client time is clamped. |
+| Boss hit during a boss challenge | `interrupted`. |
+| Validation | `bad_payload` ×3, `unknown_hack`, `parse_mismatch`, `cannot_target_self`, `no_target` ×2, `out_of_range`, `no_line_of_sight`, `retry_wait`; a 40-request burst → 27 `rate_limited`. |
+| Parser table (26 inputs) | As specified, including contextual fling, `freeze me` refused, and code-like text refused. |
+| Real keyboard via Studio input | H opens; `3` selects; Enter executes; arrow keys solve; typed `fling dummy-a` + arrows → "Target flung". |
+| Emulated gamepad keycodes | L1 toggles; the D-pad solves a challenge; D-pad Down did **not** toggle the HUD details panel during the challenge. |
+| Touch layout preview (844×390) | Terminal and direction pad sit in the free region (no overlap with the thumbstick or jump zone); clicking the pad solved a challenge. |
+| Architect arbitration (solo match, StudioMinPlayers 1) | Turn opened → terminal closed, `ArchitectLock` true, H ignored. |
+| Saved place vs `src/` | 54/54 scripts identical (`hp_40_verify_saved.js`). |
+
+**Defects found and fixed during testing:**
+1. Input Chase was trivially beaten before the boss ever appended. It now needs at least 7 clears, with faster appends.
+2. The rate limit (4/s) blocked fast legitimate input. It is now a burst of 14 at 9/s.
+3. The G key clashed with the HUD details panel; the toggle moved to H.
+4. Three glyphs did not render in the UI font.
+5. Touch chips were clipped.
+6. The challenge title overflowed.
+7. The client's target range ignored live tuning.
+8. The pill's Architect label was overwritten.
+9. Dead dummies never respawned.
+
+## 6. Not tested / limitations (not claimed)
+- **Multiplayer:** no two-client run (needs the owner's Test → Clients and Servers). Player-vs-player FLING/FREEZE network ownership hand-off, victim view and counterplay are untested.
+- **Real devices:** no real touch hardware or gamepad hardware. Gamepad GUI focus is untested: emulated keys report Keyboard as the last input.
+- **Real Studio keyboard timing** is limited by tool latency (L-0001). The timed keyboard runs used assist ×8; the timing-critical runs were validated through the same remote by the test kit.
+- **Typed input vs chat:** in one run the typed command went to Roblox chat instead of the terminal. Focus behaviour on real keyboards needs an owner check.
+- **Trust in Signal Lock timing:** client press time can gain up to 0.25 s.
+- **FLING SELF** is executed by the client and has no server-side trajectory check.
+- **Not built:** victim counterplay, diminishing returns beyond fixed immunity, and team rules.
+- **Boss:** a placeholder humanoid, anchored and stationary. Two attacks; balance not tuned.
