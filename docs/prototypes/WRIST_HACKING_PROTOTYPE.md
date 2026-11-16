@@ -388,3 +388,5 @@ Directive: "WORLD.EXE — Hacking, cyberware & boss gameplay prototype". Same is
 **Notes:**
 - The test-station "dodge" dummy reaction still walks away, but no longer evades. It is kept so the "walking does not dodge" case can be checked.
 - Slide distance is tunable live (`HackTune_FlingTarget_AimedForward` / `AimedUp`). The ground tumble roughly doubles the flight distance on flat ground.
+
+**Owner decision (2026-11-16):** slide-throw distance (57–76 studs incl. tumble) "Feels right"; AimedUp 50 / AimedForward 80 kept.
