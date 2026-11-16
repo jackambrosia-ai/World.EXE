@@ -51,7 +51,7 @@ local definitions: { HackDef } = {
 	{ Id = "FLING_SELF", DisplayName = "Fling Self", Short = "FLING SELF", Icon = "▲", Serial = "HX-01", Category = "Physics", Target = "self",
 		Effect = "Launch yourself up and forward. You keep control; no ragdoll.", Order = 1 },
 	{ Id = "FLING_TARGET", DisplayName = "Fling Target", Short = "FLING", Icon = "»", Serial = "HX-02", Category = "Entity", Target = "other",
-		Effect = "Launch a target; flick the mouse after casting to aim the throw (else away from you).", Order = 2 },
+		Effect = "Launch a target; after casting, slide the mouse and it flies that way (else away from you).", Order = 2 },
 	{ Id = "FREEZE", DisplayName = "Freeze", Short = "FREEZE", Icon = "❄", Serial = "HX-03", Category = "Environment", Target = "other",
 		Effect = "Freeze a target for about 3 s. Bosses resist (shorter).", Order = 3 },
 	{ Id = "SHIELD", DisplayName = "Shield", Short = "SHIELD", Icon = "◈", Serial = "HX-04", Category = "Beneficial", Target = "self",
@@ -109,7 +109,7 @@ HackCatalog.Tuning = table.freeze({
 		Cooldown = 8,
 		BossUp = 80, -- the boss ragdolls too (owner rule), with a lower arc than players
 		BossForward = 24,
-		BossFlickWindow = 0.6, -- seconds after a successful boss FLING cast to flick the mouse (aim)
+		FlickWindow = 0.6, -- after a successful FLING cast: slide the mouse within this to aim; else thrown away
 	}),
 	Freeze = table.freeze({
 		Seconds = 3, -- owner setting
@@ -133,6 +133,8 @@ HackCatalog.Tuning = table.freeze({
 		DodgeRadius = 9, -- impact ring radius (studs) around the target at warning start
 		PerfectWindow = 0.3, -- shield raised this close to resolution = perfect deflect (0 = off)
 		PerfectShieldRefund = 0.5, -- perfect deflect refunds this share of the SHIELD cooldown (modest benefit)
+		MinWarning = 0.5, -- FLING (armed at cast start): the throw never lands sooner than this after the warning
+		MaxArmedSeconds = 25, -- safety: an armed warning is withdrawn after this
 	}),
 	Rate = table.freeze({ Burst = 14, PerSecond = 9 }), -- per player, all hack messages incl. arrow presses (fast players reach ~6/s; test 2026-11-16 hit 4/s)
 	RetrySeconds = 1.5, -- after a failed/cancelled challenge, the same hack waits this long

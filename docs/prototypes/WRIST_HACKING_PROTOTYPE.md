@@ -321,3 +321,41 @@ Directive: "WORLD.EXE — Hacking, cyberware & boss gameplay prototype". Same is
 - a real second player;
 - locked-cursor (shift-lock) flicks;
 - touch and gamepad.
+
+## 13. Revision 7 — instant slide-throw (2026-11-16)
+**Owner:** "I don't like the current feel of it on other's, i should be able to slide my mouse and they should immediately go in that direction."
+
+**What changed:**
+- **Warning moved to the cast start (FLING on players/NPCs only).** It goes up when the attacker *begins* casting, with no countdown and the banner reading "· being cast", so the defender reacts while the attacker types.
+- **Instant throw:** after the cast, a flick window opens (`FlingTarget.FlickWindow`, 0.6 s). The client sends the *first* slide (≥ 16 px within 0.2 s) once, and the server fires the throw on receipt, in the same step.
+- **No slide within 0.6 s:** thrown away from the attacker.
+- **Defences** (shield / cover / dodge ring) are checked at the moment of the throw.
+- **`Incoming.MinWarning` (0.5 s):** the throw never lands sooner than this after the warning appears, so a very fast cast plus slide still leaves time to react.
+- **Cancelled or failed cast:** the warning is withdrawn (`incoming_result` "cancelled").
+- **Safety:** `Incoming.MaxArmedSeconds` 25.
+- **Boss:** fires on the first slide the same way (no warning, as before).
+- **FREEZE:** unchanged (timed warning after the cast).
+
+**Results (solo Studio):**
+
+| Case | Result |
+|---|---|
+| Dummy, real arrow keys, then slide up | Slide arrived 0.27 s after the cast (tool gap); thrown in the same server step (1.5 ms); direction (−0.03, −1.00); 50.8 studs |
+| Warning while casting | Shown from begin; capture 28 |
+| Cancel mid-cast (Backspace) | `incoming_result` cancelled; 0 leftover warning parts |
+| Dummy shields during the cast | deflected (the cast took 0.38 s, so the 0.5 s minimum warning applied) |
+| Boss, slide right | thrown (1.00, 0.01), 21.3 studs, at once on the slide |
+| No slide, real 0.6 s window | thrown away (1.00, 0.00) exactly 0.60 s after the cast |
+
+**Saved place:** 59/59 scripts; hash A7A1C5FD…. Protected files: 9/9 unchanged.
+
+**Findings:**
+- **Perfect deflect is now harder to time:** the throw moment depends on the attacker's slide, not on a visible countdown.
+- **Warning length grows with cast time:** slow casters give targets more time.
+- **Arrow row fix confirmed on desktop:** the capture shows "RIGHT" under the arrow, clear of the timer bar (pending since milestone 2).
+
+**Not tested:**
+- a human sliding at real speed;
+- a real player as the target (two clients);
+- shift-lock;
+- touch or gamepad.

@@ -919,7 +919,7 @@ function HackController.Start()
 	pointer.Frame.AnchorPoint = Vector2.new(0.5, 0.5)
 	pointer.SetState("wrong")
 	local pointerLabel = UIUtil.text("AttackerLabel", incomingUi, "", 13, C.Coral, F.Label, { AnchorPoint = Vector2.new(0.5, 0.5), AutomaticSize = Enum.AutomaticSize.XY, TextStrokeTransparency = 0.3 })
-	local incoming: { id: number, attacker: Model?, resolveAt: number, startAt: number, hackId: string }? = nil
+	local incoming: { id: number, attacker: Model?, resolveAt: number, startAt: number, hackId: string, armed: boolean? }? = nil
 	local incomingVfx: { [number]: () -> () } = {}
 
 	local function quickShieldNow()
@@ -927,13 +927,13 @@ function HackController.Start()
 	end
 	quickShield.Activated:Connect(quickShieldNow)
 
-	local function setIncoming(info: { id: number, attacker: Model?, resolveAt: number, startAt: number, hackId: string }?)
+	local function setIncoming(info: { id: number, attacker: Model?, resolveAt: number, startAt: number, hackId: string, armed: boolean? }?)
 		incoming = info
 		incomingUi.Visible = info ~= nil
 		gui:SetAttribute("IncomingId", if info then info.id else nil)
 		if info then
 			local def = HackCatalog.Get(info.hackId)
-			incTitle.Text = "⚠ INCOMING " .. (if def then string.upper(def.DisplayName) else info.hackId)
+			incTitle.Text = "⚠ INCOMING " .. (if def then string.upper(def.DisplayName) else info.hackId) .. (if info.armed then " · being cast" else "")
 			incHint.Text = if touch then "SHIELD · break line of sight · leave the ring" else "[C] SHIELD · break line of sight behind cover · leave the ring"
 			quickShield.Visible = touch
 			incBanner.Size = UDim2.fromOffset(if touch then 330 else 440, 0)
@@ -1025,8 +1025,8 @@ function HackController.Start()
 	-- screen right = camera right, screen up = camera forward. Only recent movement counts (last
 	-- 0.25 s, at least 14 px), so the latest flick wins. A flat arrow at the target's feet shows the
 	-- current throw: bright = your flick, dim = the default (no flick: away from you).
-	local FLICK_SPAN = 0.25
-	local FLICK_MIN_PX = 14
+	local FLICK_SPAN = 0.2
+	local FLICK_MIN_PX = 16
 	local flick: { target: Model, boss: boolean, untilT: number }? = nil
 	local flickSamples: { { t: number, d: Vector2 } } = {}
 	local lastMouse: Vector2? = nil
@@ -1135,14 +1135,14 @@ function HackController.Start()
 			currentAim = flat(right * sum.X - fwd * sum.Y) -- screen y grows downward
 		end
 		gui:SetAttribute("FlingAim", if currentAim then string.format("%.2f,%.2f", currentAim.X, currentAim.Z) else nil)
-		-- stream the flick (change > 4°, ≤ 10/s, 1 s keep-alive); the server throttles too
+		-- the first slide throws immediately: send it once and close the window
 		if currentAim then
 			local aim = currentAim :: Vector3
-			local changed = not lastAimSent or (lastAimSent :: Vector3):Dot(aim) < 0.9976
-			if (changed and tnow - lastAimSentT >= 0.1) or tnow - lastAimSentT >= 1 then
-				lastAimSent, lastAimSentT = aim, tnow
-				request:FireServer({ op = "aim", dir = aim })
-			end
+			lastAimSent, lastAimSentT = aim, tnow
+			request:FireServer({ op = "aim", dir = aim })
+			gui:SetAttribute("LastFlick", string.format("%.2f,%.2f", aim.X, aim.Z))
+			endFlick()
+			return
 		end
 		-- draw: your flick (bright) or the default throw away from you (dim)
 		local dir = currentAim or (myRoot and flat(root.Position - myRoot.Position)) or flat(root.CFrame.LookVector)
@@ -1377,8 +1377,11 @@ function HackController.Start()
 			local atk = if typeof(data.attacker) == "Instance" and data.attacker:IsA("Model") then data.attacker else nil
 			if typeof(tgt) == "Instance" and tgt:IsA("Model") and typeof(data.center) == "Vector3" then
 				local id = tonumber(data.id) or 0
-				incomingVfx[id] = HackVfx.Incoming(atk, tgt, data.center, tonumber(data.radius) or 9, tonumber(data.startAt) or nowT(), tonumber(data.resolveAt) or nowT() + 1, tostring(data.hackId))
-				task.delay(6, function() -- safety cleanup if the result never arrives
+				local armed = data.armed == true -- FLING: raised at cast start, no countdown
+				local startAt = tonumber(data.startAt) or nowT()
+				local resolveAt = if armed then startAt + 1e6 else (tonumber(data.resolveAt) or nowT() + 1)
+				incomingVfx[id] = HackVfx.Incoming(atk, tgt, data.center, tonumber(data.radius) or 9, startAt, resolveAt, tostring(data.hackId))
+				task.delay(if armed then 30 else 6, function() -- safety cleanup if the result never arrives
 					local f = incomingVfx[id]
 					if f then
 						incomingVfx[id] = nil
@@ -1390,7 +1393,7 @@ function HackController.Start()
 				end)
 				if tgt == player.Character then
 					HackFeel.Cue("incoming")
-					setIncoming({ id = id, attacker = atk, resolveAt = tonumber(data.resolveAt) or nowT() + 1, startAt = tonumber(data.startAt) or nowT(), hackId = tostring(data.hackId) })
+					setIncoming({ id = id, attacker = atk, resolveAt = resolveAt, startAt = startAt, hackId = tostring(data.hackId), armed = armed })
 				end
 			end
 		elseif op == "incoming_result" then
@@ -1437,7 +1440,7 @@ function HackController.Start()
 		elseif op == "flick" then
 			if typeof(data.target) == "Instance" and data.target:IsA("Model") then
 				startFlick(data.target, data.boss == true, tonumber(data.untilT) or nowT() + 1)
-				HackFeel.Popup("FLICK THE MOUSE TO AIM", C.Coral)
+				HackFeel.Popup("SLIDE THE MOUSE TO THROW", C.Coral)
 			end
 		elseif op == "station" then
 			HackFeel.Popup(tostring(data.text), C.Cyan)
