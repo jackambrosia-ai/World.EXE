@@ -212,3 +212,43 @@ Status: **isolated prototype, draft PR, not for merge.** The owner approved the 
 - Holding Jump after landing performs normal Roblox repeat jumps.
 
 **Saved place:** 56/56 scripts match `src/`, hash C078ABD3….
+
+## 10. Milestone 2 — hacking, cyberware & boss prototype (2026-11-16)
+Directive: "WORLD.EXE — Hacking, cyberware & boss gameplay prototype". Same isolated place and branch. The full record (results tables, captures, findings, owner checklist) is in the vault: `03-Gameplay/Hacking-Cyberware-Boss-Prototype-2026-11-16.md` (vault PR #23).
+
+**New code:**
+- **Server:**
+  - `HackIncoming.luau`: warning stage for targeted hacks.
+    - Reaction window 1.0 s + 0.12 s grace.
+    - Resolution order: lost → shield (perfect / deflected) → no line of sight (evaded_cover) → outside ring (evaded_dodge) → hit.
+    - Perfect deflect refunds 50 % of the remaining SHIELD cooldown.
+  - `HackService.luau`:
+    - incoming integration, quick SHIELD (`source = "quick"`);
+    - replay protection (input `n` must increase, max +50);
+    - TestStation prompts, `Perf` / `IncomingStats` / `SimulateIncoming` hooks.
+  - `ConductorPrototype.luau`:
+    - relocation, engaged / failed / defeated / reset broadcasts;
+    - reset after the arena is empty for 5 s or 16 s after defeat;
+    - refuses hacks at integrity 0.
+- **Client:**
+  - `ArrowGlyph.luau`: shaft + head arrows; states current / done / upcoming / wrong / locked / missed / pad.
+  - `HackFeel.luau`: cues, haptics, edge glow, popups.
+  - `HackController.luau`: arrows, per-input correct/wrong feedback, incoming banner + attacker pointer + C / R1 / touch SHIELD, outcome popups, boss and station messages.
+  - `HackVfx.Incoming` / `Deflect`: dashed ring, tether, overhead warning.
+- **Shared:** `HackCatalog.Boots` — Starter 90/42/24/3.0, Vault 106/30/20/3.0, Vector 74/64/22/2.2 (Up / Forward / Steer / Turn). Selected per player at the station; not saved.
+
+**Results (solo Studio; the "player attacked" rows use a dummy stand-in attacker through the real server path):**
+- All five incoming outcomes reproduced, for dummies as targets and for the player as defender (real C key, touch button click).
+- Forged token, replayed or missing `n`, bad direction, unknown hack, bad source and injected typed text: all rejected. Old timestamps are clamped, not trusted.
+- Boss: defeated in Resistance Battle (34 s) and Input Chase (36 s) modes. In Signal Lock, 5 of 9 attempts were interrupted by strikes (finding). Failure leads to a reset in about 4 s.
+- Each mode has a measured failure: too_many_misses, resisted, overrun, interrupted.
+- Boots, same pad, distance with forward held: Starter 60.6, Vault 54.9, Vector 65.1. Rise: Starter 20.5, Vault 28.4, Vector 13.8. Vector was retuned (56→64 forward) because Starter nearly dominated it.
+- Perf: begin avg 0.08 / max 0.43 ms; input avg 0.15 / max 1.32 ms.
+- Saved place: 59/59 scripts match `src/`; hash 973D6F2C…. Protected files: 9/9 unchanged since the milestone start.
+
+**Not tested:**
+- two real clients;
+- real touch or gamepad hardware;
+- per-boot lane reachability in play (model-derived only);
+- a re-run of the integrity-0 fix;
+- a desktop re-capture after the arrow-row height fix.

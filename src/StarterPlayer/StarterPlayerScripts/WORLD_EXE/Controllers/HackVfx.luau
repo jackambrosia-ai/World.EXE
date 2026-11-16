@@ -281,6 +281,134 @@ function HackVfx.Launch(model: Model?, pos: Vector3, scale: number?)
 	end
 end
 
+-- Incoming targeted hack (seen by everyone): the impact ring on the ground (the explicit dodge zone),
+-- a faint pulsing tether from the attacker, and an overhead warning. Returns a cleanup function.
+local HACK_COLOR: { [string]: Color3 } = { FREEZE = Color3.fromRGB(175, 230, 255), FLING_TARGET = Color3.fromRGB(255, 140, 30) }
+local HACK_WORD: { [string]: string } = { FREEZE = "FREEZE", FLING_TARGET = "FLING" }
+function HackVfx.Incoming(attacker: Model?, target: Model, center: Vector3, radius: number, startAt: number, resolveAt: number, hackId: string): () -> ()
+	local made: { Instance } = {}
+	local col = HACK_COLOR[hackId] or Color3.fromRGB(255, 111, 97)
+	local floor = floorBelow(center, { target, root() })
+	-- faint fill (no Neon: bloom turned the first version into an opaque dome) + a thin segmented edge
+	local ring = vpart("ImpactRing", Vector3.new(0.1, radius * 2, radius * 2), CFrame.new(floor + Vector3.new(0, 0.06, 0)) * CFrame.Angles(0, 0, math.rad(90)), col, Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+	ring.Transparency = 0.88
+	table.insert(made, ring)
+	local SEG = 28
+	local segLen = 2 * math.pi * radius / SEG * 0.62 -- dashed edge
+	for i = 1, SEG do
+		local a = (i / SEG) * 2 * math.pi
+		local p = floor + Vector3.new(math.cos(a) * radius, 0.12, math.sin(a) * radius)
+		local seg = vpart("ImpactEdge", Vector3.new(segLen, 0.12, 0.35), CFrame.new(p) * CFrame.Angles(0, -a + math.pi / 2, 0), col, Enum.Material.Neon)
+		seg.Transparency = 0.25
+		table.insert(made, seg)
+	end
+	-- faint tether (presentation only; the rules are the ring, cover and shield)
+	local aRoot = attacker and attacker:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local tRoot = target:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if aRoot and tRoot then
+		local a0 = Instance.new("Attachment")
+		a0.Parent = aRoot
+		local a1 = Instance.new("Attachment")
+		a1.Parent = tRoot
+		local beam = Instance.new("Beam")
+		beam.Attachment0 = a0
+		beam.Attachment1 = a1
+		beam.Color = ColorSequence.new(col)
+		beam.LightEmission = 1
+		beam.Width0, beam.Width1 = 0.15, 0.3
+		beam.Transparency = NumberSequence.new(0.55)
+		beam.FaceCamera = true
+		beam.Segments = 12
+		beam.CurveSize0, beam.CurveSize1 = 2, -2
+		beam.Parent = aRoot
+		table.insert(made, a0)
+		table.insert(made, a1)
+		table.insert(made, beam)
+	end
+	-- overhead warning with a draining timer bar
+	local head = (target:FindFirstChild("Head") or tRoot) :: BasePart?
+	local bar: Frame? = nil
+	local isLocal = Players.LocalPlayer and target == Players.LocalPlayer.Character -- the defender already has the screen banner
+	if head and not isLocal then
+		local bb = Instance.new("BillboardGui")
+		bb.Name = "IncomingWarning"
+		bb.Size = UDim2.fromOffset(170, 46)
+		bb.StudsOffsetWorldSpace = Vector3.new(0, 3.2, 0)
+		bb.AlwaysOnTop = true
+		bb.Adornee = head
+		local bg = Instance.new("Frame")
+		bg.Size = UDim2.fromScale(1, 1)
+		bg.BackgroundColor3 = Color3.fromRGB(10, 15, 31)
+		bg.BackgroundTransparency = 0.2
+		bg.BorderSizePixel = 0
+		bg.Parent = bb
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 6)
+		corner.Parent = bg
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = col
+		stroke.Thickness = 2
+		stroke.Parent = bg
+		local t = Instance.new("TextLabel")
+		t.BackgroundTransparency = 1
+		t.Size = UDim2.new(1, 0, 0, 30)
+		t.Font = Enum.Font.GothamBlack
+		t.TextSize = 16
+		t.TextColor3 = col
+		t.Text = "⚠ " .. (HACK_WORD[hackId] or hackId) .. " INCOMING"
+		t.Parent = bg
+		local track = Instance.new("Frame")
+		track.Position = UDim2.new(0, 8, 1, -12)
+		track.Size = UDim2.new(1, -16, 0, 5)
+		track.BackgroundColor3 = Color3.fromRGB(58, 66, 88)
+		track.BorderSizePixel = 0
+		track.Parent = bg
+		local fill = Instance.new("Frame")
+		fill.Size = UDim2.fromScale(1, 1)
+		fill.BackgroundColor3 = col
+		fill.BorderSizePixel = 0
+		fill.Parent = track
+		bar = fill
+		bb.Parent = root()
+		table.insert(made, bb)
+	end
+	local conn = RunService.RenderStepped:Connect(function()
+		local left = resolveAt - workspace:GetServerTimeNow()
+		local f = math.clamp(left / math.max(0.05, resolveAt - startAt), 0, 1)
+		if bar then
+			bar.Size = UDim2.fromScale(f, 1)
+		end
+		ring.Transparency = 0.82 + 0.1 * math.abs(math.sin(os.clock() * 8))
+	end)
+	return function()
+		conn:Disconnect()
+		for _, i in made do
+			i:Destroy()
+		end
+	end
+end
+
+-- Deflection burst on the defender (seen by everyone); perfect = bigger, whiter, longer.
+function HackVfx.Deflect(target: Model, perfect: boolean)
+	local tRoot = target:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not tRoot or UITheme.reducedEffects() then
+		return
+	end
+	local col = if perfect then Color3.fromRGB(245, 247, 255) else Color3.fromRGB(60, 220, 140)
+	local s = if perfect then 1.6 else 1
+	local orb = vpart("DeflectOrb", Vector3.new(6, 6, 6) * s, tRoot.CFrame, col, Enum.Material.ForceField, Enum.PartType.Ball)
+	orb.Transparency = 0.1
+	tween(orb, 0.3, { Size = Vector3.new(14, 14, 14) * s, Transparency = 1 })
+	task.delay(0.35, function()
+		orb:Destroy()
+	end)
+	shockwave(tRoot.Position - Vector3.new(0, 2.8, 0), 10 * s, 0.35, col)
+	sparks(tRoot.Position, if perfect then 40 else 20, 35, col)
+	if perfect then
+		starburst(tRoot.Position, 0.8)
+	end
+end
+
 local started = false
 function HackVfx.Start()
 	if started then

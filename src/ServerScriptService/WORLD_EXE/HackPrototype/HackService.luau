@@ -28,6 +28,7 @@ local HackEffects = require(script.Parent:WaitForChild("HackEffects"))
 local HackChallenges = require(script.Parent:WaitForChild("HackChallenges"))
 local Conductor = require(script.Parent:WaitForChild("ConductorPrototype"))
 local HackDevice = require(script.Parent:WaitForChild("HackDevice"))
+local HackIncoming = require(script.Parent:WaitForChild("HackIncoming"))
 
 local A = HackCatalog.Attr
 local T = HackCatalog.Tuning
@@ -45,6 +46,7 @@ type Session = {
 	dir: Vector3?,
 	lastSent: number,
 	source: string,
+	lastN: number, -- replay protection: input sequence numbers must increase
 }
 
 local HackService = {}
@@ -58,6 +60,21 @@ local buckets: { [Player]: { tokens: number, t: number } } = {}
 local tokenSeq = 0
 local rng = Random.new()
 local events: { string } = {}
+-- Lightweight profiling of the hot paths (Studio hook "Perf"; also MicroProfiler labels).
+local perf: { [string]: { n: number, total: number, max: number } } = {}
+local function timed<T...>(name: string, fn: () -> T...): T...
+	debug.profilebegin("Hack." .. name)
+	local t0 = os.clock()
+	local r = table.pack(fn())
+	local ms = (os.clock() - t0) * 1000
+	debug.profileend()
+	local p = perf[name] or { n = 0, total = 0, max = 0 }
+	p.n += 1
+	p.total += ms
+	p.max = math.max(p.max, ms)
+	perf[name] = p
+	return table.unpack(r, 1, r.n)
+end
 
 local function now(): number
 	return workspace:GetServerTimeNow()
@@ -135,9 +152,12 @@ local function checkTarget(player: Player, character: Model, hackId: string, tar
 		return nil, "no_line_of_sight"
 	end
 	local t = now()
+	if HackIncoming.IsTargeted(target.Model) then
+		return nil, "target_busy"
+	end
 	if target.Kind == "boss" then
 		local st = Conductor.State()
-		if st == "OFFLINE" then
+		if st == "OFFLINE" or st == "DEFEATED" then
 			return nil, "boss_offline"
 		end
 		local m = target.Model
@@ -210,13 +230,20 @@ local function apply(player: Player, hackId: string, targetId: string?, dir: Vec
 			if not ok then
 				text = nil
 			end
-		elseif hackId == "FREEZE" then
-			ok, reason = HackEffects.Freeze(target)
-			text = "Target frozen."
 		else
-			local myRoot = character:FindFirstChild("HumanoidRootPart") :: BasePart
-			ok, reason = HackEffects.FlingTarget(target, myRoot.Position)
-			text = "Target flung."
+			-- Targeted hack on a player / NPC: warning + counterplay window, resolved by HackIncoming.
+			local okI, whyI = HackIncoming.Start(player, hackId, target, function(t, from)
+				if hackId == "FREEZE" then
+					return HackEffects.Freeze(t)
+				end
+				return HackEffects.FlingTarget(t, from)
+			end)
+			if okI then
+				setReady(player, hackId, cooldownOf(hackId)) -- the attempt costs the cooldown even if defended
+				HackDevice.SetState(player.Character, "hacking")
+				return true, "incoming", "Hack sent — the target can still defend."
+			end
+			ok, reason = false, whyI
 		end
 	end
 	if ok then
@@ -263,7 +290,7 @@ local function begin(player: Player, p: { [string]: any })
 		return reply(player, nil, false, "unknown_hack")
 	end
 	local source = p.source
-	if source ~= "chip" and source ~= "typed" then
+	if source ~= "chip" and source ~= "typed" and source ~= "quick" then
 		return reply(player, hackId, false, "bad_payload")
 	end
 	if source == "typed" then
@@ -302,6 +329,9 @@ local function begin(player: Player, p: { [string]: any })
 	local kind, length = nil, 0
 	if def.Target == "self" then
 		length = CH.SelfLength[hackId] or 0
+		if hackId == "SHIELD" and HackIncoming.IsTargeted(character) then
+			length = 0 -- reactive shield: no arrows while a hack is incoming at you
+		end
 		kind = if length > 0 then "Sequence" else nil
 	elseif targetKind == "boss" then
 		local model = Conductor.Model()
@@ -324,6 +354,7 @@ local function begin(player: Player, p: { [string]: any })
 		dir = dir,
 		lastSent = 0,
 		source = source,
+		lastN = 0,
 	}
 	sessions[player] = s
 	HackDevice.SetState(player.Character, "hacking")
@@ -339,6 +370,11 @@ local function input(player: Player, p: { [string]: any })
 	if typeof(p.dir) ~= "string" then
 		return
 	end
+	if typeof(p.n) ~= "number" or p.n <= s.lastN or p.n > s.lastN + 50 then
+		logEvent(player.Name .. " stale/replayed input rejected")
+		return -- replayed or out-of-order input
+	end
+	s.lastN = p.n
 	if typeof(p.aim) == "Vector3" then
 		s.dir = p.aim
 	end
@@ -364,6 +400,64 @@ local function onPlayerHit(player: Player)
 	if s and s.targetKind == "boss" then
 		HackService.CancelFor(player, "interrupted")
 	end
+end
+
+-- Test station (owner directive 2026-11-16 section 2/11): ProximityPrompts on parts tagged
+-- HackStationOption (attributes Setting, Value, Label) change prototype settings; a board shows them.
+local function stationText(player: Player?): string
+	local function w(k: string, d: any): any
+		local v = workspace:GetAttribute(k)
+		return if v == nil then d else v
+	end
+	local lines = {
+		"TEST STATION — prototype settings",
+		string.format("Reaction window: %.1f s", HackCatalog.Tune("Incoming", "ReactionWindow")),
+		string.format("Perfect deflect: %s", if HackCatalog.Tune("Incoming", "PerfectWindow") > 0 then "ON" else "OFF"),
+		"Dummy reaction: " .. string.upper(tostring(w("HackProto_DummyReaction", "none"))),
+		"Boots: per player (step on a boots console)",
+	}
+	return table.concat(lines, "\n")
+end
+
+local function refreshBoards()
+	for _, part in CollectionService:GetTagged("HackStationBoard") do
+		local label = part:FindFirstChild("BoardText", true)
+		if label and label:IsA("TextLabel") then
+			label.Text = stationText(nil)
+		end
+	end
+end
+
+local function setupStation()
+	for _, part in CollectionService:GetTagged("HackStationOption") do
+		if part:IsA("BasePart") then
+			local setting, value, label = part:GetAttribute("Setting"), part:GetAttribute("Value"), part:GetAttribute("Label")
+			local prompt = Instance.new("ProximityPrompt")
+			prompt.ActionText = tostring(label)
+			prompt.ObjectText = "Test station"
+			prompt.HoldDuration = 0
+			prompt.MaxActivationDistance = 9
+			prompt.RequiresLineOfSight = false
+			prompt.Parent = part
+			prompt.Triggered:Connect(function(who: Player)
+				if setting == "Boots" and typeof(value) == "string" and (HackCatalog.Boots :: any)[value] then
+					who:SetAttribute(A.Boots, value)
+					send(who, { op = "station", text = "Equipped: " .. (HackCatalog.Boots :: any)[value].Label })
+				elseif setting == "ReactionWindow" and typeof(value) == "number" then
+					workspace:SetAttribute("HackTune_Incoming_ReactionWindow", value)
+				elseif setting == "PerfectDeflect" and typeof(value) == "number" then
+					workspace:SetAttribute("HackTune_Incoming_PerfectWindow", value)
+				elseif setting == "DummyReaction" and typeof(value) == "string" then
+					workspace:SetAttribute("HackProto_DummyReaction", value)
+				elseif setting == "ResetBoss" then
+					Conductor.Reset("station")
+				end
+				logEvent(who.Name .. " station " .. tostring(setting) .. "=" .. tostring(value))
+				refreshBoards()
+			end)
+		end
+	end
+	refreshBoards()
 end
 
 local function setupConsoles()
@@ -512,8 +606,32 @@ function HackService.Start()
 	HackEffects.SetBroadcaster(function(payload)
 		eventRemote:FireAllClients(payload)
 	end)
+	HackIncoming.Init({
+		send = send,
+		broadcast = function(payload)
+			eventRemote:FireAllClients(payload)
+		end,
+		log = logEvent,
+		onResolved = function(attacker: Player, hackId: string, outcome: string, defender: Player?)
+			if typeof(attacker) == "Instance" then -- (the Studio SimulateIncoming hook passes a stand-in attacker)
+				send(attacker, { op = "hack_outcome", hackId = hackId, outcome = outcome, role = "attacker" })
+				HackDevice.SetState(attacker.Character, if outcome == "hit" then "ok" else "fail")
+			end
+			if defender then
+				send(defender, { op = "hack_outcome", hackId = hackId, outcome = outcome, role = "defender" })
+				if outcome == "perfect" then
+					-- modest, measurable benefit: refund part of the remaining SHIELD cooldown
+					local r = ready[defender] and ready[defender]["SHIELD"]
+					if r and r > now() then
+						setReady(defender, "SHIELD", (r - now()) * (1 - HackCatalog.Tune("Incoming", "PerfectShieldRefund")))
+					end
+				end
+			end
+		end,
+	})
 	Conductor.Start(onPlayerHit)
 	setupConsoles()
+	setupStation()
 	startPatrols()
 	startRespawns()
 	requestRemote.OnServerEvent:Connect(function(player: Player, p: any)
@@ -525,9 +643,13 @@ function HackService.Start()
 		end
 		local op = p.op
 		if op == "begin" then
-			begin(player, p)
+			timed("begin", function()
+				begin(player, p)
+			end)
 		elseif op == "input" then
-			input(player, p)
+			timed("input", function()
+				input(player, p)
+			end)
 		elseif op == "cancel" then
 			HackService.CancelFor(player, "cancelled")
 		else
@@ -581,6 +703,29 @@ function HackService.Start()
 			end,
 			BossLog = Conductor.Log,
 			Effects = HackEffects.Debug,
+			Perf = function()
+				local out = {}
+				for k, v in perf do
+					out[k] = string.format("n=%d avg=%.3fms max=%.3fms", v.n, v.total / math.max(1, v.n), v.max)
+				end
+				return out
+			end,
+			IncomingStats = HackIncoming.Stats,
+			-- Solo stand-in for a second client: an NPC model "attacks" the player through the real
+			-- incoming stage (same warning, window, defences and resolution as a player attacker).
+			SimulateIncoming = function(pl: Player, hackId: string, attackerModel: Model)
+				local target = HackTargets.Resolve("player:" .. pl.UserId)
+				if not target then
+					return "no target"
+				end
+				local fake: any = { Character = attackerModel, Name = attackerModel.Name, DisplayName = attackerModel.Name }
+				return HackIncoming.Start(fake, hackId, target, function(t, from)
+					if hackId == "FREEZE" then
+						return HackEffects.Freeze(t)
+					end
+					return HackEffects.FlingTarget(t, from)
+				end)
+			end,
 			ClearCooldowns = function(pl: Player)
 				ready[pl] = {}
 				retry[pl] = {}

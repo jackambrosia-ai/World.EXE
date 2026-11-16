@@ -53,6 +53,16 @@ local busyUntil = 0 -- FROZEN / STAGGERED end time
 local interrupted = false
 local zoneFolder: Folder? = nil
 local log: { string } = {}
+-- Encounter state (owner directive 2026-11-16 section 12): repositioning, defeat, failure, reset.
+local originHome: CFrame = CFrame.identity
+local posts: { CFrame } = {}
+local engaged = false
+local engageT = 0
+local lastPresence = 0
+local defeatedAt = 0
+local function broadcast(payload: { [string]: any })
+	HackEffects.Broadcast(payload)
+end
 
 local function now(): number
 	return workspace:GetServerTimeNow()
@@ -79,7 +89,7 @@ local function setState(s: string)
 		tint = Color3.fromRGB(175, 230, 255)
 	elseif s == "STAGGERED" then
 		tint = Color3.fromRGB(214, 38, 170)
-	elseif s == "OFFLINE" then
+	elseif s == "OFFLINE" or s == "DEFEATED" then
 		tint = Color3.fromRGB(58, 66, 88)
 	end
 	for _, p in body do
@@ -119,6 +129,8 @@ local function playersInArena(): { Player }
 	end
 	return list
 end
+
+local relocate: () -> ()
 
 local function face(pos: Vector3)
 	if not boss or not root then
@@ -173,6 +185,10 @@ local function strike(isInside: (Vector3) -> boolean, what: string)
 				local h = (p.Character :: Model):FindFirstChildOfClass("Humanoid")
 				if h then
 					h:TakeDamage(DAMAGE)
+					if h.Health <= 0 then
+						broadcast({ op = "boss", event = "failed", userId = p.UserId, seconds = os.clock() - engageT })
+						note("encounter FAILED for " .. p.Name)
+					end
 				end
 				note(what .. " hit " .. p.Name)
 				onPlayerHit(p)
@@ -247,7 +263,8 @@ function ConductorPrototype.ApplyHack(hackId: string, from: Vector3?): (boolean,
 	if not boss then
 		return false, "no_boss"
 	end
-	if state == "OFFLINE" then
+	-- integrity 0 counts as offline even while a stagger/freeze animation is still finishing
+	if state == "OFFLINE" or state == "DEFEATED" or (boss:GetAttribute(A.BossIntegrity) or 100) <= 0 then
 		return false, "boss_offline"
 	end
 	local t = now()
@@ -324,6 +341,73 @@ function ConductorPrototype.ApplyHack(hackId: string, from: Vector3?): (boolean,
 	return false, "no_effect"
 end
 
+-- Positional pressure: telegraphed move to another post (cyan marker 0.8 s, then a quick slide).
+relocate = function()
+	if not boss or #posts < 2 then
+		return
+	end
+	local options = {}
+	for _, p in posts do
+		if (p.Position - home.Position).Magnitude > 1 then
+			table.insert(options, p)
+		end
+	end
+	local dest = options[math.random(1, #options)]
+	local floorY = ((boss :: Model):GetAttribute("ArenaFloorY") or 0) + 0.2
+	local mark = zonePart("RelocateMarker", Vector3.new(0.3, 10, 10), CFrame.new(dest.Position.X, floorY, dest.Position.Z) * CFrame.Angles(0, 0, math.rad(90)), Enum.PartType.Cylinder)
+	mark.Color = Color3.fromRGB(0, 225, 255)
+	setState("RELOCATING")
+	refreshLabel()
+	local ok = waitAttack(0.8)
+	mark:Destroy()
+	if not ok then
+		return
+	end
+	local cv = Instance.new("CFrameValue")
+	cv.Value = (boss :: Model):GetPivot()
+	cv.Changed:Connect(function(v)
+		if boss then
+			boss:PivotTo(v)
+		end
+	end)
+	local tw = TweenService:Create(cv, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Value = dest })
+	tw:Play()
+	tw.Completed:Wait()
+	cv:Destroy()
+	home = dest
+	setState("IDLE")
+	refreshLabel()
+	note("relocated")
+end
+
+function ConductorPrototype.Reset(reason: string)
+	if not boss then
+		return
+	end
+	local b = boss :: Model
+	interrupted = true
+	if HackEffects.IsRagdolled(b) then
+		HackEffects.Recover(b)
+	end
+	for _, p in b:GetDescendants() do
+		if p:IsA("BasePart") then
+			p.AssemblyLinearVelocity = Vector3.zero
+			p.Anchored = true
+		end
+	end
+	b:PivotTo(originHome)
+	home = originHome
+	b:SetAttribute(A.BossIntegrity, 100)
+	b:SetAttribute(A.FreezeImmuneUntil, nil)
+	b:SetAttribute(A.FlingImmuneUntil, nil)
+	busyUntil = os.clock()
+	engaged = false
+	setState("IDLE")
+	refreshLabel()
+	broadcast({ op = "boss", event = "reset", reason = reason })
+	note("RESET (" .. reason .. ")")
+end
+
 function ConductorPrototype.Start(hit: (Player) -> ())
 	onPlayerHit = hit
 	for _, inst in CollectionService:GetTagged(HackCatalog.BossTag) do
@@ -349,6 +433,12 @@ function ConductorPrototype.Start(hit: (Player) -> ())
 		end
 	end
 	home = b:GetPivot()
+	originHome = home
+	local centre = Vector3.new(home.Position.X, home.Position.Y, home.Position.Z - 25)
+	for _, off in { Vector3.zero, Vector3.new(-30, 0, -10), Vector3.new(30, 0, -10) } do
+		local p = home.Position + off
+		table.insert(posts, CFrame.lookAt(p, Vector3.new(centre.X, p.Y, centre.Z)))
+	end
 	for _, p in b:GetDescendants() do
 		if p:IsA("BasePart") then
 			table.insert(body, p)
@@ -401,13 +491,17 @@ function ConductorPrototype.Start(hit: (Player) -> ())
 				continue
 			end
 			if (b:GetAttribute(A.BossIntegrity) or 100) <= 0 then
-				setState("OFFLINE")
-				refreshLabel()
-				note("OFFLINE")
-				task.wait(OFFLINE_SECONDS)
-				b:SetAttribute(A.BossIntegrity, 100)
-				setState("IDLE")
-				refreshLabel()
+				if state ~= "DEFEATED" then
+					setState("DEFEATED")
+					refreshLabel()
+					defeatedAt = os.clock()
+					broadcast({ op = "boss", event = "defeated", seconds = os.clock() - engageT })
+					note(string.format("DEFEATED after %.1f s", os.clock() - engageT))
+				end
+				if os.clock() - defeatedAt > OFFLINE_SECONDS * 2 then
+					ConductorPrototype.Reset("auto after defeat")
+				end
+				task.wait(0.3)
 				continue
 			end
 			local present = playersInArena()
@@ -416,8 +510,18 @@ function ConductorPrototype.Start(hit: (Player) -> ())
 					setState("IDLE")
 					refreshLabel()
 				end
+				-- everyone left or died: the attempt failed; restore the boss for a clean retry
+				if engaged and os.clock() - lastPresence > 5 then
+					ConductorPrototype.Reset("arena empty")
+				end
 				task.wait(0.5)
 				continue
+			end
+			lastPresence = os.clock()
+			if not engaged then
+				engaged = true
+				engageT = os.clock()
+				broadcast({ op = "boss", event = "engaged" })
 			end
 			turn += 1
 			local target = present[(turn % #present) + 1]
@@ -431,7 +535,9 @@ function ConductorPrototype.Start(hit: (Player) -> ())
 			if waitAttack(VULNERABLE_SECONDS) then
 				setState("IDLE")
 				refreshLabel()
-				waitAttack(IDLE_SECONDS)
+				if waitAttack(IDLE_SECONDS) and math.random() < 0.45 then
+					relocate()
+				end
 			end
 		end
 	end)

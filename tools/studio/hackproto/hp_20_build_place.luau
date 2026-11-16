@@ -49,13 +49,13 @@ local function part(parent: Instance, name: string, size: Vector3, cf: CFrame, c
 	return p
 end
 
-local function label(parent: Instance, adornee: BasePart, text: string, offset: number?, color: Color3?)
+local function label(parent: Instance, adornee: BasePart, text: string, offset: number?, color: Color3?, maxDistance: number?)
 	local bb = Instance.new("BillboardGui")
 	bb.Name = "Label"
 	bb.Size = UDim2.fromOffset(170, 34)
 	bb.StudsOffsetWorldSpace = Vector3.new(0, offset or 3, 0)
 	bb.Adornee = adornee
-	bb.MaxDistance = 140
+	bb.MaxDistance = maxDistance or 140
 	local t = Instance.new("TextLabel")
 	t.BackgroundTransparency = 1
 	t.Size = UDim2.fromScale(1, 1)
@@ -270,6 +270,69 @@ for i, m in { { "ResistanceBattle", "RESISTANCE BATTLE" }, { "InputChase", "INPU
 	CollectionService:AddTag(c, "HackModeConsole")
 	part(arena, "ConsoleScreen" .. i, Vector3.new(3.4, 1.6, 0.2), CFrame.new(435 + (i - 1) * 15, 2.2, 96.9), C_CYAN, Enum.Material.Neon, { CanCollide = false })
 	label(arena, c, m[2], 3.5, C_CYAN)
+end
+
+-- Test station (prototype settings) next to the launch area
+local station = Instance.new("Folder")
+station.Name = "TestStation"
+station.Parent = ROOT
+part(station, "StationFloor", Vector3.new(44, 0.4, 22), CFrame.new(515, 0.2, -112), Color3.fromRGB(31, 37, 55), Enum.Material.Metal)
+local board = part(station, "StationBoard", Vector3.new(16, 7, 0.6), CFrame.new(515, 6, -123.5), Color3.fromRGB(16, 18, 26), Enum.Material.Metal)
+CollectionService:AddTag(board, "HackStationBoard")
+do
+	local bb = Instance.new("BillboardGui")
+	bb.Name = "BoardGui"
+	bb.Size = UDim2.fromOffset(320, 120)
+	bb.StudsOffsetWorldSpace = Vector3.new(0, 1, 0)
+	bb.Adornee = board
+	bb.MaxDistance = 90
+	local t = Instance.new("TextLabel")
+	t.Name = "BoardText"
+	t.BackgroundTransparency = 0.25
+	t.BackgroundColor3 = Color3.fromRGB(10, 15, 31)
+	t.Size = UDim2.fromScale(1, 1)
+	t.Font = Enum.Font.GothamBold
+	t.TextSize = 13
+	t.TextColor3 = Color3.fromRGB(0, 225, 255)
+	t.Text = "TEST STATION"
+	t.Parent = bb
+	bb.Parent = board
+end
+local options = {
+	{ "Boots", "Starter", "Equip STARTER boots", Color3.fromRGB(0, 225, 255) },
+	{ "Boots", "Vault", "Equip VAULT boots (higher)", Color3.fromRGB(180, 140, 255) },
+	{ "Boots", "Vector", "Equip VECTOR boots (longer)", Color3.fromRGB(255, 193, 7) },
+	{ "ReactionWindow", 0.7, "Reaction window 0.7 s", Color3.fromRGB(255, 111, 97) },
+	{ "ReactionWindow", 1.0, "Reaction window 1.0 s", Color3.fromRGB(255, 111, 97) },
+	{ "ReactionWindow", 1.4, "Reaction window 1.4 s", Color3.fromRGB(255, 111, 97) },
+	{ "PerfectDeflect", 0.3, "Perfect deflect ON", Color3.fromRGB(60, 220, 140) },
+	{ "PerfectDeflect", 0, "Perfect deflect OFF", Color3.fromRGB(60, 220, 140) },
+	{ "DummyReaction", "none", "Dummies: no reaction", Color3.fromRGB(163, 172, 198) },
+	{ "DummyReaction", "shield", "Dummies: SHIELD (late)", Color3.fromRGB(163, 172, 198) },
+	{ "DummyReaction", "perfect", "Dummies: PERFECT shield", Color3.fromRGB(163, 172, 198) },
+	{ "DummyReaction", "dodge", "Dummies: DODGE (leave ring)", Color3.fromRGB(163, 172, 198) },
+	{ "ResetBoss", true, "Reset the Conductor", Color3.fromRGB(214, 38, 170) },
+}
+for i, o in options do
+	local col = (i - 1) % 7
+	local row = math.floor((i - 1) / 7)
+	local pad = part(station, "Option_" .. tostring(o[1]) .. "_" .. tostring(o[2]), Vector3.new(4, 2, 3), CFrame.new(499 + col * 5.3, 1, -108 + row * 7), o[4], Enum.Material.Neon)
+	pad.Transparency = 0.2
+	pad:SetAttribute("Setting", o[1])
+	pad:SetAttribute("Value", o[2])
+	pad:SetAttribute("Label", o[3])
+	CollectionService:AddTag(pad, "HackStationOption")
+	label(station, pad, o[3], 2.4, o[4], 30) -- close-range only: 13 pads side by side overlap from afar
+end
+
+-- PvP test area (two players can hack each other here; cover for line-of-sight tests)
+local pvp = Instance.new("Folder")
+pvp.Name = "PvPArea"
+pvp.Parent = ROOT
+local pvpFloor = part(pvp, "PvPFloor", Vector3.new(60, 0.4, 60), CFrame.new(590, 0.2, 0), Color3.fromRGB(40, 30, 48), Enum.Material.Slate)
+label(pvp, pvpFloor, "PVP TEST AREA · cover blocks line of sight · leave the ring to dodge", 4, Color3.fromRGB(255, 111, 97))
+for i, c in { { -12, -10, 8, 6 }, { 12, 8, 8, 6 }, { 0, 0, 3, 10 }, { -18, 16, 4, 8 }, { 18, -18, 4, 8 } } do
+	part(pvp, "Cover" .. i, Vector3.new(c[3], c[4], 3), CFrame.new(590 + c[1], c[4] / 2 + 0.4, c[2]) * CFrame.Angles(0, math.rad(i * 33), 0), C_PAD, Enum.Material.Concrete)
 end
 
 -- WORLD_EXE containers for the unchanged game bootstrap

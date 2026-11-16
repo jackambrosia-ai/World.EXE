@@ -36,13 +36,15 @@ local UITheme = require(script.Parent:WaitForChild("UITheme"))
 local UIUtil = require(script.Parent:WaitForChild("UIUtil"))
 local CyberChip = require(script.Parent:WaitForChild("CyberChip"))
 local HackVfx = require(script.Parent:WaitForChild("HackVfx"))
+local ArrowGlyph = require(script.Parent:WaitForChild("ArrowGlyph"))
+local HackFeel = require(script.Parent:WaitForChild("HackFeel"))
 
 local C = UITheme.Color
 local F = UITheme.Font
 local A = HackCatalog.Attr
 local T = HackCatalog.Tuning
 
-local ARROW: { [string]: string } = { U = "▲", D = "▼", L = "◀", R = "▶" }
+
 local KEY_DIR: { [Enum.KeyCode]: string } = {
 	[Enum.KeyCode.Up] = "U", [Enum.KeyCode.Down] = "D", [Enum.KeyCode.Left] = "L", [Enum.KeyCode.Right] = "R",
 	[Enum.KeyCode.DPadUp] = "U", [Enum.KeyCode.DPadDown] = "D", [Enum.KeyCode.DPadLeft] = "L", [Enum.KeyCode.DPadRight] = "R",
@@ -168,8 +170,10 @@ function HackController.Start()
 	local chal = UIUtil.create("Frame", { Name = "Challenge", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2, Visible = false }, panel)
 	UIUtil.list(chal, Enum.FillDirection.Vertical, 6)
 	local chalTitle = UIUtil.text("Title", chal, "", 12, C.Amber, F.Label, { LayoutOrder = 1, AutomaticSize = Enum.AutomaticSize.Y, Size = UDim2.new(1, 0, 0, 0), TextWrapped = true })
-	local arrowRow = UIUtil.create("Frame", { Name = "Arrows", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 40), LayoutOrder = 2 }, chal)
+	local arrowRow = UIUtil.create("Frame", { Name = "Arrows", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 64), LayoutOrder = 2 }, chal) -- tall enough for the current arrow's direction word
 	UIUtil.list(arrowRow, Enum.FillDirection.Horizontal, 4, Enum.HorizontalAlignment.Center)
+	local arrowRowList = arrowRow:FindFirstChildOfClass("UIListLayout") :: UIListLayout
+	arrowRowList.VerticalAlignment = Enum.VerticalAlignment.Top
 	local track = UIUtil.create("Frame", { Name = "SignalTrack", BackgroundColor3 = C.Charcoal, Size = UDim2.new(1, 0, 0, 44), LayoutOrder = 3, Visible = false, ClipsDescendants = true }, chal)
 	UIUtil.corner(track, 4)
 	local zone = UIUtil.create("Frame", { Name = "LockZone", BackgroundColor3 = C.Cyan, BackgroundTransparency = 0.7, BorderSizePixel = 0, Size = UDim2.new(0, 20, 1, 0), Position = UDim2.fromScale(0.15, 0), AnchorPoint = Vector2.new(0.5, 0) }, track)
@@ -205,7 +209,7 @@ function HackController.Start()
 	local candidates: { Candidate } = {}
 	local pickedTarget: string? = nil -- user's explicit pick (sticky while valid)
 	local currentTarget: Candidate? = nil
-	local challenge: { token: number, hackId: string, snap: { [string]: any }, recv: number }? = nil
+	local challenge: { token: number, hackId: string, snap: { [string]: any }, recv: number, n: number }? = nil
 	local frozenUntil = 0
 	local architectOpen = false
 	local targetMarker: Highlight? = nil
@@ -563,15 +567,17 @@ function HackController.Start()
 
 	-----------------------------------------------------------------------------------------------
 	-- Challenge view
-	local arrowLabels: { TextLabel } = {}
-	local signalLabels: { TextLabel } = {}
+	local arrowGlyphs: { ArrowGlyph.Glyph } = {}
+	local signalLabels: { Frame } = {}
 	local padButtons: { TextButton } = {}
+	local currentGlyph: ArrowGlyph.Glyph? = nil
 
 	local function sendDir(dir: string)
 		if not challenge then
 			return
 		end
-		request:FireServer({ op = "input", token = challenge.token, dir = dir, t = nowT() })
+		challenge.n += 1 -- replay protection: strictly increasing per challenge
+		request:FireServer({ op = "input", token = challenge.token, dir = dir, t = nowT(), n = challenge.n })
 		-- immediate local press feedback on the pad
 		for _, b in padButtons do
 			if b:GetAttribute("Dir") == dir then
@@ -583,11 +589,15 @@ function HackController.Start()
 		end
 	end
 
-	for _, d in { "L", "U", "D", "R" } do
-		local b = UIUtil.create("TextButton", { Name = "Pad" .. d, Size = UDim2.fromOffset(56, 52), BackgroundColor3 = C.Surface2, Text = ARROW[d], TextSize = 24, Font = F.Title, TextColor3 = C.Cyan, AutoButtonColor = false, Selectable = false }, pad) :: TextButton
+	for i, d in { "L", "U", "D", "R" } do
+		local b = UIUtil.create("TextButton", { Name = "Pad" .. d, LayoutOrder = i, Size = UDim2.fromOffset(56, 52), BackgroundColor3 = C.Surface2, Text = "", AutoButtonColor = false, Selectable = false }, pad) :: TextButton
 		b:SetAttribute("Dir", d)
 		UIUtil.corner(b, 8)
 		UIUtil.stroke(b, C.Cyan, 1, 0.3)
+		local g = ArrowGlyph.new(b, d, 40)
+		g.Frame.AnchorPoint = Vector2.new(0.5, 0.5)
+		g.Frame.Position = UDim2.fromScale(0.5, 0.5)
+		g.SetState("pad")
 		b.Activated:Connect(function()
 			sendDir(d)
 		end)
@@ -602,30 +612,23 @@ function HackController.Start()
 	}
 
 	local function renderArrows(seq: { string }, index: number, chase: boolean)
-		for _, l in arrowLabels do
-			l:Destroy()
+		for _, g in arrowGlyphs do
+			g.Frame:Destroy()
 		end
-		table.clear(arrowLabels)
+		table.clear(arrowGlyphs)
+		currentGlyph = nil
 		for i, d in seq do
 			if i > 9 then
 				break
 			end
 			local done = (not chase) and i < index
 			local current = if chase then i == 1 else i == index
-			local l = UIUtil.create("TextLabel", {
-				Name = "A" .. i,
-				LayoutOrder = i,
-				Size = UDim2.fromOffset(if current then 40 else 32, if current then 40 else 32),
-				BackgroundColor3 = if current then C.Surface2 else C.Charcoal,
-				Text = ARROW[d] or "?",
-				TextSize = if current then 30 else 22,
-				Font = F.Title,
-				TextColor3 = if done then C.Green elseif current then C.Cyan else C.Muted,
-				TextTransparency = if done then 0.4 else 0,
-			}, arrowRow) :: TextLabel
-			UIUtil.corner(l, 5)
-			UIUtil.stroke(l, if current then C.Cyan elseif done then C.Green else C.Steel, if current then 2 else 1)
-			table.insert(arrowLabels, l)
+			local g = ArrowGlyph.new(arrowRow, d, if current then 44 else 34, i, current)
+			g.SetState(if current then "current" elseif done then "done" else "upcoming")
+			if current then
+				currentGlyph = g
+			end
+			table.insert(arrowGlyphs, g)
 		end
 	end
 
@@ -653,20 +656,12 @@ function HackController.Start()
 			end
 			table.clear(signalLabels)
 			for i, sig in snap.signals do
-				local l = UIUtil.create("TextLabel", {
-					Name = "S" .. i,
-					AnchorPoint = Vector2.new(0.5, 0.5),
-					Size = UDim2.fromOffset(30, 30),
-					BackgroundColor3 = C.Surface2,
-					Text = ARROW[sig.d] or "?",
-					TextSize = 18,
-					Font = F.Title,
-					TextColor3 = if sig.state == "locked" then C.Green elseif sig.state == "missed" then C.Coral else C.Cyan,
-				}, track) :: TextLabel
-				UIUtil.corner(l, 5)
-				l:SetAttribute("T", sig.t)
-				l:SetAttribute("State", sig.state)
-				table.insert(signalLabels, l)
+				local g = ArrowGlyph.new(track, sig.d, 34, i)
+				g.Frame.AnchorPoint = Vector2.new(0.5, 0.5)
+				g.SetState(if sig.state == "locked" then "locked" elseif sig.state == "missed" then "missed" else "upcoming")
+				g.Frame:SetAttribute("T", sig.t)
+				g.Frame:SetAttribute("State", sig.state)
+				table.insert(signalLabels, g.Frame)
 			end
 		end
 		local misses = snap.misses or 0
@@ -882,6 +877,146 @@ function HackController.Start()
 	applyLayout()
 
 	-----------------------------------------------------------------------------------------------
+	-- Incoming targeted hack (directive section 7): banner + directional attacker indicator +
+	-- quick SHIELD (C / R1 / touch button). Self hacks never produce this warning.
+	local OUTCOME_TEXT: { [string]: { string } } = { -- { attacker view, defender view }
+		hit = { "HACK LANDED", "HIT" },
+		deflected = { "DEFLECTED", "DEFLECTED" },
+		perfect = { "PERFECT DEFLECT", "PERFECT DEFLECT · shield cooldown refunded" },
+		evaded_cover = { "TARGET BROKE LINE OF SIGHT", "EVADED · line of sight broken" },
+		evaded_dodge = { "TARGET DODGED", "EVADED · left the ring" },
+		lost = { "HACK FIZZLED", "HACK FIZZLED" },
+	}
+	local QUICK_ACTION = "WORLD_EXE_HackQuickShield"
+	local incomingUi = UIUtil.create("Frame", { Name = "Incoming", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Visible = false }, root) :: Frame
+	local incBanner = UIUtil.create("Frame", {
+		Name = "IncomingBanner", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 64), Size = UDim2.fromOffset(440, 0),
+		AutomaticSize = Enum.AutomaticSize.Y, BackgroundColor3 = C.Navy, BackgroundTransparency = 0.1, BorderSizePixel = 0,
+	}, incomingUi) :: Frame
+	UIUtil.corner(incBanner, 10)
+	UIUtil.stroke(incBanner, C.Coral, 2)
+	local incList = Instance.new("UIListLayout")
+	incList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	incList.Padding = UDim.new(0, 4)
+	incList.SortOrder = Enum.SortOrder.LayoutOrder
+	incList.Parent = incBanner
+	local incPad = Instance.new("UIPadding")
+	incPad.PaddingTop, incPad.PaddingBottom, incPad.PaddingLeft, incPad.PaddingRight = UDim.new(0, 8), UDim.new(0, 8), UDim.new(0, 10), UDim.new(0, 10)
+	incPad.Parent = incBanner
+	local incTitle = UIUtil.text("Title", incBanner, "⚠ INCOMING HACK", 22, C.Coral, F.Display, { LayoutOrder = 1, AutomaticSize = Enum.AutomaticSize.XY })
+	local incHint = UIUtil.text("Hint", incBanner, "", 14, C.Text, F.Label, { LayoutOrder = 2, AutomaticSize = Enum.AutomaticSize.XY })
+	local incTrack = UIUtil.create("Frame", { Name = "Window", LayoutOrder = 3, Size = UDim2.new(1, 0, 0, 6), BackgroundColor3 = C.Charcoal, BorderSizePixel = 0 }, incBanner) :: Frame
+	local incFill = UIUtil.create("Frame", { Name = "Fill", Size = UDim2.fromScale(1, 1), BackgroundColor3 = C.Coral, BorderSizePixel = 0 }, incTrack) :: Frame
+	local quickShield = UIUtil.create("TextButton", {
+		Name = "QuickShield", LayoutOrder = 4, Size = UDim2.fromOffset(170, 40), BackgroundColor3 = C.Surface2,
+		Text = "◈ SHIELD", TextColor3 = C.Green, Font = F.Title, TextSize = 18, AutoButtonColor = true, Visible = false,
+	}, incBanner) :: TextButton
+	UIUtil.corner(quickShield, 8)
+	UIUtil.stroke(quickShield, C.Green, 2)
+	local pointer = ArrowGlyph.new(incomingUi, "R", 54)
+	pointer.Frame.Name = "AttackerPointer"
+	pointer.Frame.AnchorPoint = Vector2.new(0.5, 0.5)
+	pointer.SetState("wrong")
+	local pointerLabel = UIUtil.text("AttackerLabel", incomingUi, "", 13, C.Coral, F.Label, { AnchorPoint = Vector2.new(0.5, 0.5), AutomaticSize = Enum.AutomaticSize.XY, TextStrokeTransparency = 0.3 })
+	local incoming: { id: number, attacker: Model?, resolveAt: number, startAt: number, hackId: string }? = nil
+	local incomingVfx: { [number]: () -> () } = {}
+
+	local function quickShieldNow()
+		request:FireServer({ op = "begin", hackId = "SHIELD", source = "quick" })
+	end
+	quickShield.Activated:Connect(quickShieldNow)
+
+	local function setIncoming(info: { id: number, attacker: Model?, resolveAt: number, startAt: number, hackId: string }?)
+		incoming = info
+		incomingUi.Visible = info ~= nil
+		gui:SetAttribute("IncomingId", if info then info.id else nil)
+		if info then
+			local def = HackCatalog.Get(info.hackId)
+			incTitle.Text = "⚠ INCOMING " .. (if def then string.upper(def.DisplayName) else info.hackId)
+			incHint.Text = if touch then "SHIELD · break line of sight · leave the ring" else "[C] SHIELD · break line of sight behind cover · leave the ring"
+			quickShield.Visible = touch
+			incBanner.Size = UDim2.fromOffset(if touch then 330 else 440, 0)
+			incBanner.Position = UDim2.new(0.5, 0, 0, if touch then 40 else 64)
+			incTitle.TextSize = if touch then 18 else 22
+			incHint.TextSize = if touch then 12 else 14
+			ContextActionService:BindActionAtPriority(QUICK_ACTION, function(_, st: Enum.UserInputState)
+				if st == Enum.UserInputState.Begin then
+					quickShieldNow()
+				end
+				return Enum.ContextActionResult.Sink
+			end, false, Enum.ContextActionPriority.High.Value + 10, Enum.KeyCode.C, Enum.KeyCode.ButtonR1)
+		else
+			ContextActionService:UnbindAction(QUICK_ACTION)
+		end
+	end
+
+	RunService.RenderStepped:Connect(function()
+		local inc = incoming
+		if not inc then
+			return
+		end
+		local t = nowT()
+		incFill.Size = UDim2.fromScale(math.clamp((inc.resolveAt - t) / math.max(0.1, inc.resolveAt - inc.startAt), 0, 1), 1)
+		local cam = workspace.CurrentCamera
+		local aRoot = inc.attacker and inc.attacker:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if not cam or not aRoot then
+			pointer.Frame.Visible = false
+			pointerLabel.Visible = false
+			return
+		end
+		-- screen-space direction to the attacker: right = camera right, up = camera forward (flattened)
+		local rel = aRoot.Position - cam.CFrame.Position
+		local fwd = Vector3.new(cam.CFrame.LookVector.X, 0, cam.CFrame.LookVector.Z)
+		fwd = if fwd.Magnitude > 1e-3 then fwd.Unit else Vector3.zAxis
+		local x, y = rel:Dot(cam.CFrame.RightVector), rel:Dot(fwd)
+		local ang = math.atan2(-y, x) -- UI y grows downward
+		local vp = root.AbsoluteSize
+		local r = math.min(vp.X, vp.Y) * 0.36
+		local px, py = vp.X / 2 + math.cos(ang) * r, vp.Y / 2 + math.sin(ang) * r
+		-- never draw the pointer over the banner (short touch screens put the ring top under it)
+		local bPos, bSize = incBanner.AbsolutePosition - root.AbsolutePosition, incBanner.AbsoluteSize
+		if py < bPos.Y + bSize.Y + 34 and px > bPos.X - 34 and px < bPos.X + bSize.X + 34 then
+			py = bPos.Y + bSize.Y + 34
+		end
+		pointer.Frame.Visible = true
+		pointer.Frame.Position = UDim2.fromOffset(px, py)
+		pointer.Frame.Rotation = math.deg(ang)
+		pointerLabel.Visible = true
+		pointerLabel.Text = string.format("%s · %d studs", (inc.attacker :: Model).Name, math.floor(rel.Magnitude + 0.5))
+		pointerLabel.Position = UDim2.fromOffset(px, py + 44) -- under the arrow, never on it
+	end)
+
+	local lastSnap: { token: number, index: number, misses: number, cleared: number, locks: number }? = nil
+	local function diffSnapshot(token: number, snap: { [string]: any })
+		local cur = { token = token, index = snap.index or 0, misses = snap.misses or 0, cleared = snap.cleared or 0, locks = snap.locks or 0 }
+		local prev = lastSnap
+		lastSnap = cur
+		if not prev or prev.token ~= token then
+			return
+		end
+		if cur.misses > prev.misses then
+			HackFeel.Cue("wrong")
+			local g = currentGlyph
+			if g then
+				g.SetState("wrong")
+				g.Shake()
+				task.delay(0.22, function()
+					if currentGlyph == g then
+						g.SetState("current")
+					end
+				end)
+			end
+			gui:SetAttribute("LastInputFeedback", "wrong")
+		elseif cur.index > prev.index or cur.cleared > prev.cleared or cur.locks > prev.locks then
+			HackFeel.Cue("tick")
+			if currentGlyph then
+				currentGlyph.Pulse()
+			end
+			gui:SetAttribute("LastInputFeedback", "correct")
+		end
+	end
+
+	-----------------------------------------------------------------------------------------------
 	-- Server events
 	local function showChallenge(on: boolean)
 		grid.Visible = not on
@@ -1018,6 +1153,11 @@ function HackController.Start()
 					end
 				end)
 			end
+			if data.ok and data.reason == "applied" then
+				HackFeel.Cue(if id == "FLING_SELF" then "launch" else "hit")
+			elseif not data.ok and data.reason ~= "success" then
+				HackFeel.Cue("failed")
+			end
 			if data.ok then
 				setInfo("✓ " .. (data.text or "Executed."), C.Green)
 			else
@@ -1028,13 +1168,27 @@ function HackController.Start()
 			end
 			renderChips()
 		elseif op == "challenge" then
-			challenge = { token = data.token, hackId = data.hackId, snap = data.snap, recv = os.clock() }
+			local sameToken = challenge ~= nil and challenge.token == data.token
+			if not sameToken then
+				setInfo("") -- a new challenge clears the previous attempt's result line
+			end
+			challenge = { token = data.token, hackId = data.hackId, snap = data.snap, recv = os.clock(), n = if sameToken and challenge then challenge.n else 0 }
 			showChallenge(true)
 			renderChallengeStatic()
+			diffSnapshot(data.token, data.snap)
 		elseif op == "challenge_end" then
 			if challenge and challenge.token == data.token then
 				challenge = nil
 			end
+			lastSnap = nil
+			if data.result == "success" then
+				HackFeel.Cue("sequence")
+				HackFeel.Popup("SEQUENCE COMPLETE", C.Cyan)
+			else
+				HackFeel.Cue("failed")
+				HackFeel.Popup(string.upper(REASON[data.result] or tostring(data.result)), C.Coral)
+			end
+			gui:SetAttribute("LastChallengeEnd", data.result)
 			showChallenge(false)
 			pending = nil
 			renderChips()
@@ -1053,6 +1207,68 @@ function HackController.Start()
 			if data.kind == "launch" and typeof(data.pos) == "Vector3" then
 				HackVfx.Launch(if typeof(data.model) == "Instance" and data.model:IsA("Model") then data.model else nil, data.pos, tonumber(data.scale) or 1)
 			end
+		elseif op == "incoming" then
+			local tgt = data.target
+			local atk = if typeof(data.attacker) == "Instance" and data.attacker:IsA("Model") then data.attacker else nil
+			if typeof(tgt) == "Instance" and tgt:IsA("Model") and typeof(data.center) == "Vector3" then
+				local id = tonumber(data.id) or 0
+				incomingVfx[id] = HackVfx.Incoming(atk, tgt, data.center, tonumber(data.radius) or 9, tonumber(data.startAt) or nowT(), tonumber(data.resolveAt) or nowT() + 1, tostring(data.hackId))
+				task.delay(6, function() -- safety cleanup if the result never arrives
+					local f = incomingVfx[id]
+					if f then
+						incomingVfx[id] = nil
+						f()
+					end
+					if incoming and incoming.id == id then
+						setIncoming(nil)
+					end
+				end)
+				if tgt == player.Character then
+					HackFeel.Cue("incoming")
+					setIncoming({ id = id, attacker = atk, resolveAt = tonumber(data.resolveAt) or nowT() + 1, startAt = tonumber(data.startAt) or nowT(), hackId = tostring(data.hackId) })
+				end
+			end
+		elseif op == "incoming_result" then
+			local id = tonumber(data.id) or 0
+			local f = incomingVfx[id]
+			if f then
+				incomingVfx[id] = nil
+				f()
+			end
+			if incoming and incoming.id == id then
+				setIncoming(nil)
+			end
+			if (data.outcome == "deflected" or data.outcome == "perfect") and typeof(data.target) == "Instance" and data.target:IsA("Model") then
+				HackVfx.Deflect(data.target, data.outcome == "perfect")
+			end
+		elseif op == "hack_outcome" then
+			local o = tostring(data.outcome)
+			local defender = data.role == "defender"
+			local txt = OUTCOME_TEXT[o]
+			local label = if txt then txt[if defender then 2 else 1] else string.upper(o)
+			local good = if defender then o ~= "hit" else o == "hit"
+			local cue = if o == "perfect" then "perfect" elseif o == "deflected" then "deflect" elseif o == "evaded_cover" or o == "evaded_dodge" then "evaded" elseif o == "hit" then (if defender then "failed" else "hit") else "failed"
+			HackFeel.Cue(cue)
+			HackFeel.Popup(label, if good then (if o == "perfect" then C.Text else C.Green) else C.Coral, o == "perfect")
+			setInfo(label, if good then C.Green else C.Coral)
+			gui:SetAttribute("LastOutcome", (if defender then "defender:" else "attacker:") .. o)
+		elseif op == "boss" then
+			local ev = tostring(data.event)
+			if ev == "engaged" then
+				HackFeel.Popup("CONDUCTOR ENGAGED", C.Amber)
+			elseif ev == "defeated" then
+				HackFeel.Cue("perfect")
+				HackFeel.Popup(string.format("CONDUCTOR OFFLINE · %.0fs", tonumber(data.seconds) or 0), C.Green, true)
+			elseif ev == "failed" and data.userId == player.UserId then
+				HackFeel.Cue("failed")
+				HackFeel.Popup("DOWNED · leave and return to retry", C.Coral)
+			elseif ev == "reset" then
+				HackFeel.Popup("CONDUCTOR RESET", C.Muted)
+			end
+			gui:SetAttribute("LastBossEvent", ev)
+		elseif op == "station" then
+			HackFeel.Popup(tostring(data.text), C.Cyan)
+			setInfo(tostring(data.text), C.Cyan)
 		elseif op == "frozen" then
 			frozenUntil = if data.on then nowT() + (tonumber(data.seconds) or 3) else 0
 			if data.on then

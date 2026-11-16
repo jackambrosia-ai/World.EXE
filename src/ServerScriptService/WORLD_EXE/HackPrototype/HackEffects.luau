@@ -76,9 +76,18 @@ function HackEffects.FlingSelf(player: Player, dirHint: any): (boolean, string?)
 	end
 	dir = dir or horizontal(hum.MoveDirection) or horizontal(root.CFrame.LookVector)
 	local tune = HackCatalog.Tune
-	local v = (dir :: Vector3) * tune("FlingSelf", "Forward") + Vector3.new(0, tune("FlingSelf", "Up"), 0)
-	send(player, { op = "fling_self", v = v, steer = tune("FlingSelf", "SteerSpeed"), minAir = tune("FlingSelf", "MinAirSeconds"), maxT = tune("FlingSelf", "MaxFlightSeconds"), blocked = tune("FlingSelf", "BlockedSpeedFraction"),
-		turn = tune("FlingSelf", "TurnRate"), brake = tune("FlingSelf", "BrakeRate"), fallCap = tune("FlingSelf", "MaxFallSpeed"), glideCap = tune("FlingSelf", "GlideFallSpeed") })
+	-- Cyberware boots profile (Starter default). A live HackTune_FlingSelf_* attribute still overrides.
+	local boots = (HackCatalog.Boots :: any)[player:GetAttribute(A.Boots) or "Starter"] or (HackCatalog.Boots :: any).Starter
+	local function pick(key: string): number
+		local live = workspace:GetAttribute("HackTune_FlingSelf_" .. key)
+		if typeof(live) == "number" then
+			return live
+		end
+		return boots[key] or tune("FlingSelf", key)
+	end
+	local v = (dir :: Vector3) * pick("Forward") + Vector3.new(0, pick("Up"), 0)
+	send(player, { op = "fling_self", v = v, steer = pick("SteerSpeed"), minAir = tune("FlingSelf", "MinAirSeconds"), maxT = tune("FlingSelf", "MaxFlightSeconds"), blocked = tune("FlingSelf", "BlockedSpeedFraction"),
+		turn = pick("TurnRate"), brake = tune("FlingSelf", "BrakeRate"), fallCap = tune("FlingSelf", "MaxFallSpeed"), glideCap = tune("FlingSelf", "GlideFallSpeed") })
 	broadcast({ op = "vfx", kind = "launch", model = character, pos = root.Position, scale = 1 })
 	return true, nil
 end
@@ -419,8 +428,67 @@ local function endShield(player: Player, serial: number?)
 		s.bubble:Destroy()
 	end
 	player:SetAttribute(A.ShieldUntil, nil)
+	player:SetAttribute(A.ShieldStart, nil)
 end
 HackEffects.EndShield = endShield
+
+-- NPC shield (test-station dummy reactions): same bubble, model attributes instead of player ones.
+function HackEffects.ShieldModel(model: Model, seconds: number): boolean
+	local root = model:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root or (model:GetAttribute(A.NpcShieldUntil) or 0) > now() then
+		return false
+	end
+	local bubble = Instance.new("Part")
+	bubble.Name = "HackShieldBubble"
+	bubble.Shape = Enum.PartType.Ball
+	bubble.Size = Vector3.new(9, 9, 9)
+	bubble.Material = Enum.Material.ForceField
+	bubble.Color = Color3.fromRGB(60, 220, 140)
+	bubble.CanCollide = false
+	bubble.CanTouch = false
+	bubble.CanQuery = false
+	bubble.Massless = true
+	bubble.CastShadow = false
+	bubble.CFrame = root.CFrame
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = bubble
+	weld.Part1 = root
+	weld.Parent = bubble
+	bubble.Parent = model
+	model:SetAttribute(A.NpcShieldUntil, now() + seconds)
+	model:SetAttribute(A.NpcShieldStart, now())
+	task.delay(seconds, function()
+		bubble:Destroy()
+		model:SetAttribute(A.NpcShieldUntil, nil)
+		model:SetAttribute(A.NpcShieldStart, nil)
+	end)
+	return true
+end
+
+-- Shield state of any target model: (active, raised-at server time).
+function HackEffects.ModelShieldInfo(model: Model): (boolean, number?)
+	local player = Players:GetPlayerFromCharacter(model)
+	local t = now()
+	if player then
+		local u = player:GetAttribute(A.ShieldUntil)
+		return typeof(u) == "number" and u > t, player:GetAttribute(A.ShieldStart)
+	end
+	local u = model:GetAttribute(A.NpcShieldUntil)
+	return typeof(u) == "number" and u > t, model:GetAttribute(A.NpcShieldStart)
+end
+
+-- Deflection flash on any shielded model (server side; clients also draw a burst).
+function HackEffects.ShieldFlash(model: Model)
+	local b = model:FindFirstChild("HackShieldBubble")
+	if b and b:IsA("BasePart") then
+		b.Color = Color3.fromRGB(245, 247, 255)
+		task.delay(0.2, function()
+			if b.Parent then
+				b.Color = Color3.fromRGB(60, 220, 140)
+			end
+		end)
+	end
+end
 
 function HackEffects.Shield(player: Player): (boolean, string?)
 	if shields[player] or HackEffects.HasShield(player) then
@@ -454,6 +522,7 @@ function HackEffects.Shield(player: Player): (boolean, string?)
 	local s: ShieldState = { bubble = bubble, serial = shieldSerial, endsAt = now() + seconds }
 	shields[player] = s
 	player:SetAttribute(A.ShieldUntil, s.endsAt)
+	player:SetAttribute(A.ShieldStart, now())
 	local serial = s.serial
 	task.delay(seconds, function()
 		endShield(player, serial)

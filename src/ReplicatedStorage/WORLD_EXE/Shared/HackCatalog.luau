@@ -33,6 +33,10 @@ HackCatalog.BossTag = "HackBoss"
 HackCatalog.Attr = table.freeze({
 	ReadyPrefix = "WORLD_EXE_HackReady_", -- + hack id = server time the hack is ready again
 	ShieldUntil = "WORLD_EXE_HackShieldUntil", -- on the Player
+	ShieldStart = "WORLD_EXE_HackShieldStart", -- on the Player (perfect-deflect timing)
+	Boots = "WORLD_EXE_Boots", -- on the Player: cyberware boots profile id
+	NpcShieldUntil = "HackNpcShieldUntil", -- on NPC models (test-station reactions)
+	NpcShieldStart = "HackNpcShieldStart",
 	FrozenUntil = "HackFrozenUntil", -- on the target character / NPC model
 	RagdollUntil = "HackRagdollUntil",
 	FreezeImmuneUntil = "HackFreezeImmuneUntil",
@@ -118,10 +122,30 @@ HackCatalog.Tuning = table.freeze({
 		Seconds = 6, -- owner setting
 		Cooldown = 12, -- starts at activation, so no refresh is possible while active
 	}),
+	-- Targeted-hack warning and counterplay (owner directive 2026-11-16, section 7). Defences are checked
+	-- in this order when the window ends: SHIELD active (deflect; perfect if raised in the last
+	-- PerfectWindow seconds) -> line of sight blocked by cover (evaded) -> target outside the impact
+	-- ring (dodged) -> the hack lands.
+	Incoming = table.freeze({
+		ReactionWindow = 1.0, -- seconds between the warning and the resolution
+		LatencyGrace = 0.12, -- extra server seconds for replicated movement / input
+		DodgeRadius = 9, -- impact ring radius (studs) around the target at warning start
+		PerfectWindow = 0.3, -- shield raised this close to resolution = perfect deflect (0 = off)
+		PerfectShieldRefund = 0.5, -- perfect deflect refunds this share of the SHIELD cooldown (modest benefit)
+	}),
 	Rate = table.freeze({ Burst = 14, PerSecond = 9 }), -- per player, all hack messages incl. arrow presses (fast players reach ~6/s; test 2026-11-16 hit 4/s)
 	RetrySeconds = 1.5, -- after a failed/cancelled challenge, the same hack waits this long
 	LineOfSight = true, -- targeted hacks need a clear line (collidable geometry blocks)
 })
+
+-- Cyberware prototype (non-persistent sidegrades, owner directive 2026-11-16 section 11). The starter kit must be
+-- strong; alternatives trade one strength for another. Selected at the test station (player attribute Boots).
+HackCatalog.Boots = table.freeze({
+	Starter = table.freeze({ Label = "STARTER IMPULSE BOOTS", Up = 90, Forward = 42, SteerSpeed = 24, TurnRate = 3.0, Note = "balanced arc, full air control" }),
+	Vault = table.freeze({ Label = "VAULT BOOTS", Up = 106, Forward = 30, SteerSpeed = 20, TurnRate = 3.0, Note = "higher, shorter" }),
+	Vector = table.freeze({ Label = "VECTOR BOOTS", Up = 74, Forward = 64, SteerSpeed = 22, TurnRate = 2.2, Note = "longer, lower, wider turns" }),
+})
+HackCatalog.BootOrder = table.freeze({ "Starter", "Vault", "Vector" })
 
 -- Live tuning overrides for prototype testing: a number attribute on Workspace named
 -- "HackTune_<Group>_<Key>" (e.g. HackTune_FlingSelf_Up = 90) replaces the default above.

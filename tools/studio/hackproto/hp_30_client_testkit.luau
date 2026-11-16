@@ -11,7 +11,11 @@ local req, ev = remotes.HackRequest, remotes.HackEvent
 local OTHER = { U = "D", D = "U", L = "R", R = "L" }
 _G.HT = { done = true }
 local current = nil
+_G.HO = {} -- every incoming / incoming_result / hack_outcome event this client saw
 ev.OnClientEvent:Connect(function(d)
+	if d.op == "incoming" or d.op == "incoming_result" or d.op == "hack_outcome" or d.op == "boss" or d.op == "station" then
+		table.insert(_G.HO, string.format("%.2f %s %s %s", workspace:GetServerTimeNow() % 1000, d.op, tostring(d.outcome or d.event or d.hackId or d.text), tostring(d.role or "")))
+	end
 	local h = _G.HT
 	if not h or h.done then return end
 	table.insert(h.log, string.format("%.2f %s %s", os.clock() - h.t0, tostring(d.op), d.op == "result" and (tostring(d.ok) .. " " .. tostring(d.reason)) or (d.op == "challenge_end" and tostring(d.result) or "")))
@@ -49,7 +53,7 @@ _G.HackRun = function(hackId, targetId, mode, opts)
 							if wait > 0 then task.wait(wait) end
 							lastSent[i] = true
 							local d = if mode == "wrong" then OTHER[sig.d] else sig.d
-							req:FireServer({ op = "input", token = h.token, dir = d, t = workspace:GetServerTimeNow() })
+							req:FireServer({ op = "input", token = h.token, dir = d, t = workspace:GetServerTimeNow(), n = (opts.fixedN or (h.presses + 1)) })
 							h.presses += 1
 							break
 						end
@@ -61,7 +65,7 @@ _G.HackRun = function(hackId, targetId, mode, opts)
 					if nextDir then
 						local d = if mode == "wrong" then OTHER[nextDir] else nextDir
 						h.snap = nil -- wait for the server's next snapshot before pressing again
-						req:FireServer({ op = "input", token = h.token, dir = d, t = workspace:GetServerTimeNow() })
+						req:FireServer({ op = "input", token = h.token, dir = d, t = workspace:GetServerTimeNow(), n = (opts.fixedN or (h.presses + 1)) })
 						h.presses += 1
 					end
 					task.wait(delay)
