@@ -1,18 +1,19 @@
 --!strict
--- MovementController (wrist-hacking prototype, client) — Rev 15, owner-authorized 2026-11-16.
--- Executes what MovementService decides (the server owns timing and cooldowns; this client owns its
--- character's physics), and draws the speed feedback.
+-- MovementController (wrist-hacking prototype, client) — Rev 15 (owner-authorized), updated through Rev 15k.
+-- Executes what MovementService decides (the server owns timing, the skill check, charges and cooldowns;
+-- this client owns its character's physics), and draws the speed feedback.
 --
+-- Controls (Rev 15j/15k owner design): Q = grounded dash + a skill check (a marker sweeps a bar; Q inside
+-- the narrow random zone fills one of two diamond containers); Q while the dash is cooling (6 s) spends a
+-- diamond on ~1 s steerable super-speed.
 -- Reference mapping (private, SHA-256-verified owner videos; original WORLD.EXE interpretations):
---   MOV-03 fast baseline run  -> Humanoid.WalkSpeed raised server-side; subtle foot streaks, sparse
---                                foot dust and a +3° FOV only when actually running fast.
---   MOV-04 grounded dash      -> first Q: ~0.17 s horizontal-only burst in the WASD (camera-relative)
---                                direction, short dust puffs at the feet; vertical position untouched.
---   MOV-02 steerable ~1 s burst, translucent blue-violet afterimage chain, dust, speed lines, drain
---                                gauge -> second Q: super-speed with full steering (turn rate 14 rad/s),
---                                pooled violet afterimages, violet streaks, wind loop, small gauge.
---   MOV-01 abrupt activation, streak look, fading afterimages, quick return to normal -> instant start
---                                cue and a short ease back to the run speed at the end.
+--   MOV-03 fast baseline run  -> Humanoid.WalkSpeed raised server-side; subtle foot streaks, sparse foot
+--                                dust and a +3 degree FOV only when actually running fast (wall-run: WallRun).
+--   MOV-04 grounded dash      -> Q: horizontal-only burst in the WASD (camera-relative) direction, dust puffs.
+--   MOV-02 / MOV-05 super-speed -> steerable ~1 s burst, full-detail clone afterimages (cyan/green/violet),
+--                                screen tint, wind loop, drain gauge.
+--   MOV-01 abrupt activation, fading afterimages, quick return to normal -> instant start cue and an eased
+--                                return to the run speed at the end.
 -- Performance: afterimages and dust come from fixed pools (no per-frame Instance creation); trails
 -- are created once per character and only toggled. Reduced Effects removes afterimages, dust,
 -- trails and FOV changes; sounds and the gauge stay.

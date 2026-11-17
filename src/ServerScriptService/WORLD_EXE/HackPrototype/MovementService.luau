@@ -110,7 +110,7 @@ function MovementService.Q(player: Player, p: { [string]: any })
 		local ck = s.check :: Check
 		ck.done = true
 		local rel = t - ck.start
-		local hit = rel >= ck.zoneA - 0.02 and rel <= ck.zoneB + tune("CheckLatency")
+		local hit = rel >= ck.zoneA and rel <= ck.zoneB + tune("CheckLatency") -- Rev 15k: no early tolerance
 		if hit then
 			s.charges = math.min(s.charges + 1, math.floor(tune("SuperChargesMax")))
 			publish(player, s)

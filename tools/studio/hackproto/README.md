@@ -38,10 +38,10 @@ This is an **isolated prototype** for the owner-approved milestone of 2026-11-16
 - **Challenges (Rev 15):** use the **number keys 1–4** (Signal Lock also uses **5**), the keypad, the **D-pad** (Left/Up/Right/Down = 1/2/3/4, **Y** = 5), or tap the on-screen pad on touch. While a challenge is active, the number keys go to it rather than to the quick chips. WASD keeps moving. **Backspace** or **B** cancels.
 - **Movement (Rev 15):**
   - Run speed is 28.
-  - **Q** / **X** (gamepad) does a grounded dash (~25 studs). The dash has a 2.75 s cooldown, shown as a thin cyan bar under the gauge.
-  - **Skill check (Rev 15j):** each dash starts a timing bar under the screen centre. A marker sweeps across in 0.75 s. Press **Q** while it is inside the narrow cyan zone (0.11 s, at a random spot) to fill one of the **two diamond containers** above the bar. One attempt per dash.
+  - **Q** / **X** (gamepad) does a grounded dash (~25 studs). The dash has a 6 s cooldown, shown as a thin cyan bar under the gauge.
+  - **Skill check (Rev 15j):** each dash starts a timing bar under the screen centre. A marker sweeps across in 0.6 s. Press **Q** while it is inside the narrow cyan zone (0.07 s, at a random spot) to fill one of the **two diamond containers** above the bar. One attempt per dash.
   - **Super-speed:** press **Q** while the dash is cooling, after the skill check, to spend a filled diamond on 1 s of steerable super-speed. With no diamond you hear a soft tick.
-- **Wall-running:** while moving, press **Space** with a wall at your **side** (left or right, not in front). You run up and along it (up to 4 s). It stops at corners and wall ends. **Space** again wall-jumps off; press Space at the next wall (side-on) to catch it. Test lane: `hp_21_wallrun_lane.luau` (two walls plus a block, west of the launch area).
+- **Wall-running:** while moving, press **Space** with a wall at your **side** (left or right, not in front), or arrive at the wall already holding Space. You run up and along it (up to 4 s). It stops at corners and wall ends. **Space** again wall-jumps off, also within 0.3 s after the run ends at a wall end; press Space at the next wall (side-on) to catch it. Test lane: `hp_21_wallrun_lane.luau` (two walls plus a block, west of the launch area).
 - **FLING aiming with shift-lock / first person:** hold **W / A / D / S** (up / left / right / behind) and click. Otherwise, slide the mouse; with no input the throw goes up.
 - **Boss challenge type:** walk to a console at the boss arena entrance and use its prompt.
 - **Incoming hack (you are targeted):** a banner, a pointer toward the attacker, and a draining window. Defend with **C** / **R1** / the on-screen SHIELD button, by breaking line of sight behind cover, or by leaving the ring.

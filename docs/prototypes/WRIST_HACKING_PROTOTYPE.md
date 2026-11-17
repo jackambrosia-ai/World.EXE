@@ -1053,3 +1053,30 @@ Owner: "the wall run shouldn't be able to take you around corners. Also, regardi
 - whether 0.11 s is the right difficulty with a person's reflexes (tunable);
 - gamepad and touch;
 - two-client play.
+
+### 21.19 Rev 15k — harder skill check, 6 s dash cooldown, held-Space wall-run, end-of-wall jump (owner, 2026-11-16)
+Owner: "the skillcheck is too forgiving; if you miss the second skill and use the super dash, by the time the dash has ended, the regular dash is back on cooldown (this should not be the case …), also the wall run should be activated if the spacebar is already being held down by the time the player reaches the wall, also even at the end of the wall the player should be able to jump off from that point". Also: "6 second dash cooldown is fine".
+
+**Skill check, harder:**
+
+| Setting | Before | Now |
+|---|---|---|
+| Sweep | 0.75 s | 0.6 s |
+| Zone width | 0.11 s | **0.07 s** |
+| Late tolerance | 0.08 s | 0.04 s |
+| Early tolerance | 0.02 s | none |
+
+The zone is still at a random spot.
+
+**Dash cooldown: 6 s** (was 2.75 s), so the dash is still cooling after a super-speed. Verified: dash at +7.33, missed check, super-speed at +8.77 (ends +9.77); Q at +10.37 → "no charge (dash cooling 2.97 s)".
+
+**Wall-run:**
+- **Held Space** also starts a run: airborne, with the wall at your side, while Space is held.
+- After a run that did not end in a wall jump, Space must be released once before a held Space counts again. A held Space stays armed through wall-jump chains.
+- **End-of-wall jump:** when a run ends at the wall's end, a corner, the wall ahead or the time limit, a jump press within `EdgeJumpGrace` 0.3 s still does the full wall jump from that wall.
+
+**Verified:**
+- holding Space + W → the run started at +0.43 s; it ended at the wall end and did **not** re-latch while Space stayed held;
+- wall_end at +36.43, Space at +36.70 (0.27 s later) → wall jump from the end of the wall.
+
+**Saved place:** SHA-256 `b923d2541d6ff270788eacea34069b0525df16943640d174cc1f1ccad1c7c34b`, 65/65. Protected files 9/9 OK.

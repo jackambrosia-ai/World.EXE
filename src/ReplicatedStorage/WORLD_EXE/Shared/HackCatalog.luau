@@ -88,13 +88,13 @@ HackCatalog.Tuning = table.freeze({
 		RunSpeed = 28, -- baseline Humanoid.WalkSpeed (Roblox default 16)
 		DashSpeed = 115, -- studs/s, horizontal only (Rev 15b: owner "not substantial enough" — was 88)
 		DashSeconds = 0.3, -- ≈25-30 studs (was 0.17 s ≈ 11 studs measured; 0.24 s measured 19-21)
-		DashCooldown = 2.75, -- owner 2026-11-16 (halved twice from 11 s); super-speed is used DURING this cooldown
+		DashCooldown = 6, -- owner 2026-11-16: "6 second dash cooldown is fine" (was 2.75; the dash must not be ready again by the end of a super-speed); super-speed is used DURING this cooldown
 		-- skill check after each dash (owner: "like the one that is already there, except it should be harder")
 		CheckDelay = 0.1, -- the marker starts sweeping this long after the dash
-		CheckSweepSeconds = 0.75, -- marker crosses the whole bar in this time (old window check: 0.8 s)
-		CheckZoneSeconds = 0.11, -- target zone width in time (old check: a 0.6 s window -> much harder)
+		CheckSweepSeconds = 0.6, -- marker crosses the whole bar in this time (Rev 15k harder: was 0.75)
+		CheckZoneSeconds = 0.07, -- target zone width in time (Rev 15k owner "too forgiving": was 0.11; the first check had 0.6)
 		CheckZoneEarliest = 0.2, -- the zone starts at a random time between this and the sweep end - zone
-		CheckLatency = 0.08, -- server tolerance after the zone for network delay
+		CheckLatency = 0.04, -- server tolerance after the zone for network delay (Rev 15k: was 0.08; no early tolerance)
 		SuperChargesMax = 2, -- owner: two diamond containers
 		SuperSeconds = 1.0, -- MOV-02: ≈1 s bursts
 		SuperSpeed = 74,
@@ -124,6 +124,7 @@ HackCatalog.Tuning = table.freeze({
 		JumpOut = 40, -- wall jump: away from the wall
 		JumpUp = 50, -- wall jump: upward
 		JumpCarrySeconds = 0.5, -- the jump keeps its horizontal push this long (air control would cancel it)
+		EdgeJumpGrace = 0.3, -- Rev 15k: a jump press this soon after a run ends at the wall end / a corner still wall-jumps
 		LeanDegrees = 8, -- slight tilt away from the wall (MOV-03 runner is nearly upright)
 		ReattachDelay = 0.35, -- seconds before another wall run can start
 	}),

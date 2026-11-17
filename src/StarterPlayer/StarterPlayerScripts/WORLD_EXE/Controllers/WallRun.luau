@@ -4,7 +4,8 @@
 -- height, then drops off. Original WORLD.EXE interpretation; uses the MoveState "wallrun" owner that Rev 15
 -- reserved for it.
 --
--- Start (owner 2026-11-16): ONLY on a fresh Space / jump press, AND the wall must be at the player's SIDE
+-- Start (owner 2026-11-16): a fresh Space / jump press, OR Space already HELD while airborne when the wall
+--   comes within reach (Rev 15k; re-armed by releasing Space after a run that did not end in a wall jump), AND the wall must be at the player's SIDE
 --   (character left / right: |look . normal| <= SideFacingMaxDot). Also needed: moving (WASD / stick) at
 --   >= MinSpeed horizontally; from the ground or in the air; a near-vertical,
 --   collidable, non-character wall within Reach on the LEFT or RIGHT side, tall enough (two rays); not
@@ -14,7 +15,7 @@
 --   descent; stops climbing at the top edge), kept close to the wall, body tilted away from it, the run animation playing.
 --   The wall normal is re-read every frame, so gently curved walls are followed.
 -- Corners (Rev 15j, owner): NO corner wrapping; the run ends at a corner or the wall's end.
--- Ends: Space = wall jump (out + up + along); landing; the wall ends; letting go of the movement keys
+-- Ends: Space = wall jump (out + up + along; also within EdgeJumpGrace after the run ends at the wall's end); landing; the wall ends; letting go of the movement keys
 --   Seconds elapsed; dash / super-speed / FLING SELF taking over (MoveState). Never ragdolls.
 -- Physics stays on this (owning) client like all character movement, so others see it replicate.
 
@@ -95,6 +96,44 @@ function WallRun.Start(deps: Deps)
 		return hit
 	end
 
+	-- Rev 15k (owner): the wall jump works from the END of the wall too. When a run ends at the wall's
+	-- end / a corner / the wall ahead / the time limit, a jump press within EdgeJumpGrace still does the full
+	-- wall jump from that wall.
+	local edge: { n: Vector3, t: Vector3, speed: number, hrp: BasePart, hum: Humanoid, untilT: number }? = nil
+	-- Rev 15k (owner): holding Space when reaching a wall starts the run too. After a run ends WITHOUT a wall
+	-- jump, a held Space only counts again once it has been released (no endless re-latching onto the same
+	-- wall); a wall jump keeps it armed so you can hold Space through a wall-to-wall chain.
+	local heldArmed = true
+
+	local function wallJump(hrp: BasePart, hum: Humanoid, n: Vector3, t: Vector3, speed: number)
+		local flatV = n * tune("JumpOut") + t * (speed * 0.75)
+		hrp.AssemblyLinearVelocity = flatV + Vector3.new(0, tune("JumpUp"), 0)
+		hum:ChangeState(Enum.HumanoidStateType.Jumping)
+		MoveState.Release("wallrun")
+		if MoveState.Claim("walljump") then
+			local att = Instance.new("Attachment")
+			att.Name = "WallJumpAttachment"
+			att.Parent = hrp
+			local lv = Instance.new("LinearVelocity")
+			lv.Name = "WallJumpCarry"
+			lv.Attachment0 = att
+			lv.RelativeTo = Enum.ActuatorRelativeTo.World
+			lv.VelocityConstraintMode = Enum.VelocityConstraintMode.Plane -- horizontal only; gravity arcs it
+			lv.PrimaryTangentAxis = Vector3.xAxis
+			lv.SecondaryTangentAxis = Vector3.zAxis
+			lv.ForceLimitMode = Enum.ForceLimitMode.Magnitude
+			lv.MaxForce = hrp.AssemblyMass * 3000
+			lv.PlaneVelocity = Vector2.new(flatV.X, flatV.Z)
+			lv.Parent = hrp
+			carry = { lv = lv, att = att, untilT = os.clock() + tune("JumpCarrySeconds"), hum = hum }
+		end
+		heldArmed = true
+		lastEnd = os.clock()
+		if deps.onEnd then
+			deps.onEnd("jump")
+		end
+	end
+
 	local function finish(how: string)
 		local r = run
 		if not r then
@@ -113,28 +152,13 @@ function WallRun.Start(deps: Deps)
 		end
 		local v = r.hrp.AssemblyLinearVelocity
 		if how == "jump" then
-			local flatV = r.n * tune("JumpOut") + r.t * (r.speed * 0.75)
-			r.hrp.AssemblyLinearVelocity = flatV + Vector3.new(0, tune("JumpUp"), 0)
-			r.hum:ChangeState(Enum.HumanoidStateType.Jumping)
 			MoveState.Release("wallrun")
-			if MoveState.Claim("walljump") then
-				local att = Instance.new("Attachment")
-				att.Name = "WallJumpAttachment"
-				att.Parent = r.hrp
-				local lv = Instance.new("LinearVelocity")
-				lv.Name = "WallJumpCarry"
-				lv.Attachment0 = att
-				lv.RelativeTo = Enum.ActuatorRelativeTo.World
-				lv.VelocityConstraintMode = Enum.VelocityConstraintMode.Plane -- horizontal only; gravity arcs it
-				lv.PrimaryTangentAxis = Vector3.xAxis
-				lv.SecondaryTangentAxis = Vector3.zAxis
-				lv.ForceLimitMode = Enum.ForceLimitMode.Magnitude
-				lv.MaxForce = r.hrp.AssemblyMass * 3000
-				lv.PlaneVelocity = Vector2.new(flatV.X, flatV.Z)
-				lv.Parent = r.hrp
-				carry = { lv = lv, att = att, untilT = os.clock() + tune("JumpCarrySeconds"), hum = r.hum }
-			end
+			wallJump(r.hrp, r.hum, r.n, r.t, r.speed)
 		elseif how ~= "taken" then
+			heldArmed = false -- release Space before a held Space starts another run
+			if how == "wall_end" or how == "corner" or how == "wall_ahead" or how == "timeout" then
+				edge = { n = r.n, t = r.t, speed = r.speed, hrp = r.hrp, hum = r.hum, untilT = os.clock() + tune("EdgeJumpGrace") }
+			end
 			-- keep the momentum along the wall, drop the wall-stick component
 			r.hrp.AssemblyLinearVelocity = r.t * r.speed * 0.9 + Vector3.new(0, math.min(v.Y, 6), 0) + r.n * 4
 		end
@@ -146,7 +170,7 @@ function WallRun.Start(deps: Deps)
 				Vector3.new(p.X - r.startPos.X, 0, p.Z - r.startPos.Z).Magnitude, p.Y - r.startPos.Y, r.corners))
 			c:SetAttribute("WORLD_EXE_WallRunning", nil)
 		end
-		if deps.onEnd then
+		if deps.onEnd and how ~= "jump" then
 			deps.onEnd(how)
 		end
 	end
@@ -346,6 +370,12 @@ function WallRun.Start(deps: Deps)
 			end
 			return
 		end
+		local e = edge
+		if e and now <= e.untilT and e.hrp.Parent and e.hum.Health > 0 then
+			edge = nil
+			wallJump(e.hrp, e.hum, e.n, e.t, e.speed) -- jump off from the end of the wall
+			return
+		end
 		local c = player.Character
 		local hrp = c and c:FindFirstChild("HumanoidRootPart") :: BasePart?
 		local hum = c and c:FindFirstChildOfClass("Humanoid")
@@ -370,6 +400,14 @@ function WallRun.Start(deps: Deps)
 		end
 		if run then
 			step(run :: Run, c)
+		else
+			-- Rev 15k: Space already held when reaching a wall (side-on) starts the run as well
+			local held = hum.Jump or UserInputService:IsKeyDown(Enum.KeyCode.Space)
+			if not held then
+				heldArmed = true
+			elseif heldArmed and hum.FloorMaterial == Enum.Material.Air then
+				tryStart(c, hrp, hum)
+			end
 		end
 	end)
 
