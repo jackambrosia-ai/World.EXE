@@ -819,3 +819,29 @@ The owner said: "the regular dash is not substantial enough to affect gameplay a
 - how other players see the loose limbs (two-client);
 - FLING TARGET on a player using the AnimationConstraint rig;
 - the 0.30 s dash distance (only 0.24 s was measured).
+
+### 21.11 Rev 15c — everyone is forced to R6 (owner, 2026-11-16)
+Owner: "make the game force R6 for everyone".
+- **How:**
+  - `Config.ForceR6 = true`.
+  - `ForceR6.server.luau` puts an R6 rig in `StarterPlayer` as `StarterCharacter`, so every spawn (the engine auto-load and `PlayerStateService` LoadCharacter) is R6. The prototype place also has it saved.
+  - Each player's own avatar description is applied to the R6 body with `ApplyDescription`, because the engine does not dress a StarterCharacter: the first test gave a bare R6 body.
+  - A character that spawned R15 before the rig existed is reloaded once.
+- **Publishing note (owner action, not done here):** also set Game Settings > Avatar > Avatar Type = **R6** on the published experience. `StarterPlayer.GameSettingsAvatar` cannot be set from scripts, and nothing was published.
+- **Results (solo Studio, owner's avatar):**
+  - rig R6 (Head, Torso, arms, legs);
+  - the player's own accessories (4), shirt, pants and face applied;
+  - wrist device on the left arm; run speed 28.
+- **FLING SELF on R6:**
+  - 4 Motor6Ds (shoulders and hips) go loose;
+  - arm swing up to 82°, a clearer flop than R15's 20°;
+  - upright 1.00; flight 20.5 high, 39.2 forward, 0.92 s;
+  - joints restored; landing impact fired.
+- **Dash (final 0.30 s):** 27.0 studs, top speed 115, dy 0.00. **Super-speed:** 71.1 studs in 1.00 s.
+- **FLING TARGET on Dummy-A:** unchanged (side throw, 3.00 s, settled).
+- **Saved place:** SHA-256 `1ef4e97be998e5834be099ba06eaa929d2c9686cc897cff849560bf497acdf9f`, 64/64. Protected files 9/9 OK. Production places untouched.
+
+**Not tested:**
+- other players' appearance on R6 (two-client);
+- avatars whose `GetHumanoidDescriptionFromUserId` fails: they keep a plain R6 body;
+- layered clothing on R6 (Roblox does not render it on R6).
