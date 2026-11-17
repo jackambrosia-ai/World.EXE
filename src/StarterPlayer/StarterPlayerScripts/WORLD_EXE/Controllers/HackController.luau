@@ -1207,6 +1207,21 @@ function HackController.Start()
 	local holdLastSend = 0
 	local holdDir: string? = nil -- "up" | "left" | "right" | "back" while dragging
 	local holdPower = 0
+	-- Rev 15p: the four throw arrows shown during the hold (shaft + two head bars each)
+	local HOLD_ARROW_YELLOW = Color3.fromRGB(255, 214, 60)
+	local HOLD_ARROW_RED = Color3.fromRGB(255, 52, 40)
+	local holdArrowFolder = Instance.new("Folder")
+	holdArrowFolder.Name = "WORLD_EXE_HoldArrows"
+	local holdArrows: { [string]: { Part } } = {}
+	for _, mode in { "up", "left", "right", "back" } do
+		local set = {}
+		for _, part in { "Shaft", "HeadA", "HeadB" } do
+			local p = aimBar(mode .. part)
+			p.Parent = holdArrowFolder
+			table.insert(set, p)
+		end
+		holdArrows[mode] = set
+	end
 
 	local function holdCursorGround(model: Model): Vector3?
 		local cam = workspace.CurrentCamera
@@ -1292,6 +1307,7 @@ function HackController.Start()
 		holdPower = 0
 		ContextActionService:UnbindAction(THROW_ACTION)
 		aimFolder.Parent = nil
+		holdArrowFolder.Parent = nil
 		gui:SetAttribute("Holding", false)
 	end
 
@@ -1432,27 +1448,36 @@ function HackController.Start()
 		local myRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
 		local toMe = (myRoot and flat(myRoot.Position - root.Position)) or Vector3.zAxis
 		local rightV = (-toMe):Cross(Vector3.yAxis).Unit
-		local mode = holdDir or "up"
-		local dir: Vector3 = if mode == "up" then (Vector3.yAxis * 2.6 - toMe).Unit elseif mode == "back" then toMe elseif mode == "right" then rightV else -rightV
-		local bright = holdDir ~= nil
-		for _, p in { aimShaft, aimHeadA, aimHeadB } do
-			p.Transparency = if bright then 0.25 else 0.7
-			p.Color = Color3.fromRGB(120, 230, 255) -- small electric-cyan hint (was a large orange-red arrow)
+		-- Rev 15p (owner 2026-11-17): ALL FOUR throw arrows show at once while the target is held —
+		-- translucent yellow — and the currently selected one is RED (no input = up, the default throw).
+		-- Same geometry as the server: up (and away), left, right, behind (over you).
+		local selected = holdDir or "up"
+		for _, p in { aimShaft, aimHeadA, aimHeadB, aimLand } do
+			p.Transparency = 1 -- the single Rev 14 hint arrow is replaced by the four arrows
 		end
-		aimLand.Transparency = 1
-		local len = 3.5 + 3 * holdPower
-		local start = root.Position + dir * 2.5
-		local tip = root.Position + dir * len
-		local upRef = if mode == "up" then toMe else Vector3.yAxis -- lookAt needs a non-parallel up
-		aimShaft.Size = Vector3.new(0.25, 0.08, (tip - start).Magnitude)
-		aimShaft.CFrame = CFrame.lookAt((start + tip) / 2, tip, upRef)
-		local headLen = 1.2
-		for i, hp in { aimHeadA, aimHeadB } do
-			local side = if i == 1 then 1 else -1
-			local back = CFrame.lookAt(tip, tip + dir, upRef) * CFrame.Angles(0, math.rad(150 * side), 0)
-			hp.Size = Vector3.new(0.25, 0.08, headLen)
-			hp.CFrame = back * CFrame.new(0, 0, -headLen / 2)
+		for mode, set in holdArrows do
+			local dir: Vector3 = if mode == "up" then (Vector3.yAxis * 2.6 - toMe).Unit elseif mode == "back" then toMe elseif mode == "right" then rightV else -rightV
+			local on = mode == selected
+			local len = if on then 5 + 3 * holdPower else 5 -- long enough to read clearly outside the body
+			local start = root.Position + dir * 2.5
+			local tip = root.Position + dir * len
+			local upRef = if mode == "up" then toMe else Vector3.yAxis -- lookAt needs a non-parallel up
+			local width = if on then 0.32 else 0.25
+			for _, p in set do
+				p.Color = if on then HOLD_ARROW_RED else HOLD_ARROW_YELLOW
+				p.Transparency = if on then 0.1 else 0.6
+			end
+			set[1].Size = Vector3.new(width, 0.08, (tip - start).Magnitude)
+			set[1].CFrame = CFrame.lookAt((start + tip) / 2, tip, upRef)
+			local headLen = if on then 1.4 else 1.1
+			for i = 2, 3 do
+				local side = if i == 2 then 1 else -1
+				local back = CFrame.lookAt(tip, tip + dir, upRef) * CFrame.Angles(0, math.rad(150 * side), 0)
+				set[i].Size = Vector3.new(width, 0.08, headLen)
+				set[i].CFrame = back * CFrame.new(0, 0, -headLen / 2)
+			end
 		end
+		holdArrowFolder.Parent = cam
 		aimFolder.Parent = cam
 	end)
 

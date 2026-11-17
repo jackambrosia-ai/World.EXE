@@ -185,7 +185,7 @@ HackCatalog.Tuning = table.freeze({
 		AimedStyle = 2, -- 2 = GRAB (gravity-gun hold, owner 2026-11-16, default), 1 = glide, 0 = launch
 		-- GRAB: held HoldHeight up, pulled toward the attacker's cursor (within HoldLeash), thrown on
 		-- left-click the way the mouse is dragged (ThrowSpeed + power × ThrowBonus), auto-thrown after HoldSeconds.
-		HoldSeconds = 2, -- owner 2026-11-16: "cut it's duration to 2 seconds"
+		HoldSeconds = 3, -- Rev 15p owner 2026-11-17: "the hold ... can last 50% longer" (was 2, owner 2026-11-16: "cut it's duration to 2 seconds")
 		HoldHeight = 0, -- owner 2026-11-16: no levitation; shocked where it stands
 		HoldLeash = 32,
 		HoldWiggle = 0, -- owner 2026-11-16: held target stays where it was shocked (was 4: sway toward the cursor)

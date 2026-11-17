@@ -2,7 +2,7 @@
 
 Status: **isolated prototype, draft PR, not for merge.** The owner approved the milestone on 2026-11-16. This is **not** an adopted gameplay design. Every number is provisional.
 
-## 0. Current state (Rev 15o, 2026-11-17) — read this first
+## 0. Current state (Rev 15p, 2026-11-17) — read this first
 Sections 1–21 are the revision history and keep superseded designs for the record. **This section is the current behaviour.** Where an older section disagrees, this one wins.
 
 **Superseded (do not implement from the history):**
@@ -18,7 +18,7 @@ Sections 1–21 are the revision history and keep superseded designs for the rec
 | **H** (gamepad L1, WRIST pill) | Open the wrist terminal |
 | **1–4** (keypad, D-pad) | Pick a quick hack; during a challenge, the challenge inputs (Signal Lock adds **5** / Y) |
 | Same key again, **Enter** or EXECUTE | Run the selected quick hack; **X** cycles the target; **T** typed commands |
-| FLING (hack on a target), while holding it | **W** = throw up, **A** = left, **D** = right, **S** = behind, then click (Rev 15o: keys decide in every camera mode); no key held = the cursor's screen zone |
+| FLING (hack on a target), while holding it (3 s, Rev 15p) | **W** = throw up, **A** = left, **D** = right, **S** = behind, then click (Rev 15o: keys decide in every camera mode); no key held = the cursor's screen zone. All four arrows show in translucent yellow; the selected one is red (Rev 15p) |
 | **C** / R1 / SHIELD button | Shield against an incoming hack |
 | **Q** / gamepad X | Grounded **dash** (115 studs/s × 0.3 s ≈ 28 studs, 6 s cooldown) and a **skill check** |
 | **Q** when the shrinking outer square is on the inner square's border (Rev 15n look, UI-01) | +1 diamond (two containers, bottom middle). One attempt per dash; pink = hit, grey = miss |
@@ -1288,3 +1288,26 @@ Before, keys counted only with a locked cursor (shift-lock / first person); with
 **Note:** directions are relative to the line between you and the target. Holding a key also walks you, so a long hold moves you and turns that line. The first test held D for 3.5 s without clicking: the auto-throw went "right" of the new line, which pointed down the original forward axis.
 
 **Saved place:** SHA-256 `497e1d3771bfb02d867777cb998c3a81f60f7771120e8acae419a64172a3ed12`, 66/66. Protected files 9/9 OK.
+
+### 21.24 Rev 15p — longer FLING hold; all four throw arrows, selected one red (owner, 2026-11-17)
+Owner: "the hold after executing fling can last 50% longer and make the arrows all present at once after successfully executing but change the color to yellow, make them translucent and turn the arrow red to indicate that it is the currently selected direction".
+
+**Hold:** `FlingTarget.HoldSeconds` 2 → **3** (+50 %). Everything that depends on it scales automatically: the server auto-throw, the ragdoll guard, the boss cap. Measured: hold lasted **3.01 s** and **3.03 s** (was 2 s).
+
+**Arrows:** after a successful FLING, all four throw arrows sit around the held target for the whole hold. They use the same geometry as the server's throw:
+- **up** (and away from you), **left**, **right**, **behind** (over you);
+- unselected arrows: **translucent yellow** (transparency 0.6), 5 studs;
+- the **currently selected** one: **red** (transparency 0.1), slightly thicker, 5 studs plus throw power;
+- the selection follows the held key (Rev 15o) or the cursor zone; with no input "up" is red (the default throw);
+- they disappear on throw / release.
+
+The Rev 14 single cyan hint arrow is hidden during the hold.
+
+**Verified (solo Studio, overhead camera):**
+- no input → up red, the other three yellow;
+- hold D → right red;
+- hold A → left red, back to up red after release.
+
+Captures (private): `C:\WORLD.EXE-Art\HackProto\evidence\rev15p\`. A first pass with 3.5-stud arrows left the yellow ones as stubs inside the body, so all four were lengthened to 5 studs.
+
+**Saved place:** SHA-256 `2a2d20714967fe31f561f6c6995df2acbf5ac3fc6efd0b558ee5402194317ea7`, 66/66. Protected files 9/9 OK.
