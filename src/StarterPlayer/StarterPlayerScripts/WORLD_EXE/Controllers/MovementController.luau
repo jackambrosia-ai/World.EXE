@@ -77,32 +77,174 @@ local function poolPart(name: string): Part
 	return p
 end
 
-local GHOST_POOL = 96 -- parts (≈ 12 afterimages × 8 limbs) — fixed, reused
-local ghostParts: { Part } = {}
-local ghostNext = 1
+-- Rev 15e (owner reference 2026-11-16: YouTube short dnXIFzKC2DY, a Roblox "time-slow dash" showcase;
+-- streamed in the in-app browser, not downloaded, no checksum): super-speed afterimages are FULL-DETAIL
+-- copies of the character (hair, face, clothes, accessories, wrist device) packed densely along the path,
+-- tinted and fading, plus a screen colour grade for the user. Original WORLD.EXE look: the chain shifts
+-- cyan -> violet over the burst. Workspace attribute WORLD_EXE_SuperTint (Color3) overrides the tint.
+-- Pooled: each character gets CLONE_POOL copies once (built on its first super-speed), then reused.
+local CLONE_POOL = 16
+local CLONE_LIFE = 0.65
+local CLONE_EVERY = 0.042
+type ClonePair = { c: BasePart, live: BasePart, base: number }
+type Clone = { model: Model, pairs: { ClonePair }, decals: { { d: Decal, base: number } }, hl: Highlight, born: number }
+type Chain = { clones: { Clone }, nextI: number }
+local chains: { [Model]: Chain } = {}
+local activeClones: { Clone } = {}
+local stats = { ghosts = 0, dust = 0 }
 local DUST_POOL = 24
 local dustParts: { Part } = {}
 local dustNext = 1
-local stats = { ghosts = 0, dust = 0 }
 
-local function ghostPart(): Part
-	local p = ghostParts[ghostNext]
-	ghostNext = ghostNext % GHOST_POOL + 1
-	return p
+local function stripForClone(d: Instance): boolean
+	return d:IsA("LuaSourceContainer") or d:IsA("Sound") or d:IsA("Trail") or d:IsA("ParticleEmitter") or d:IsA("Beam")
+		or d:IsA("Highlight") or d:IsA("ForceField") or d:IsA("BillboardGui") or d:IsA("Constraint") or d:IsA("JointInstance")
+		or d:IsA("WeldConstraint") or d:IsA("NoCollisionConstraint") or d:IsA("AnimationController") or d:IsA("Animator")
 end
 
-local function spawnAfterimage(character: Model, color: Color3)
-	for _, limb in character:GetChildren() do
-		if limb:IsA("BasePart") and limb.Name ~= "HumanoidRootPart" and limb.Transparency < 1 then
-			local g = ghostPart()
-			g.Size = limb.Size
-			g.CFrame = limb.CFrame
-			g.Color = color
-			g.Transparency = 0.55
-			TweenService:Create(g, TweenInfo.new(0.32, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1 }):Play()
+local function buildChain(live: Model): Chain?
+	local was = live.Archivable
+	live.Archivable = true
+	local ok, made = pcall(function()
+		return live:Clone()
+	end)
+	live.Archivable = was
+	if not ok or not made then
+		return nil
+	end
+	local template = made :: Model
+	for _, d in template:GetDescendants() do
+		if stripForClone(d) then
+			d:Destroy()
 		end
 	end
+	local hum = template:FindFirstChildOfClass("Humanoid")
+	if hum then
+		hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+		hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+		hum.EvaluateStateMachine = false
+		hum.RequiresNeck = false
+	end
+	for _, p in template:GetDescendants() do
+		if p:IsA("BasePart") then
+			p.Anchored = true
+			p.CanCollide = false
+			p.CanQuery = false
+			p.CanTouch = false
+			p.CastShadow = false
+			p.Transparency = 1
+		elseif p:IsA("Decal") then
+			p.Transparency = 1
+		end
+	end
+	template.Name = "SuperAfterimage"
+	local chain: Chain = { clones = {}, nextI = 1 }
+	for i = 1, CLONE_POOL do
+		local m = if i == 1 then template else template:Clone()
+		local pairsList: { ClonePair } = {}
+		local decals = {}
+		for _, lp in live:GetDescendants() do
+			if lp:IsA("BasePart") and lp.Name ~= "HumanoidRootPart" then
+				local names = {}
+				local cur: Instance? = lp
+				while cur and cur ~= live do
+					table.insert(names, 1, cur.Name)
+					cur = cur.Parent
+				end
+				local cp: Instance? = m
+				for _, n in names do
+					cp = if cp then cp:FindFirstChild(n) else nil
+				end
+				if cp and cp:IsA("BasePart") then
+					table.insert(pairsList, { c = cp, live = lp, base = lp.Transparency })
+					for _, dc in cp:GetChildren() do
+						if dc:IsA("Decal") then
+							local liveDecal = lp:FindFirstChild(dc.Name)
+							table.insert(decals, { d = dc, base = if liveDecal and liveDecal:IsA("Decal") then liveDecal.Transparency else 0 })
+						end
+					end
+				end
+			end
+		end
+		local hl = Instance.new("Highlight")
+		hl.DepthMode = Enum.HighlightDepthMode.Occluded
+		hl.FillTransparency = 1
+		hl.OutlineTransparency = 1
+		hl.Enabled = false
+		hl.Adornee = m
+		hl.Parent = m
+		m.Parent = fxFolder
+		table.insert(chain.clones, { model = m, pairs = pairsList, decals = decals, hl = hl, born = -1 })
+	end
+	chains[live] = chain
+	live.AncestryChanged:Connect(function(_, parent)
+		if not parent then
+			for _, cl in chain.clones do
+				cl.model:Destroy()
+			end
+			chains[live] = nil
+		end
+	end)
+	return chain
+end
+
+local function spawnAfterimage(live: Model, tint: Color3)
+	local chain = chains[live] or buildChain(live)
+	if not chain then
+		return
+	end
+	local cl = chain.clones[chain.nextI]
+	chain.nextI = chain.nextI % #chain.clones + 1
+	for _, pr in cl.pairs do
+		if pr.live.Parent then
+			pr.c.CFrame = pr.live.CFrame
+			pr.base = pr.live.Transparency
+		end
+	end
+	cl.born = os.clock()
+	cl.hl.FillColor = tint
+	cl.hl.OutlineColor = tint
+	cl.hl.Enabled = true
+	if not table.find(activeClones, cl) then
+		table.insert(activeClones, cl)
+	end
 	stats.ghosts += 1
+end
+
+-- holds briefly, then fades (quadratic), tint fades with it
+local function updateAfterimages(now: number)
+	for i = #activeClones, 1, -1 do
+		local cl = activeClones[i]
+		local f = (now - cl.born) / CLONE_LIFE
+		if f >= 1 or not cl.model.Parent then
+			for _, pr in cl.pairs do
+				pr.c.Transparency = 1
+			end
+			for _, dc in cl.decals do
+				dc.d.Transparency = 1
+			end
+			cl.hl.Enabled = false
+			table.remove(activeClones, i)
+		else
+			local a = 0.04 + 0.96 * f * f * f -- nearly solid copies that hold, then fade fast
+			for _, pr in cl.pairs do
+				pr.c.Transparency = pr.base + (1 - pr.base) * a
+			end
+			for _, dc in cl.decals do
+				dc.d.Transparency = dc.base + (1 - dc.base) * a
+			end
+			cl.hl.FillTransparency = 0.25 + 0.75 * f -- strong tint (reference: vivid tinted copies)
+			cl.hl.OutlineTransparency = 0.35 + 0.65 * f
+		end
+	end
+end
+
+local function superTint(progress: number): Color3
+	local o = workspace:GetAttribute("WORLD_EXE_SuperTint")
+	if typeof(o) == "Color3" then
+		return o
+	end
+	return CYAN:Lerp(VIOLET, math.clamp(progress, 0, 1))
 end
 
 local function spawnDust(at: Vector3, big: boolean)
@@ -171,9 +313,6 @@ function MovementController.Start()
 	local request = remotes:WaitForChild(HackCatalog.RequestRemote) :: RemoteEvent
 	local event = remotes:WaitForChild(HackCatalog.EventRemote) :: RemoteEvent
 	fxFolder.Parent = workspace
-	for _ = 1, GHOST_POOL do
-		table.insert(ghostParts, poolPart("Afterimage"))
-	end
 	for _ = 1, DUST_POOL do
 		local d = poolPart("SpeedDust")
 		d.Shape = Enum.PartType.Ball
@@ -205,6 +344,11 @@ function MovementController.Start()
 	local superLen = 1
 	local wind: Sound? = nil
 	local baseFov: number? = nil
+	local grade = Instance.new("ColorCorrectionEffect")
+	grade.Name = "WORLD_EXE_SuperGrade"
+	grade.Enabled = false
+	grade.Parent = game:GetService("Lighting")
+	local gradeK = 0
 
 	ContextActionService:BindActionAtPriority(Q_ACTION, function(_, st: Enum.UserInputState)
 		if st == Enum.UserInputState.Begin then
@@ -405,6 +549,16 @@ function MovementController.Start()
 			dashFill.Size = UDim2.fromScale(1 - math.clamp((dashReadyAt - st) / math.max(0.1, dashCd), 0, 1), 1)
 		end
 		gui:SetAttribute("MoveOwner", MoveState.Owner())
+		updateAfterimages(now)
+		-- screen grade while I am in super-speed (local only; Reduced Effects: none)
+		gradeK += ((if superOn and not reduced then 1 else 0) - gradeK) * math.clamp(dt * (if superOn then 14 else 5), 0, 1)
+		grade.Enabled = gradeK > 0.01
+		if grade.Enabled then
+			local tint = superTint(if superOn then 1 - math.clamp((superEnd - now) / superLen, 0, 1) else 1)
+			grade.TintColor = Color3.new(1, 1, 1):Lerp(tint, 0.38 * gradeK)
+			grade.Saturation = -0.3 * gradeK
+			grade.Contrast = 0.18 * gradeK
+		end
 		-- FOV (local camera only)
 		local cam = workspace.CurrentCamera
 		local myC = player.Character
@@ -443,9 +597,10 @@ function MovementController.Start()
 						tr.Lifetime = if isSuper then 0.28 elseif isDash then 0.2 else 0.12
 					end
 					if not reduced then
-						if isSuper and now - f.lastGhost >= 0.05 then
+						if isSuper and now - f.lastGhost >= CLONE_EVERY then
 							f.lastGhost = now
-							spawnAfterimage(c, VIOLET)
+							local remaining = math.clamp(((su :: number) - st) / math.max(0.1, tune("SuperSeconds")), 0, 1)
+							spawnAfterimage(c, superTint(1 - remaining))
 						end
 						local dustEvery = if isSuper then 0.08 elseif grounded and hs > 24 then 0.33 else math.huge
 						if grounded and now - f.lastDust >= dustEvery then

@@ -874,3 +874,40 @@ Owner: "the fling should look as if they're getting dragged by their torso in th
 **Not tested:**
 - how the drag looks on a real player target over the network (the ragdoll is server-owned, so it should replicate like the existing ragdoll);
 - R15 targets.
+
+### 21.13 Rev 15e — super-speed looks like the owner's new reference (MOV-05, 2026-11-16)
+Owner: a YouTube short (`youtube.com/shorts/dnXIFzKC2DY`) and "make the super dash look more like this".
+
+**Reference intake:**
+- Watched in the in-app browser by seeking through the 28 s clip; not downloaded, so no SHA-256 is possible. Recorded as MOV-05 in the vault register.
+- What it shows, around 10–14 s and 17–19 s:
+  - a dense chain of **full-detail copies of the character** (hair, face, clothes), packed almost shoulder to shoulder along the path, even curving around a target;
+  - the copies linger briefly, then fade;
+  - a strong **whole-screen colour tint** while active (green in the clip).
+- **Taken:** the structure and timing. **Not copied:** the green palette (signature of the source franchise), the character, or the source's moves.
+
+**Built (MovementController):**
+- **Afterimages are now clones of the actual character**, replacing the old one-colour limb boxes:
+  - each character's model is cloned 16 times on its first super-speed, with scripts, sounds, trails, constraints and joints stripped and every part anchored;
+  - every 0.042 s the next clone is posed to the character's live part CFrames (≈2.5–3 studs apart at 74 studs/s);
+  - each clone stays nearly solid, then fades over 0.65 s;
+  - a Highlight tints it, shifting **cyan → violet** over the 1 s burst.
+  - Workspace attribute `WORLD_EXE_SuperTint` (a Color3) overrides the tint, for example green.
+- **Screen tint (local, while I am in super-speed):** a `ColorCorrectionEffect` blends the tint in fast and out over about 0.2 s (saturation −0.3, contrast +0.18).
+- **Reduced Effects:** no clones and no screen tint.
+
+**Results:**
+- 16 clones per character, reused (≈20 spawned per burst);
+- the chain renders with the face, hat and shirt textures visible;
+- the screen grade turns on during the burst;
+- capture: `clone_burst/b_09.jpg`.
+
+**Limits:**
+- Roblox renders at most 31 Highlights at once. One person in super-speed uses about 16, so two at the same moment may lose some tint.
+- Other players see each other's clones; not tested with two clients.
+
+**Bug fixed:** replacing the old afterimage block also removed the dust-pool variables, which broke MovementController on start.
+
+**Testing note:** the Studio MCP resets camera changes made from an execute call, so captures pin the camera from a RenderStep binding instead.
+
+**Saved place:** SHA-256 `c7bf4e297222e35d879d25f2b91392dc480f6cb2d53431dbd598364f82e634e6`, 64/64. Protected files 9/9 OK.
