@@ -2,7 +2,7 @@
 
 Status: **isolated prototype, draft PR, not for merge.** The owner approved the milestone on 2026-11-16. This is **not** an adopted gameplay design. Every number is provisional.
 
-## 0. Current state (Rev 15q, 2026-11-17) — read this first
+## 0. Current state (Rev 15r, 2026-11-17) — read this first
 Sections 1–21 are the revision history and keep superseded designs for the record. **This section is the current behaviour.** Where an older section disagrees, this one wins.
 
 **Superseded (do not implement from the history):**
@@ -18,7 +18,7 @@ Sections 1–21 are the revision history and keep superseded designs for the rec
 | **H** (gamepad L1, WRIST pill) | Open the wrist terminal |
 | **1–4** (keypad, D-pad) | Pick a quick hack; during a challenge, the challenge inputs (Signal Lock adds **5** / Y) |
 | Same key again, **Enter** or EXECUTE | Run the selected quick hack; **X** cycles the target; **T** typed commands |
-| FLING (hack on a target), while holding it (3 s, Rev 15p) | **W** = throw up, **A** = left, **D** = right, **S** = behind, then click (Rev 15o: keys decide in every camera mode); no key held = the cursor's screen zone. All four arrows show in translucent yellow; the selected one is red (Rev 15p) |
+| FLING (hack on a target), while holding it (3 s, Rev 15p) | **W** = throw up, **A** = left, **D** = right, **S** = behind, then click. **Keys only** (Rev 15r): the mouse never aims; no key held = up. All four arrows show in translucent yellow; the selected one is red (Rev 15p) |
 | FLING throw into a wall (Rev 15q) | The target slams: stunned (down, dizzy stars) **4.5 s from the throw** instead of 3 s |
 | **C** / R1 / SHIELD button | Shield against an incoming hack |
 | **Q** / gamepad X | Grounded **dash** (115 studs/s × 0.3 s ≈ 28 studs, 6 s cooldown) and a **skill check** |
@@ -1339,3 +1339,19 @@ Reduced Effects keeps the thud only. Recovery still needs the body grounded and 
 Control: an open throw that missed the walls flew 97.7 studs, recorded `slam=no` and was down 3.05 s, as before. The `HackPostThrow` attribute now records `slam=<time>|no`.
 
 **Saved place:** SHA-256 `1dd1c8362464b81f67a90fd3538eccd1b4896bb1d87f0e5aab632058e05ed0e5`, 66/66. Protected files 9/9 OK.
+
+### 21.26 Rev 15r — FLING aim from the movement keys only (owner, 2026-11-17)
+Owner: "the fling should only adhere to directional keys and not to mouse movement".
+
+**Change (client, hold aim):** the throw direction now comes only from the movement keys (and the stick / touch thumbstick):
+- **W** = up, **A** = left, **D** = right, **S** = behind, at 80 % power;
+- no key held = the default throw (up, away from you; the "up" arrow is red);
+- the left click still throws.
+
+Removed: the cursor screen zones (Rev 12–13) and the mouse-slide virtual cursor (Rev 15), together with their cursor-distance power. The held target already ignored the cursor (`HoldWiggle` 0).
+
+**Verified (solo Studio):**
+- cursor moved far right, then down-right, no key, click → aim `none`, throw **up** (before: right / behind);
+- **D** held with the cursor on the far LEFT → throw **right**.
+
+**Saved place:** SHA-256 `10534438294a07424efb6a89c4546d6575e4cee791ee882b123ec58a67757d78`, 66/66. Protected files 9/9 OK.

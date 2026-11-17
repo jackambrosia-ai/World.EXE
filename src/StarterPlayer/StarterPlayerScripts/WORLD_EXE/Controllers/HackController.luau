@@ -1376,29 +1376,16 @@ function HackController.Start()
 			return
 		end
 		local tnow = os.clock()
-		-- throw mode from the CURSOR POSITION relative to the screen centre (owner 2026-11-16):
-		-- above = UP, left/right = that SIDE, below = BACK (over and behind you); near the centre = UP.
-		-- Farther from the centre = a stronger throw.
-		-- regions are the four triangles made by the lines from the centre to the screen CORNERS:
-		-- normalise the offset by the half-screen size, then compare |x| and |y|
+		-- Throw mode from the MOVEMENT KEYS only (history: Rev 12-13 cursor screen zones, Rev 15 virtual
+		-- cursor for shift-lock, Rev 15o keys first; Rev 15r keys only): W/↑ = UP, A = LEFT, D = RIGHT,
+		-- S = BACK (over and behind you), mapped through the same zone maths as before (W+A/D ties go up).
 		local vp = cam.ViewportSize
-		local mloc = UserInputService:GetMouseLocation()
-		local offC = mloc - vp / 2
-		-- Rev 15 shift-lock / first-person fix: a LOCKED cursor always sits at the centre, so the zones
-		-- read "up" forever. While locked, the zone comes from (1) a held movement key / left stick
-		-- (W/↑ = up, A = left, D = right, S = behind), else (2) a virtual cursor that accumulates this
-		-- hold's mouse deltas (slide right = right, as when unlocked). Unlocked keeps the screen zones.
-		-- Rev 15o (owner 2026-11-17: "make it so the fling corresponds to the directional keys of the
-		-- player"): a held movement key decides the throw in EVERY camera mode (W/↑ = up, A = left,
-		-- D = right, S = behind; the stick / touch thumbstick too). No key held: the cursor zones as before
-		-- (screen zones when the cursor is free, the virtual cursor when it is locked).
-		local locked = UserInputService.MouseBehavior ~= Enum.MouseBehavior.Default
-		local aimScheme = "screen"
-		for _, sm in holdSamples do
-			holdVirtual += sm.d
-		end
+		local offC = Vector2.zero
+		-- Rev 15r (owner 2026-11-17: "the fling should only adhere to directional keys and not to mouse
+		-- movement"): ONLY the movement keys (and the stick / touch thumbstick) choose the throw. The cursor
+		-- position and mouse slides are ignored; no key held = the default throw (up, away from you).
+		local aimScheme = "none"
 		table.clear(holdSamples)
-		holdVirtual = Vector2.new(math.clamp(holdVirtual.X, -vp.X / 2, vp.X / 2), math.clamp(holdVirtual.Y, -vp.Y / 2, vp.Y / 2))
 		-- movement intent in CAMERA space (one path for WASD, arrows, gamepad stick and the touch
 		-- thumbstick): Humanoid.MoveDirection is world-space and camera-relative by construction
 		local kx, ky = 0, 0
@@ -1416,9 +1403,6 @@ function HackController.Start()
 		if kx ~= 0 or ky ~= 0 then
 			aimScheme = "keys"
 			offC = Vector2.new(math.clamp(kx, -1, 1) * vp.X / 2, math.clamp(ky, -1, 1) * vp.Y / 2) * 0.8 -- keys throw at 80 % power; W+A/D ties go UP
-		elseif locked or not UserInputService.MouseEnabled then
-			aimScheme = "virtual"
-			offC = holdVirtual
 		end
 		gui:SetAttribute("AimScheme", aimScheme)
 		local nx, ny = offC.X / math.max(1, vp.X / 2), offC.Y / math.max(1, vp.Y / 2)
