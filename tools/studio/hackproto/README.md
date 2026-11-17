@@ -35,7 +35,13 @@ This is an **isolated prototype** for the owner-approved milestone of 2026-11-16
   2. Press the same key again, press **Enter**, or click **EXECUTE**.
   3. **X** cycles the target.
 - **Typed hacks:** **T** focuses the command line. Examples: `fling self`, `fling`, `fling dummy-a`, `freeze`, `freeze boss`, `shield`.
-- **Challenges:** use the **arrow keys** or **D-pad**, or tap the on-screen pad on touch. WASD keeps moving. **Backspace** or **B** cancels.
+- **Challenges (Rev 15):** use the **number keys 1–4** (Signal Lock also uses **5**), the keypad, the **D-pad** (Left/Up/Right/Down = 1/2/3/4, **Y** = 5), or tap the on-screen pad on touch. While a challenge is active, the number keys go to it rather than to the quick chips. WASD keeps moving. **Backspace** or **B** cancels.
+- **Movement (Rev 15):**
+  - Run speed is 28.
+  - **Q** / **X** (gamepad) does a short grounded dash.
+  - A *separate* second **Q** between 0.2 and 0.8 s after the dash starts 1 s of steerable super-speed (11 s cooldown). Pressing earlier voids the window, so spamming Q never triggers it.
+  - A small gauge under the screen centre shows the window, the drain and the cooldown.
+- **FLING aiming with shift-lock / first person:** hold **W / A / D / S** (up / left / right / behind) and click. Otherwise, slide the mouse; with no input the throw goes up.
 - **Boss challenge type:** walk to a console at the boss arena entrance and use its prompt.
 - **Incoming hack (you are targeted):** a banner, a pointer toward the attacker, and a draining window. Defend with **C** / **R1** / the on-screen SHIELD button, by breaking line of sight behind cover, or by leaving the ring.
 - **TestStation:** step on a pad and use its prompt to pick boots (Starter / Vault / Vector), the reaction window (0.7 / 1.0 / 1.4 s), perfect deflect on/off, the dummy reaction (none / shield / perfect / dodge), or reset the boss.
@@ -49,9 +55,11 @@ Format: `HackTune_<Group>_<Key>`, overriding `HackCatalog.Tuning`. Examples:
 - **Incoming:** `HackTune_Incoming_ReactionWindow`, `HackTune_Incoming_PerfectWindow` (0 = off), `HackTune_Incoming_DodgeRadius`, `HackTune_Incoming_LatencyGrace`
 - **Dummy reaction:** Workspace string attribute `HackProto_DummyReaction` = none / shield / perfect / dodge
 - **Assist:** `HackTune_Challenge_TimeScale` (1-8) is an accessibility/assist time scale. It gives longer limits and windows and a slower boss.
+- **Movement (Rev 15):** `HackTune_Move_RunSpeed`, `_DashSpeed`, `_DashSeconds`, `_DashCooldown`, `_SuperMin`, `_SuperMax`, `_SuperSeconds`, `_SuperSpeed`, `_SuperTurnRate`, `_SuperCooldown`, `_FovRun`, `_FovSuper`
+- **FLING post-throw (Rev 15):** `HackTune_FlingTarget_PostThrowSeconds` (default 3.0; tested 2.5 / 3.0 / 3.5), `_PostThrowCap`, `_SettleSpeed`
 
 ## Studio-only test controls
-- **Test hooks:** `ServerStorage.HackProtoTest` (BindableFunction, Studio only) offers `Session`, `Events`, `BossLog`, `Effects`, `Perf`, `IncomingStats`, `ClearCooldowns` and `SimulateIncoming(player, hackId, npcModel)`. The last one sends a dummy through the real incoming stage as a stand-in attacker; label its results as stand-in, not two-client.
+- **Test hooks:** `ServerStorage.HackProtoTest` (BindableFunction, Studio only) offers `Session`, `Events`, `BossLog`, `Effects`, `Perf`, `IncomingStats`, `ClearCooldowns`, `MoveLog(player)` (Q decisions with server times) and `SimulateIncoming(player, hackId, npcModel)`. The Workspace attribute `HackTest_BossPassive = true` (Studio only) keeps the boss idle so its long challenge types can be tested without attack interruptions. The last one sends a dummy through the real incoming stage as a stand-in attacker; label its results as stand-in, not two-client.
 - **Client test kit:** `hp_30_client_testkit.luau` (paste into the Client data model). Every input carries an increasing `n` (replay protection).
 - **Captures:** `hp_grab.ps1` (one window-only grab) and `hp_burst.ps1` (timed burst for sub-second states). Disable the PlayerList core GUI before capturing.
 - **Allow a solo match:** set `ServerScriptService.WORLD_EXE.StudioMinPlayers` to 1. This tests the Architect-UI arbitration. The builder sets 99, so no match starts on its own.

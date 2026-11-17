@@ -5,7 +5,8 @@
 -- Protocol (ReplicatedStorage.WORLD_EXE.HackRemotes):
 --   HackRequest (client -> server), intent only:
 --     { op = "begin", hackId, targetId?, source = "chip" | "typed", text?, dir? }
---     { op = "input", token, dir = "U"|"D"|"L"|"R", t? (client server-clock press time) }
+--     { op = "input", token, dir = "1".."5" (Rev 15 number keys), t? (client server-clock press time) }
+--     { op = "q", n } (Rev 15 movement: one per distinct Q press; MovementService decides dash / super-speed)
 --     { op = "cancel" }
 --   HackEvent (server -> one client):
 --     result / challenge / challenge_end / fling_self / ragdoll / frozen
@@ -29,6 +30,7 @@ local HackChallenges = require(script.Parent:WaitForChild("HackChallenges"))
 local Conductor = require(script.Parent:WaitForChild("ConductorPrototype"))
 local HackDevice = require(script.Parent:WaitForChild("HackDevice"))
 local HackIncoming = require(script.Parent:WaitForChild("HackIncoming"))
+local MovementService = require(script.Parent:WaitForChild("MovementService")) -- Rev 15: run / Q dash / super-speed
 
 local A = HackCatalog.Attr
 local T = HackCatalog.Tuning
@@ -766,6 +768,7 @@ function HackService.Start()
 			end
 		end,
 	})
+	MovementService.Start({ send = send, log = logEvent })
 	Conductor.Start(onPlayerHit)
 	setupConsoles()
 	setupStation()
@@ -805,6 +808,10 @@ function HackService.Start()
 		elseif op == "input" then
 			timed("input", function()
 				input(player, p)
+			end)
+		elseif op == "q" then
+			timed("q", function()
+				MovementService.Q(player, p)
 			end)
 		elseif op == "cancel" then
 			HackService.CancelFor(player, "cancelled")
@@ -871,6 +878,7 @@ function HackService.Start()
 				return out
 			end,
 			IncomingStats = HackIncoming.Stats,
+				MoveLog = MovementService.Log,
 			-- Solo stand-in for a second client: an NPC model "attacks" the player through the real
 			-- incoming stage (same warning, window, defences and resolution as a player attacker).
 			SimulateIncoming = function(pl: Player, hackId: string, attackerModel: Model)

@@ -338,7 +338,7 @@ function ConductorPrototype.ApplyHack(hackId: string, from: Vector3?, aim: Vecto
 		task.spawn(function()
 			local t0 = os.clock()
 			-- covers a gravity-gun hold (up to HoldSeconds) plus the thrown flight and recovery
-			local cap = HackCatalog.Tune("FlingTarget", "HoldSeconds") + HackCatalog.Tune("FlingTarget", "MaxRagdollSeconds") + 3
+			local cap = HackCatalog.Tune("FlingTarget", "HoldSeconds") + math.max(HackCatalog.Tune("FlingTarget", "MaxRagdollSeconds"), HackCatalog.Tune("FlingTarget", "PostThrowCap")) + 3 -- Rev 15 post-throw cap
 			while HackEffects.IsRagdolled(b) and os.clock() - t0 < cap do
 				task.wait(0.1)
 			end
@@ -518,6 +518,16 @@ function ConductorPrototype.Start(hit: (Player) -> ())
 				end
 				if os.clock() - defeatedAt > OFFLINE_SECONDS * 2 then
 					ConductorPrototype.Reset("auto after defeat")
+				end
+				task.wait(0.3)
+				continue
+			end
+			-- Studio-only test switch (Rev 15 acceptance tests): Workspace HackTest_BossPassive = true keeps
+			-- the boss idle so its long challenge types can be exercised without attack interruptions.
+			if workspace:GetAttribute("HackTest_BossPassive") == true and game:GetService("RunService"):IsStudio() then
+				if state ~= "IDLE" then
+					setState("IDLE")
+					refreshLabel()
 				end
 				task.wait(0.3)
 				continue

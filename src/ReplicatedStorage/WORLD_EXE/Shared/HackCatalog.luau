@@ -81,6 +81,23 @@ end
 ---------------------------------------------------------------------------------------------------
 -- Provisional tuning (prototype configuration). Studs, studs/s, seconds.
 HackCatalog.Tuning = table.freeze({
+	-- Rev 15 movement (owner-authorized prototype; provisional values, tune by playtest):
+	-- fast baseline run, first Q = grounded dash, second Q inside [SuperMin, SuperMax] after the dash
+	-- = steerable super-speed. A second Q earlier than SuperMin VOIDS the window (spam-proof).
+	Move = table.freeze({
+		RunSpeed = 28, -- baseline Humanoid.WalkSpeed (Roblox default 16)
+		DashSpeed = 88, -- studs/s, horizontal only
+		DashSeconds = 0.17, -- ≈15 studs
+		DashCooldown = 0.6,
+		SuperMin = 0.2, -- second Q earlier than this after the dash: too early (voids the window)
+		SuperMax = 0.8, -- later than this: expired (counts as a fresh first Q)
+		SuperSeconds = 1.0, -- MOV-02: ≈1 s bursts
+		SuperSpeed = 74,
+		SuperTurnRate = 14, -- rad/s: sharp jukes, still a visible curve
+		SuperCooldown = 11, -- 10-12 s starting range
+		FovRun = 3, -- extra degrees at full run speed
+		FovSuper = 9, -- extra degrees during super-speed
+	}),
 	FlingSelf = table.freeze({
 		Up = 90, -- initial vertical velocity (apex ~ Up^2 / (2 * 196.2) = 20.6 studs). Sweep 2026-11-16: A 78/48, B 90/42 (chosen), C 98/48
 		Forward = 42, -- horizontal launch speed along the intended direction (~39 studs on flat ground)
@@ -136,6 +153,12 @@ HackCatalog.Tuning = table.freeze({
 		UpThrowSpeed = 90, -- cursor ABOVE screen centre at the click: launched straight up (+ power × UpThrowBonus)
 		UpThrowBonus = 30,
 		BackThrowUp = 45, -- cursor BELOW centre: thrown back over and past the attacker (higher arc to clear them)
+		-- Rev 15 (owner-authorized): longer, more impactful post-throw ragdoll, measured FROM THE THROW.
+		-- Recovery needs: PostThrowSeconds elapsed AND torso grounded AND settled (speed < SettleSpeed for
+		-- 0.15 s), so a target never stands up mid-air; PostThrowCap is the hard safety cap (always recovers).
+		PostThrowSeconds = 3.0, -- tested 2.5 / 3.0 / 3.5 (Workspace HackTune_FlingTarget_PostThrowSeconds)
+		PostThrowCap = 5.5,
+		SettleSpeed = 6,
 		GlideSpeed = 85,
 		GlideSeconds = 1.8,
 		GlideRestSeconds = 0.6, -- stays down this long after the glide stops, then gets up
@@ -192,7 +215,7 @@ function HackCatalog.Tune(group: string, key: string): number
 	return (HackCatalog.Tuning :: any)[group][key]
 end
 
--- Activation challenges. Directions: "U" "D" "L" "R".
+-- Activation challenges. Symbols (Rev 15): "1".."4" (Signal Lock "1".."5"; see Challenge.Symbols).
 HackCatalog.Challenge = table.freeze({
 	-- Self hacks: FLING SELF none (traversal must feel instant), SHIELD one arrow (minimal).
 	SelfLength = table.freeze({ FLING_SELF = 0, SHIELD = 1 }),
@@ -201,6 +224,9 @@ HackCatalog.Challenge = table.freeze({
 	Target = table.freeze({ Length = 3, TimeLimit = 4.5, MaxMisses = 2 }),
 	-- Boss hacks: one selectable variant at a time (boss attribute BossChallenge).
 	BossVariants = table.freeze({ "ResistanceBattle", "InputChase", "SignalLock" }),
+	-- Rev 15: number keys per challenge kind. 5 is reserved for the timing-precision variant (Signal
+	-- Lock); length, difficulty and symbol count are independent tuning variables.
+	Symbols = table.freeze({ Sequence = 4, ResistanceBattle = 4, InputChase = 4, SignalLock = 5 }),
 	ResistanceBattle = table.freeze({
 		Length = 6, -- inputs required before success is possible
 		StartProgress = 0.25,

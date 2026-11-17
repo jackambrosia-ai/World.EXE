@@ -17,6 +17,11 @@ local F = UITheme.Font
 
 local ROT: { [string]: number } = { R = 0, D = 90, L = 180, U = -90 }
 local WORD: { [string]: string } = { U = "UP", D = "DOWN", L = "LEFT", R = "RIGHT" }
+-- Rev 15: hacking uses number keys. A symbol "1".."5" draws a big digit instead of an arrow; the
+-- states (current / done / wrong / locked / missed / pad) and their non-colour cues are unchanged.
+local function isDigit(sym: string): boolean
+	return string.match(sym, "^%d$") ~= nil
+end
 
 export type Glyph = {
 	Frame: Frame,
@@ -81,6 +86,11 @@ function ArrowGlyph.new(parent: Instance, dir: string, size: number, order: numb
 		Position = UDim2.new(0.5, 0, 1, 2),
 		Visible = false,
 	})
+	local digit = UIUtil.text("Digit", chip, "", math.floor(size * 0.62), C.Muted, F.Display, {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.52),
+		ZIndex = 2,
+	})
 	local currentDir = dir
 	local idle: Tween? = nil
 
@@ -89,6 +99,10 @@ function ArrowGlyph.new(parent: Instance, dir: string, size: number, order: numb
 		Frame = chip,
 		SetDir = function(nd: string)
 			currentDir = nd
+			local num = isDigit(nd)
+			inner.Visible = not num
+			digit.Visible = num
+			digit.Text = if num then nd else ""
 			inner.Rotation = ROT[nd] or 0
 			word.Text = WORD[nd] or ""
 		end,
@@ -132,6 +146,8 @@ function ArrowGlyph.new(parent: Instance, dir: string, size: number, order: numb
 				bb.BackgroundColor3 = col
 				bb.BackgroundTransparency = alpha
 			end
+			digit.TextColor3 = col
+			digit.TextTransparency = alpha
 			stroke.Color = strokeCol
 			stroke.Thickness = strokeT
 			scale.Scale = sc

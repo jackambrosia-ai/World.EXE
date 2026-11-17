@@ -12,7 +12,7 @@
 --
 -- Controls (owner requirement: camera centre, movement, jump and dodge stay free):
 --   Keyboard  H toggle terminal (G is the HUD details panel) · 1-4 chips (press twice = execute) · Enter execute · X next target
---             · T focus the command line · arrow keys = challenge directions (WASD keeps moving) ·
+--             · T focus the command line · number keys 1-5 = challenge inputs (WASD + mouse stay free) ·
 --             Backspace cancel challenge.
 --   Gamepad   L1 toggle · GUI selection on chips/targets/EXECUTE (A) · D-pad = challenge directions ·
 --             B cancel / close.
@@ -34,6 +34,7 @@ local sharedRoot = ReplicatedStorage:WaitForChild("WORLD_EXE")
 local HackCatalog = require(sharedRoot:WaitForChild("Shared"):WaitForChild("HackCatalog"))
 local UITheme = require(script.Parent:WaitForChild("UITheme"))
 local UIUtil = require(script.Parent:WaitForChild("UIUtil"))
+local MoveState = require(script.Parent:WaitForChild("MoveState"))
 local CyberChip = require(script.Parent:WaitForChild("CyberChip"))
 local HackVfx = require(script.Parent:WaitForChild("HackVfx"))
 local ArrowGlyph = require(script.Parent:WaitForChild("ArrowGlyph"))
@@ -45,9 +46,13 @@ local A = HackCatalog.Attr
 local T = HackCatalog.Tuning
 
 
+-- Rev 15 (owner 2026-11-16): challenge input is the NUMBER ROW so the right hand stays on the mouse.
+-- Keyboard 1-5 (and keypad 1-5). Gamepad (deliberate, documented): D-pad Left/Up/Right/Down = 1/2/3/4,
+-- Y = 5. While a challenge is active this binding outranks the quick-chip number keys.
 local KEY_DIR: { [Enum.KeyCode]: string } = {
-	[Enum.KeyCode.Up] = "U", [Enum.KeyCode.Down] = "D", [Enum.KeyCode.Left] = "L", [Enum.KeyCode.Right] = "R",
-	[Enum.KeyCode.DPadUp] = "U", [Enum.KeyCode.DPadDown] = "D", [Enum.KeyCode.DPadLeft] = "L", [Enum.KeyCode.DPadRight] = "R",
+	[Enum.KeyCode.One] = "1", [Enum.KeyCode.Two] = "2", [Enum.KeyCode.Three] = "3", [Enum.KeyCode.Four] = "4", [Enum.KeyCode.Five] = "5",
+	[Enum.KeyCode.KeypadOne] = "1", [Enum.KeyCode.KeypadTwo] = "2", [Enum.KeyCode.KeypadThree] = "3", [Enum.KeyCode.KeypadFour] = "4", [Enum.KeyCode.KeypadFive] = "5",
+	[Enum.KeyCode.DPadLeft] = "1", [Enum.KeyCode.DPadUp] = "2", [Enum.KeyCode.DPadRight] = "3", [Enum.KeyCode.DPadDown] = "4", [Enum.KeyCode.ButtonY] = "5",
 }
 local MAX_TARGETS = 4
 local TOGGLE_ACTION = "WORLD_EXE_WristToggle"
@@ -590,8 +595,8 @@ function HackController.Start()
 		end
 	end
 
-	for i, d in { "L", "U", "D", "R" } do
-		local b = UIUtil.create("TextButton", { Name = "Pad" .. d, LayoutOrder = i, Size = UDim2.fromOffset(56, 52), BackgroundColor3 = C.Surface2, Text = "", AutoButtonColor = false, Selectable = false }, pad) :: TextButton
+	for i, d in { "1", "2", "3", "4", "5" } do
+		local b = UIUtil.create("TextButton", { Name = "Pad" .. d, LayoutOrder = i, Size = UDim2.fromOffset(46, 52), BackgroundColor3 = C.Surface2, Text = "", AutoButtonColor = false, Selectable = false }, pad) :: TextButton
 		b:SetAttribute("Dir", d)
 		UIUtil.corner(b, 8)
 		UIUtil.stroke(b, C.Cyan, 1, 0.3)
@@ -606,10 +611,10 @@ function HackController.Start()
 	end
 
 	local KIND_TITLE: { [string]: string } = {
-		Sequence = "ENTER THE SEQUENCE",
+		Sequence = "ENTER THE NUMBERS",
 		ResistanceBattle = "RESISTANCE BATTLE — fill the bar faster than the Conductor drains it",
-		InputChase = "INPUT CHASE — keep up as the Conductor writes arrows; clear them all",
-		SignalLock = "SIGNAL LOCK — press each arrow as it crosses the lock zone",
+		InputChase = "INPUT CHASE — keep up as the Conductor writes numbers; clear them all",
+		SignalLock = "SIGNAL LOCK — press each number (1-5) as it crosses the lock zone",
 	}
 
 	local function renderArrows(seq: { string }, index: number, chase: boolean)
@@ -676,6 +681,9 @@ function HackController.Start()
 		local missText = if (snap.maxMisses or 0) > 50 then string.format("MISSES %d", misses) else string.format("MISSES %d/%d", misses, snap.maxMisses)
 		chalInfo.Text = extra .. (if extra ~= "" then " · " else "") .. missText .. bossMod .. (if (snap.assist or 1) > 1 then string.format("  · ASSIST x%g", snap.assist) else "")
 		pad.Visible = touch
+		for _, b in padButtons do -- 5 only appears for challenges configured with five numbers
+			b.Visible = (tonumber(b:GetAttribute("Dir")) or 1) <= (snap.symbols or 4)
+		end
 	end
 
 	-- Per-frame: time bar, resistance drain prediction, chase countdown, signal motion.
@@ -727,9 +735,11 @@ function HackController.Start()
 
 	local function bindDirections(on: boolean)
 		if on then
-			ContextActionService:BindActionAtPriority(DIR_ACTION, dirAction, false, Enum.ContextActionPriority.High.Value + 20,
-				Enum.KeyCode.Up, Enum.KeyCode.Down, Enum.KeyCode.Left, Enum.KeyCode.Right,
-				Enum.KeyCode.DPadUp, Enum.KeyCode.DPadDown, Enum.KeyCode.DPadLeft, Enum.KeyCode.DPadRight)
+			local keys = {}
+			for k in KEY_DIR do
+				table.insert(keys, k)
+			end
+			ContextActionService:BindActionAtPriority(DIR_ACTION, dirAction, false, Enum.ContextActionPriority.High.Value + 20, table.unpack(keys))
 		else
 			ContextActionService:UnbindAction(DIR_ACTION)
 		end
@@ -1192,6 +1202,7 @@ function HackController.Start()
 	local hold: { target: Model, boss: boolean, untilT: number }? = nil
 	local holdSamples: { { t: number, d: Vector2 } } = {}
 	local holdLastMouse: Vector2? = nil
+	local holdVirtual = Vector2.zero -- locked-cursor aiming: accumulated mouse deltas of this hold
 	local holdLastSend = 0
 	local holdDir: string? = nil -- "up" | "left" | "right" | "back" while dragging
 	local holdPower = 0
@@ -1296,6 +1307,7 @@ function HackController.Start()
 		hold = { target = target, boss = boss, untilT = untilT }
 		table.clear(holdSamples)
 		holdLastMouse = UserInputService:GetMouseLocation()
+		holdVirtual = Vector2.zero
 		holdDir = nil
 		holdPower = 0
 		gui:SetAttribute("Holding", true)
@@ -1355,8 +1367,43 @@ function HackController.Start()
 		local vp = cam.ViewportSize
 		local mloc = UserInputService:GetMouseLocation()
 		local offC = mloc - vp / 2
+		-- Rev 15 shift-lock / first-person fix: a LOCKED cursor always sits at the centre, so the zones
+		-- read "up" forever. While locked, the zone comes from (1) a held movement key / left stick
+		-- (W/↑ = up, A = left, D = right, S = behind), else (2) a virtual cursor that accumulates this
+		-- hold's mouse deltas (slide right = right, as when unlocked). Unlocked keeps the screen zones.
+		local locked = UserInputService.MouseBehavior ~= Enum.MouseBehavior.Default
+		local aimScheme = "screen"
+		if locked or not UserInputService.MouseEnabled then
+			for _, sm in holdSamples do
+				holdVirtual += sm.d
+			end
+			table.clear(holdSamples)
+			holdVirtual = Vector2.new(math.clamp(holdVirtual.X, -vp.X / 2, vp.X / 2), math.clamp(holdVirtual.Y, -vp.Y / 2, vp.Y / 2))
+			-- movement intent in CAMERA space (one path for WASD, arrows, gamepad stick and the touch
+			-- thumbstick): Humanoid.MoveDirection is world-space and camera-relative by construction
+			local kx, ky = 0, 0
+			local myHum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+			local md = if myHum then myHum.MoveDirection else Vector3.zero
+			if md.Magnitude > 0.3 then
+				local camLook = Vector3.new(cam.CFrame.LookVector.X, 0, cam.CFrame.LookVector.Z)
+				local camRight = Vector3.new(cam.CFrame.RightVector.X, 0, cam.CFrame.RightVector.Z)
+				if camLook.Magnitude > 0.01 and camRight.Magnitude > 0.01 then
+					local fx, fy = md:Dot(camRight.Unit), -md:Dot(camLook.Unit)
+					kx = if math.abs(fx) > 0.38 then math.sign(fx) else 0
+					ky = if math.abs(fy) > 0.38 then math.sign(fy) else 0
+				end
+			end
+			if kx ~= 0 or ky ~= 0 then
+				aimScheme = "keys"
+				offC = Vector2.new(math.clamp(kx, -1, 1) * vp.X / 2, math.clamp(ky, -1, 1) * vp.Y / 2) * 0.8 -- keys throw at 80 % power; W+A/D ties go UP
+			else
+				aimScheme = "virtual"
+				offC = holdVirtual
+			end
+		end
+		gui:SetAttribute("AimScheme", aimScheme)
 		local nx, ny = offC.X / math.max(1, vp.X / 2), offC.Y / math.max(1, vp.Y / 2)
-		if UserInputService.MouseEnabled and offC.Magnitude >= 6 then
+		if offC.Magnitude >= 6 then
 			if math.abs(ny) >= math.abs(nx) then
 				holdDir = if ny < 0 then "up" else "back"
 			else
@@ -1441,6 +1488,7 @@ function HackController.Start()
 			inst:Destroy()
 		end
 		table.clear(flingParts)
+		MoveState.Release("flingSelf")
 	end
 	local function flingSelf(v: Vector3, steer: number, minAir: number, maxT: number, blockedFrac: number, ctl: { turn: number, brake: number, fallCap: number, glideCap: number })
 		endFling()
@@ -1450,6 +1498,7 @@ function HackController.Start()
 		if not hrp or not hum or hum.Health <= 0 then
 			return
 		end
+		MoveState.Claim("flingSelf", true) -- FLING SELF overrides dash / super-speed (MovementController stops its drive)
 		hum:ChangeState(Enum.HumanoidStateType.Jumping)
 		hrp.AssemblyLinearVelocity = v
 		local att = Instance.new("Attachment")
@@ -1602,6 +1651,8 @@ function HackController.Start()
 				HackVfx.Glide(data.model, tonumber(data.seconds) or 1.5)
 			elseif data.kind == "throw" and typeof(data.model) == "Instance" and data.model:IsA("Model") then
 				HackVfx.ThrowTrail(data.model)
+			elseif data.kind == "land" and typeof(data.pos) == "Vector3" then
+				HackVfx.LandImpact(if typeof(data.model) == "Instance" and data.model:IsA("Model") then data.model else nil, data.pos, tonumber(data.strength) or 0.5)
 			end
 		elseif op == "incoming" then
 			local tgt = data.target

@@ -20,8 +20,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HackCatalog = require(ReplicatedStorage:WaitForChild("WORLD_EXE"):WaitForChild("Shared"):WaitForChild("HackCatalog"))
 local CH = HackCatalog.Challenge
 
-local DIRS = { "U", "D", "L", "R" }
-local VALID: { [string]: boolean } = { U = true, D = true, L = true, R = true }
+-- Rev 15 (owner 2026-11-16): hacking uses the NUMBER ROW (right hand stays on the mouse). Symbols are
+-- "1".."4" for standard challenges; "5" only where a variant is configured for it (CH.Symbols).
+local SYMBOLS = { "1", "2", "3", "4", "5" }
+local VALID: { [string]: boolean } = { ["1"] = true, ["2"] = true, ["3"] = true, ["4"] = true, ["5"] = true }
 
 export type Ctx = { bossState: () -> string, rng: Random }
 
@@ -42,13 +44,14 @@ export type Session = {
 	Signals: { { t: number, d: string, state: string } }, -- Lock: "pending" | "locked" | "missed"
 	Locks: number,
 	Assist: number, -- >= 1: accessibility / test time scale (HackTune_Challenge_TimeScale)
+	Symbols: number, -- how many number keys this challenge uses (4 standard, 5 advanced)
 	ctx: Ctx,
 }
 
 local HackChallenges = {}
 
-local function randDir(ctx: Ctx): string
-	return DIRS[ctx.rng:NextInteger(1, 4)]
+local function randSym(s: Session): string
+	return SYMBOLS[s.ctx.rng:NextInteger(1, s.Symbols)]
 end
 
 local function modifier(ctx: Ctx): string
@@ -60,7 +63,7 @@ function HackChallenges.New(kind: string, length: number?, t: number, ctx: Ctx):
 	local s: Session = {
 		Kind = kind, StartedAt = t, Deadline = t + 10, Seq = {}, Index = 1, Misses = 0, MaxMisses = 99,
 		Progress = 0, LastT = t, Done = false, Result = nil, NextAppend = math.huge, Cleared = 0,
-		Signals = {}, Locks = 0, Assist = 1, ctx = ctx,
+		Signals = {}, Locks = 0, Assist = 1, Symbols = math.clamp(((CH :: any).Symbols or {})[kind] or 4, 4, 5), ctx = ctx,
 	}
 	-- Assist: longer limits/windows, slower boss drain and appends. Same rules, more time; no penalty.
 	local a = workspace:GetAttribute("HackTune_Challenge_TimeScale")
@@ -69,21 +72,21 @@ function HackChallenges.New(kind: string, length: number?, t: number, ctx: Ctx):
 	if kind == "Sequence" then
 		local n = length or CH.Target.Length
 		for _ = 1, n do
-			table.insert(s.Seq, randDir(ctx))
+			table.insert(s.Seq, randSym(s))
 		end
 		s.MaxMisses = CH.Target.MaxMisses
 		s.Deadline = t + A * (if n <= 1 then CH.SelfTimeLimit else CH.Target.TimeLimit)
 	elseif kind == "ResistanceBattle" then
 		local cfg = CH.ResistanceBattle
 		for _ = 1, cfg.Length do
-			table.insert(s.Seq, randDir(ctx))
+			table.insert(s.Seq, randSym(s))
 		end
 		s.Progress = cfg.StartProgress
 		s.Deadline = t + A * cfg.TimeLimit
 	elseif kind == "InputChase" then
 		local cfg = CH.InputChase
 		for _ = 1, cfg.Start do
-			table.insert(s.Seq, randDir(ctx))
+			table.insert(s.Seq, randSym(s))
 		end
 		s.Deadline = t + A * cfg.TimeLimit
 		s.NextAppend = t + A * cfg.Interval
@@ -91,7 +94,7 @@ function HackChallenges.New(kind: string, length: number?, t: number, ctx: Ctx):
 		local cfg = CH.SignalLock
 		local at = t + A * cfg.LeadIn
 		for _ = 1, cfg.Locks + cfg.MaxMisses + 1 do
-			table.insert(s.Signals, { t = at, d = randDir(ctx), state = "pending" })
+			table.insert(s.Signals, { t = at, d = randSym(s), state = "pending" })
 			at += A * ctx.rng:NextNumber(cfg.SpacingMin, cfg.SpacingMax)
 		end
 		s.MaxMisses = cfg.MaxMisses
@@ -156,7 +159,7 @@ function HackChallenges.Tick(s: Session, t: number): boolean
 		changed = true
 	elseif s.Kind == "InputChase" then
 		while t >= s.NextAppend and not s.Done do
-			table.insert(s.Seq, randDir(s.ctx))
+			table.insert(s.Seq, randSym(s))
 			s.NextAppend += chaseInterval(s)
 			changed = true
 			if #s.Seq > CH.InputChase.Cap then
@@ -217,7 +220,7 @@ function HackChallenges.Input(s: Session, dir: any, clientT: any, recvT: number)
 					if s.Index > cfg.Length and s.Progress >= cfg.Threshold then
 						finish(s, "success")
 					else
-						table.insert(s.Seq, randDir(s.ctx)) -- keep pushing until the bar is full
+						table.insert(s.Seq, randSym(s)) -- keep pushing until the bar is full
 					end
 				end
 			elseif s.Index > #s.Seq then
@@ -243,7 +246,7 @@ function HackChallenges.Input(s: Session, dir: any, clientT: any, recvT: number)
 					finish(s, "success")
 				else
 					-- cleared too early: the boss injects the next arrow immediately and keeps writing
-					table.insert(s.Seq, randDir(s.ctx))
+					table.insert(s.Seq, randSym(s))
 					s.NextAppend = recvT + chaseInterval(s)
 				end
 			end
@@ -297,6 +300,7 @@ function HackChallenges.Snapshot(s: Session, t: number): { [string]: any }
 		started = s.StartedAt,
 		misses = s.Misses,
 		assist = s.Assist,
+		symbols = s.Symbols, -- number keys in play (client shows that many pad buttons)
 		maxMisses = s.MaxMisses,
 		boss = modifier(s.ctx),
 		now = t,

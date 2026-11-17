@@ -8,7 +8,7 @@
 local RS = game:GetService("ReplicatedStorage")
 local remotes = RS.WORLD_EXE.HackRemotes
 local req, ev = remotes.HackRequest, remotes.HackEvent
-local OTHER = { U = "D", D = "U", L = "R", R = "L" }
+local OTHER = { U = "D", D = "U", L = "R", R = "L", ["1"] = "2", ["2"] = "3", ["3"] = "4", ["4"] = "1", ["5"] = "1" }
 _G.HT = { done = true }
 local current = nil
 _G.HO = {} -- every incoming / incoming_result / hack_outcome event this client saw

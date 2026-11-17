@@ -588,3 +588,182 @@ Directive: "WORLD.EXE — Hacking, cyberware & boss gameplay prototype". Same is
 **Not tested:** how the crackle and zap sound to a person.
 
 **Owner feedback (2026-11-16):** "i'm impressed it looks good for now". Rev 14 (remote-shock grab) is accepted for now.
+
+## 21. Revision 15 — movement, number-key hacking, longer FLING ragdoll (2026-11-16, owner-authorized)
+
+Scope is the owner-authorized "AUTHORIZED MOVEMENT & HACKING REVISION, Rev 15" directive. Rev 14's remote-shock grab, click-to-throw and corner-diagonal zones are kept unchanged. Development stops after Rev 15.
+
+### 21.1 Reference → implementation (owner videos, SHA-256 verified before review; original interpretations)
+
+| Ref | SHA-256 | Segments used | Mechanics taken | Implemented as | Gameplay evidence | Deviations |
+|---|---|---|---|---|---|---|
+| MOV-01 | `21f33d2e…f93f57b` (MATCH) | 2.14–3.47 s, 9.74–10.41 s | abrupt start, streak look, fading afterimages, quick return | instant super-speed start cue; translucent **violet** afterimage chain (not the source's red/pink); 0.15 s ease back to run speed | `super_burst_sheet.jpg`, `super_burst/b_01.jpg` | no character, branding or combat taken |
+| MOV-02 | `933a047b…6d4650` (MATCH) | 1.07–2.40 s, 22.67–24.00 s (menus ≥25.6 s ignored) | ~1 s steerable bursts, sharp jukes, drain gauge, dust, speed lines | second Q = 1.0 s super-speed at 74 studs/s, turn rate 14 rad/s, pooled dust, violet foot streaks, +9° FOV, bottom-centre drain gauge | trace: −Z, then a W+D diagonal turn in < 0.1 s at a constant 74 studs/s | exact pace not copied (values are tuning) |
+| MOV-03 | `cebfa6c1…89f5a007` (MATCH) | 2.00–6.27 s (menus ≥7.7 s) | fast baseline run; wall-running later | WalkSpeed 16 → 28; subtle cyan foot streaks above 22 studs/s; sparse dust; +3° FOV at full run | WalkSpeed = 28 measured | **wall-running is architecture only** (MoveState) |
+| MOV-04 | `c7f07092…b2e8` (MATCH) | 0.53–2.80 s (≥4.0 s ignored per owner) | short, low, grounded dash with dust | first Q = 0.17 s horizontal-only dash (≈10–12 studs), three dust puffs, short whoosh | dy range 0.01 studs | ending (flash/debris) ignored |
+
+### 21.2 Movement (server `MovementService`; client `MovementController` + `MoveState`)
+
+- **Server-authoritative Q:**
+  - The client only reports a press (`{op="q", n}`), with a sequence number for replay protection.
+  - The server decides between dash and super-speed and keeps both cooldowns, keyed by Player so a respawn cannot reset them.
+  - Q is rejected while frozen, ragdolled or dead.
+  - The client executes the motion with a plane `LinearVelocity` (horizontal only; Y stays physical).
+- **Timing:**
+  - Second Q earlier than **0.2 s** after the dash: **void**. The window is gone, so spam can never activate super-speed.
+  - **0.2–0.8 s:** super-speed, if its cooldown is ready.
+  - **Later:** a fresh dash.
+  - Dash cooldown 0.6 s; super-speed cooldown **11 s** (starts at activation).
+- **Ownership:**
+  - `MoveState` gives a single owner of the local velocity: nil (run), `dash`, `super`, `flingSelf`, and a future `wallrun`.
+  - FLING SELF force-claims ownership, and MovementController stops its drive.
+- **Feedback and performance:**
+  - Afterimages (96 parts) and dust (24 balls) come from fixed pools; foot trails are created once per character and toggled.
+  - Other players' super-speed and dash are drawn from the character attributes `WORLD_EXE_SuperUntil` and `WORLD_EXE_DashUntil`.
+  - Reduced Effects removes afterimages, dust, trails and FOV changes; sounds and the gauge stay.
+- **Q binding:** Q / ButtonX at `High` priority in the prototype only. It sinks the main game's PHASE_DASH binding there.
+- **Wall-run integration points (not built):**
+  1. Claim `MoveState("wallrun")`.
+  2. Read the wall normal.
+  3. Drive along the wall plane.
+  4. Release on exit.
+  - Dash and super-speed never assume the character is grounded.
+
+**Results (solo Studio):**
+
+| Test | Result |
+|---|---|
+| Q, then Q at +0.40 s (client) | server +0.533 s → SUPER |
+| Q Q at +0.13 s; 8 presses ≈0.13–0.2 s apart (spam) | "too early → window voided"; **no super-speed** |
+| Q, then Q at +1.13 s | two dashes |
+| In window while cooling | "super cooling (8.7 s)" → dash only |
+| Dash | 10.2–11.4 studs, top speed 70–75, dy 0.01 |
+| Super-speed | ≈0.92 s, 74 studs/s; steering verified after a sign fix (21.7) |
+| FLING SELF during a stretched dash | owner dash → flingSelf → nil; 0 leftover drives; no ragdoll |
+| Reduced Effects ON | super ran; ghost/dust counters unchanged; FOV stayed 70 |
+| Pools | 120 effect parts constant; +8 transient instances (sounds) |
+| Frame time | 66.6 ms avg in both baseline and super (Studio throttled the unfocused window to ~15 fps, so this shows no relative change, not absolute fps) |
+
+### 21.3 Number-key hacking
+
+- **Symbols:** "1"–"4" for Sequence, Resistance Battle and Input Chase; "1"–"5" for Signal Lock (advanced).
+  - Server-randomized; `Challenge.Symbols` per kind.
+  - `VALID` = 1–5; the snapshot carries `symbols`.
+- **Inputs:**
+  - Keys 1–5 and Keypad 1–5.
+  - D-pad Left / Up / Right / Down = 1 / 2 / 3 / 4; ButtonY = 5.
+  - Touch pad buttons 1–5, with 5 hidden when `symbols` = 4.
+  - The challenge binding is `High + 20`, above the quick-chip number keys (`High`), so an active challenge wins. With no challenge active, 1–4 still select chips.
+  - Mouse and camera stay free (corner panel).
+- **UI:** big digits replace arrows; the current/done/wrong/missed states keep their non-colour cues.
+- **Unchanged:** typed commands, token and replay protection, and rate limits.
+
+**Results:**
+- **Sequence (real number keys on Dummy-A):** 3 ✓, a deliberate 1 → MISSES 1/2, then 4, 3 → success → incoming → hit. The panel stayed on FREEZE, so quick chips did not fire.
+- **Resistance Battle (real keys 1-2-2-3 on the boss):** progress 0.25 → 0.42, no misses. The live boss then interrupted it with SWEEP, which is intended.
+- **With the Studio-only `HackTest_BossPassive` switch (scripted presses through the same remote):**
+
+| Challenge | Result |
+|---|---|
+| Signal Lock | success, symbols 5 |
+| Resistance Battle | success, 6 presses |
+| Input Chase | success, 1 deliberate wrong press |
+
+- **Captures:** `num_seq_wrong.jpg`, `num_resistance.jpg`, `num_signallock.jpg`.
+
+### 21.4 FLING TARGET post-throw ragdoll
+
+- **Timing:** recovery is measured **from the throw**. The target stands up only when `PostThrowSeconds` has passed **and** the torso is grounded and settled (speed < 6 for 0.15 s). The hard cap is 5.5 s, and `recover()` lifts the body 1.5 studs so it cannot be trapped.
+- **Phases:** `HackFlingPhase` goes held (shock) → launched → down → nil.
+- **Landing impact:** broadcast once, on first ground contact:
+  - a low dust ring;
+  - 5–12 cyan residual sparks;
+  - a 3D body thud (`action_jump_land` at 0.62 pitch).
+  - There is no explosion audio and no camera shake. Reduced Effects keeps only the thud.
+- **Boss re-home wait:** now uses `max(MaxRagdollSeconds, PostThrowCap)`.
+- **Default:** 3.0 s.
+
+**Measured (Dummy-A, flat ground, power 0.6; the "Rev 14" column applies Rev 14's rule `max(1.2, air + 0.9)` to the same flight):**
+
+| Mode | Rev 14 (derived) | 2.5 s | 3.0 s | 3.5 s |
+|---|---|---|---|---|
+| side (right) | ≈1.45 s | 2.55 s (air 0.55, down 2.00) | 3.03 s (air 0.53, down 2.50) | 3.53 s (air 0.63, down 2.90) |
+| up | ≈2.04 s | 2.55 s (air 1.14, apex 29.5) | 3.00 s (air 1.12) | 3.55 s (air 1.15) |
+| back | ≈1.47 s | 2.57 s (air 0.57, 54.5 studs) | 3.02 s (air 0.55) | 3.57 s (air 0.57) |
+
+**Edge cases (3.0 s), all ended "settled", upright, Running, with no overlaps:**
+
+| Case | Result |
+|---|---|
+| Off the 12-stud ledge (Dummy-C) | 3.02 s; finished on the ground at y = 3 |
+| Thrown into the cover wall from 8 studs | 3.07 s; bounced back 2.5 studs, not embedded |
+| Up-throw from the slope | 3.03 s; slid 13.5 studs off the slope and stood up |
+
+- **Captures:** `fling_burst_sheet.jpg`, `fling_throw_land_sheet.jpg` (distant camera; the numbers above are the primary evidence).
+
+### 21.5 Counterplay (Dummy-A as a stand-in attacker via `SimulateIncoming`; window stretched for tool latency)
+
+| Case | Result |
+|---|---|
+| Q dash west behind `WallBehindA`, +0.13 s into a 15 s window | **evaded_cover** |
+| Same, dashing east into open space | **hit**: no immunity from dashing |
+| SHIELD (C) raised at +0.11 s of a 4 s window | **deflected** |
+
+- An 8 s window let the 6 s shield expire before resolution. That is a test artifact, so I retested with the 4 s window above.
+- The circle dodge was not reintroduced, and reaction timing was not changed: there is no solo evidence yet that fast running makes hacks too hard to land; this needs two-client play.
+
+### 21.6 Shift-lock throw aiming
+
+- **Unlocked cursor:** screen corner-diagonal zones (Rev 13/14).
+- **Locked cursor (shift-lock or first person, `MouseBehavior ≠ Default`):**
+  1. The movement intent in camera space (`Humanoid.MoveDirection`) picks the zone: W = up, A = left, D = right, S = behind, at 0.8 power. The same path covers keyboard, gamepad stick and the touch thumbstick.
+  2. With no movement, a virtual cursor accumulates this hold's mouse deltas.
+  3. With neither, the throw goes up.
+- **Why this scheme wins:** while locked, mouse movement also turns the camera, so a mouse-only aim would spin the view during the 2 s hold. Movement keys are always available and readable.
+- **Bug found and fixed:** `IsKeyDown` polling missed emulated keys, so it now reads `MoveDirection`.
+
+**Matrix (shift-lock state forced by `MouseBehavior = LockCenter`, because the Studio user's ControlMode is Classic and account settings were not changed):**
+
+| Mode | Input | Scheme | Zone | Thrown |
+|---|---|---|---|---|
+| locked | none | virtual | up | — |
+| locked | D | keys | right | — |
+| locked | S | keys | back | — |
+| locked | W | keys | up | — |
+| locked | A + left click | keys | left | **left p0.80** |
+| unlocked | cursor right of centre + click | screen | right | **right p0.72** |
+| locked | mouse slide | virtual | — | **untested** (emulated mouse sends no delta) |
+| gamepad / touch | stick | keys | — | **untested** (no hardware) |
+
+### 21.7 Bugs found during testing
+
+- **Super-speed steering sign:** steering turned the long way round. Fixed in `MovementController`.
+- **Test harness:** my scripted solver started `n` at ≈5000, which replay protection correctly rejected. The server is unchanged.
+- **Test tooling:** `hp_30_client_testkit` "wrong" map now covers digits.
+
+### 21.8 Files and save
+
+- **New:**
+  - `MovementService.luau`
+  - `Controllers/MovementController.luau`
+  - `Controllers/MoveState.luau`
+- **Changed:**
+  - `HackCatalog` (Move group; Signal Lock Symbols; PostThrow keys)
+  - `HackChallenges` (digits)
+  - `HackService` (op `q`, MoveLog hook)
+  - `HackEffects` (post-throw recovery, phases)
+  - `ConductorPrototype` (cap; `HackTest_BossPassive`)
+  - `HackController` (digits, MoveState, locked-cursor aim, land VFX)
+  - `ArrowGlyph` (digit glyph)
+  - `HackVfx` (LandImpact)
+  - client entry
+- **Saved place:** `WorldEXE_HackPrototype_2026-11-16.rbxlx`, SHA-256 `3c55bdc226310fb2a31166cdb7dcacdc56129aad5d4dfeacb00c95deee82964a`; 62/62 scripts match `src/` (re-saved after two comment-only edits; the test session ran on `423a8753…`, same code).
+- **Backup:** `backup_pre_rev15/…_rev14.rbxlx` (`9ccf3c2a…`).
+- **Protected files:** 9/9 OK.
+
+**Not tested:**
+- real two-client networking (latency, other players' afterimage replication, PvP counterplay);
+- the shift-lock toggle itself (forced state used);
+- gamepad and touch hardware;
+- how the audio sounds to a person;
+- absolute fps on a focused window.

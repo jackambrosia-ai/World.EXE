@@ -542,6 +542,33 @@ function HackVfx.ThrowTrail(model: Model)
 	end)
 end
 
+
+-- Rev 15: FLING TARGET landing impact (after the throw, seen by everyone). Grounded and physical, not
+-- an explosion: a low dust ring, a few cyan residual-shock sparks and a 3D body thud at the landing
+-- point. No camera shake, no explosion audio. Reduced Effects keeps only the thud.
+function HackVfx.LandImpact(model: Model?, pos: Vector3, strength: number)
+	local host = vpart("LandThudHost", Vector3.new(0.2, 0.2, 0.2), CFrame.new(pos), Color3.new(), nil)
+	host.Transparency = 1
+	local s = Instance.new("Sound")
+	s.SoundId = "rbxasset://sounds/action_jump_land.mp3"
+	s.PlaybackSpeed = 0.62
+	s.Volume = 0.6 + 0.6 * strength
+	s.RollOffMinDistance = 12
+	s.RollOffMaxDistance = 140
+	s.Parent = host
+	s:Play()
+	task.delay(2, function()
+		host:Destroy()
+	end)
+	if UITheme.reducedEffects() then
+		return
+	end
+	shockwave(pos, 5 + 5 * strength, 0.4, Color3.fromRGB(200, 196, 188))
+	sparks(pos + Vector3.new(0, 0.6, 0), math.floor(5 + 7 * strength), 12, Color3.fromRGB(120, 230, 255))
+	if model then
+		model:SetAttribute("HackLandFx", (model:GetAttribute("HackLandFx") or 0) + 1)
+	end
+end
 -- Deflection burst on the defender (seen by everyone); perfect = bigger, whiter, longer.
 function HackVfx.Deflect(target: Model, perfect: boolean)
 	local tRoot = target:FindFirstChild("HumanoidRootPart") :: BasePart?

@@ -12,4 +12,5 @@ if workspace:GetAttribute(HackCatalog.PrototypeAttribute) ~= true then
 end
 local controllers = script.Parent:WaitForChild("Controllers")
 require(controllers:WaitForChild("HackController")).Start()
+require(controllers:WaitForChild("MovementController")).Start() -- Rev 15 run / dash / super-speed
 print("[WORLD_EXE] Wrist-hacking prototype client started")

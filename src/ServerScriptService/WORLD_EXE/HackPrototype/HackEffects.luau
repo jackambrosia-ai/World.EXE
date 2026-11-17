@@ -451,6 +451,74 @@ local function landRecovery(model: Model, root: BasePart, st: RagdollState, maxS
 	end)
 end
 
+-- Rev 15: post-throw ragdoll for FLING TARGET, timed FROM THE THROW (owner-authorized).
+-- Phases (attribute HackFlingPhase): "launched" (airborne, limp) -> "down" (first ground contact:
+-- landing impact broadcast once) -> recovery. Recovery needs PostThrowSeconds elapsed AND the torso
+-- grounded AND settled (speed < SettleSpeed for 0.15 s) — never mid-air, never mid-slide.
+-- PostThrowCap always recovers (e.g. wedged on a ledge edge), and recover() lifts the body upright
+-- by 1.5 studs so it cannot be trapped in the floor. A measurement string is left on the model.
+local function postThrowRecovery(model: Model, root: BasePart, st: RagdollState, mode: string)
+	local tune = HackCatalog.Tune
+	local want = tune("FlingTarget", "PostThrowSeconds")
+	local cap = math.max(want + 0.5, tune("FlingTarget", "PostThrowCap"))
+	local minAir = tune("FlingTarget", "MinAirSeconds")
+	local settle = tune("FlingTarget", "SettleSpeed")
+	local torso = (model:FindFirstChild("UpperTorso") or model:FindFirstChild("Torso") or root) :: BasePart
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { model }
+	params.RespectCanCollide = true
+	local t0 = os.clock()
+	local startPos = torso.Position
+	local apex = startPos.Y
+	task.spawn(function()
+		local landedAt: number? = nil
+		local calmFor = 0
+		local last = os.clock()
+		local ending = "cap"
+		while not st.done do
+			local tNow = os.clock()
+			local dt = tNow - last
+			last = tNow
+			local el = tNow - t0
+			if not torso.Parent then
+				break
+			end
+			apex = math.max(apex, torso.Position.Y)
+			local vel = torso.AssemblyLinearVelocity
+			local hit = workspace:Raycast(torso.Position, Vector3.new(0, -4.5, 0), params)
+			local grounded = hit ~= nil and vel.Y > -6
+			if not landedAt and el >= minAir and grounded then
+				landedAt = tNow
+				model:SetAttribute("HackLandedAt", now())
+				model:SetAttribute("HackFlingPhase", "down")
+				local impact = math.clamp(-vel.Y / 60 + Vector3.new(vel.X, 0, vel.Z).Magnitude / 120, 0.3, 1)
+				broadcast({ op = "vfx", kind = "land", model = model, pos = (hit :: RaycastResult).Position, strength = impact })
+			end
+			if grounded and vel.Magnitude < settle then
+				calmFor += dt
+			else
+				calmFor = 0
+			end
+			if el >= cap then
+				break
+			end
+			if landedAt and el >= want and calmFor >= 0.15 then
+				ending = "settled"
+				break
+			end
+			task.wait(0.05)
+		end
+		local total = os.clock() - t0
+		local p = torso.Position
+		model:SetAttribute("HackPostThrow", string.format("mode=%s air=%.2fs down=%.2fs total=%.2fs end=%s apex=%.1f horiz=%.1f",
+			mode, if landedAt then landedAt - t0 else -1, if landedAt then os.clock() - landedAt else -1, total, ending,
+			apex - startPos.Y, Vector3.new(p.X - startPos.X, 0, p.Z - startPos.Z).Magnitude))
+		model:SetAttribute("HackFlingPhase", nil)
+		recover(model)
+	end)
+end
+
 local function groundY(at: Vector3, ignore: { Instance }): number
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
@@ -513,8 +581,9 @@ local function grabThrow(g: Grab, mode: string?, power: number, useLast: boolean
 	end
 	broadcast({ op = "grab_end", attacker = g.attacker.Character, target = g.model, thrown = true })
 	broadcast({ op = "vfx", kind = "throw", model = g.model })
-	g.model:SetAttribute(A.RagdollUntil, now() + tune("FlingTarget", "MaxRagdollSeconds"))
-	landRecovery(g.model, root, g.st, tune("FlingTarget", "MaxRagdollSeconds"))
+	g.model:SetAttribute("HackFlingPhase", "launched") -- held (shock) -> launched -> down -> nil
+	g.model:SetAttribute(A.RagdollUntil, now() + tune("FlingTarget", "PostThrowCap"))
+	postThrowRecovery(g.model, root, g.st, m)
 end
 
 -- Starts a grab. attacker controls it; player = the target's Player (nil for NPCs / the boss).
@@ -577,6 +646,7 @@ local function grabStart(attacker: Player, model: Model, hum: Humanoid, root: Ba
 	grabs[attacker] = g
 	local holdFor = tune("FlingTarget", "HoldSeconds")
 	model:SetAttribute(A.RagdollUntil, now() + holdFor + tune("FlingTarget", "MaxRagdollSeconds"))
+	model:SetAttribute("HackFlingPhase", "held")
 	broadcast({ op = "grab", attacker = attacker.Character, target = model, untilT = now() + holdFor })
 	send(attacker, { op = "grab_control", target = model, boss = boss, untilT = now() + holdFor })
 	task.delay(holdFor, function()
