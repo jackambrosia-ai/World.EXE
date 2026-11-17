@@ -88,15 +88,37 @@ HackCatalog.Tuning = table.freeze({
 		RunSpeed = 28, -- baseline Humanoid.WalkSpeed (Roblox default 16)
 		DashSpeed = 115, -- studs/s, horizontal only (Rev 15b: owner "not substantial enough" — was 88)
 		DashSeconds = 0.3, -- ≈25-30 studs (was 0.17 s ≈ 11 studs measured; 0.24 s measured 19-21)
-		DashCooldownRatio = 0.5, -- owner 2026-11-16: dash cooldown = half the super-speed cooldown (11 s -> 5.5 s)
+		DashCooldownRatio = 0.25, -- owner 2026-11-16: halved again -> a quarter of the super-speed cooldown (11 s -> 2.75 s)
 		SuperMin = 0.2, -- second Q earlier than this after the dash: too early (voids the window)
 		SuperMax = 0.8, -- later than this: expired (counts as a fresh first Q)
 		SuperSeconds = 1.0, -- MOV-02: ≈1 s bursts
 		SuperSpeed = 74,
-		SuperTurnRate = 14, -- rad/s: sharp jukes, still a visible curve
+		SuperTurnRate = 10, -- rad/s cap on turning (Rev 15g smoother: was 14)
+		SuperSteerSmoothing = 7, -- exponential steering response (higher = snappier)
+		SuperAccelSeconds = 0.14, -- eased ramp up to SuperSpeed (Rev 15g: was instant)
+		SuperEaseOutSeconds = 0.32, -- eased return to run speed at the end (was 0.15 s linear)
+		SuperFollowUps = 2, -- owner 2026-11-16: usable 2 more times after the Q-Q activation (single Q each)
+		SuperFollowWindow = 2.5, -- seconds after a burst ends to fire the next one; the cooldown starts when the chain ends
 		SuperCooldown = 11, -- 10-12 s starting range
 		FovRun = 3, -- extra degrees at full run speed
 		FovSuper = 9, -- extra degrees during super-speed
+	}),
+	-- Rev 15g (owner 2026-11-16: "the wall run still needs to be implemented"; reference MOV-03). Client
+	-- movement (Controllers/WallRun): airborne + moving fast + wall at your side -> run along it; Space jumps off.
+	WallRun = table.freeze({
+		MinSpeed = 18, -- horizontal studs/s needed to latch on
+		Speed = 36, -- along-wall speed (or your current speed if faster)
+		Seconds = 4.0, -- max wall-run time (MOV-03: ~4 s along building faces), then you drop off
+		StartUp = 9, -- short lift on latching (fades over 0.35 s), then LEVEL running (MOV-03: window height)
+		SinkSeconds = 0.6, -- the last part of the run sinks ...
+		Gravity = 14, -- ... at this rate (studs/s per s)
+		Reach = 3.2, -- side ray length from the root to find a wall
+		Stick = 4, -- pull toward the wall when drifting off it
+		JumpOut = 40, -- wall jump: away from the wall
+		JumpUp = 50, -- wall jump: upward
+		JumpCarrySeconds = 0.5, -- the jump keeps its horizontal push this long (air control would cancel it)
+		LeanDegrees = 8, -- slight tilt away from the wall (MOV-03 runner is nearly upright)
+		ReattachDelay = 0.35, -- seconds before another wall run can start
 	}),
 	FlingSelf = table.freeze({
 		Up = 90, -- initial vertical velocity (apex ~ Up^2 / (2 * 196.2) = 20.6 studs). Sweep 2026-11-16: A 78/48, B 90/42 (chosen), C 98/48

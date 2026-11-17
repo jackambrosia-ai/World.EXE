@@ -25,6 +25,10 @@ type State = {
 	dashReady: number,
 	superReady: number,
 	superUntil: number,
+	charges: number, -- Rev 15g: follow-up bursts left in the current chain
+	chainDeadline: number, -- a single Q before this (after the burst ends) fires the next burst
+	chainToken: number,
+	queued: boolean, -- a follow-up is already queued to the end of the current burst (mash guard)
 	lastN: number,
 	log: { string },
 }
@@ -43,7 +47,7 @@ end
 local function stateOf(player: Player): State
 	local s = states[player]
 	if not s then
-		s = { dashT = nil, voided = false, dashReady = 0, superReady = 0, superUntil = 0, lastN = 0, log = {} }
+		s = { dashT = nil, voided = false, dashReady = 0, superReady = 0, superUntil = 0, charges = 0, chainDeadline = 0, chainToken = 0, queued = false, lastN = 0, log = {} }
 		states[player] = s
 	end
 	return s
@@ -79,6 +83,35 @@ local function publish(player: Player, s: State)
 	player:SetAttribute("WORLD_EXE_SuperReady", s.superReady)
 end
 
+-- Rev 15g (owner 2026-11-16: super-speed "should be able to be used 2 times after initial activation"):
+-- after the Q-Q activation the player holds SuperFollowUps extra bursts, each fired by ONE Q press while
+-- the previous burst runs (queued to its end) or within SuperFollowWindow after it ends. The super
+-- cooldown starts when the chain ends (last burst finished, or the window ran out unused).
+local function startBurst(player: Player, s: State, t: number, follow: boolean)
+	local secs = tune("SuperSeconds")
+	s.superUntil = t + secs
+	s.chainDeadline = s.superUntil + tune("SuperFollowWindow")
+	s.superReady = math.huge -- set when the chain ends
+	s.chainToken += 1
+	local token = s.chainToken
+	local c = player.Character
+	if c then
+		c:SetAttribute("WORLD_EXE_SuperUntil", s.superUntil) -- every client draws the afterimages
+	end
+	send(player, { op = "super", seconds = secs, speed = tune("SuperSpeed"), turn = tune("SuperTurnRate"), follow = follow, charges = s.charges, window = tune("SuperFollowWindow") })
+	local endAt = if s.charges > 0 then s.chainDeadline else s.superUntil
+	task.delay(math.max(0, endAt - t), function()
+		if s.chainToken ~= token or states[player] ~= s then
+			return -- a newer burst continued the chain
+		end
+		s.charges = 0
+		s.superReady = now() + tune("SuperCooldown")
+		publish(player, s)
+		send(player, { op = "move_fx", kind = "super_chain_end", readyAt = s.superReady })
+		note(s, string.format("%.3f chain ended; super ready at +%.1f", now(), tune("SuperCooldown")))
+	end)
+end
+
 -- One Q press from the client. p = { op = "q", n = number }
 function MovementService.Q(player: Player, p: { [string]: any })
 	local s = stateOf(player)
@@ -90,6 +123,29 @@ function MovementService.Q(player: Player, p: { [string]: any })
 	local why = blocked(player)
 	if why then
 		note(s, string.format("%.3f Q rejected (%s)", t, why))
+		return
+	end
+	-- follow-up burst: one Q during the current burst (queued to its end) or within the window after it
+	if s.queued then
+		note(s, string.format("%.3f Q ignored (follow-up already queued)", t))
+		return
+	end
+	if s.charges > 0 and t <= s.chainDeadline then
+		s.charges -= 1
+		local at = math.max(t, s.superUntil)
+		note(s, string.format("%.3f FOLLOW-UP burst (%d left)%s", t, s.charges, if at > t then " queued to burst end" else ""))
+		if at > t then
+			s.chainToken += 1 -- hold the chain open until the queued burst starts
+			s.queued = true
+			task.delay(at - t, function()
+				s.queued = false
+				if states[player] == s and not blocked(player) then
+					startBurst(player, s, now(), true)
+				end
+			end)
+		else
+			startBurst(player, s, t, true)
+		end
 		return
 	end
 	if s.superUntil > t then
@@ -110,16 +166,10 @@ function MovementService.Q(player: Player, p: { [string]: any })
 			send(player, { op = "move_fx", kind = "super_cooldown", readyAt = s.superReady })
 			return
 		end
-		local secs = tune("SuperSeconds")
-		s.superUntil = t + secs
-		s.superReady = t + tune("SuperCooldown")
+		s.charges = math.floor(tune("SuperFollowUps"))
+		startBurst(player, s, t, false)
 		publish(player, s)
-		local c = player.Character
-		if c then
-			c:SetAttribute("WORLD_EXE_SuperUntil", s.superUntil) -- every client draws the afterimages
-		end
-		send(player, { op = "super", seconds = secs, speed = tune("SuperSpeed"), turn = tune("SuperTurnRate") })
-		note(s, string.format("%.3f SUPER (+%.3f after dash) for %.2f s; next at +%.1f", t, dt, secs, tune("SuperCooldown")))
+		note(s, string.format("%.3f SUPER (+%.3f after dash) for %.2f s; %d follow-ups", t, dt, tune("SuperSeconds"), s.charges))
 		logEvent(string.format("%s super-speed (+%.2f s after dash)", player.Name, dt))
 		return
 	end
@@ -161,6 +211,18 @@ local function applyRun(character: Model)
 end
 
 function MovementService.Start(deps: { send: (Player, { [string]: any }) -> (), log: (string) -> () })
+	-- Rev 15g: afterimage clones keep a Humanoid (so clothing renders) and Humanoids force their body parts
+	-- collidable every frame, which made the clones posed at the runner bump them (measured: 74 <-> 28
+	-- studs/s flicker). Clones go in this group, which collides with nothing.
+	local PhysicsService = game:GetService("PhysicsService")
+	pcall(function()
+		PhysicsService:RegisterCollisionGroup("WORLD_EXE_Afterimage")
+	end)
+	for _, g in PhysicsService:GetRegisteredCollisionGroups() do
+		pcall(function()
+			PhysicsService:CollisionGroupSetCollidable("WORLD_EXE_Afterimage", g.name, false)
+		end)
+	end
 	send = deps.send
 	logEvent = deps.log
 	local function hook(player: Player)

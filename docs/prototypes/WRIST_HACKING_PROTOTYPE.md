@@ -918,3 +918,52 @@ Asked whether to keep cyan → violet or switch to the reference's green, the ow
 - The Workspace attribute `WORLD_EXE_SuperTint` still forces a single colour.
 - **Capture:** `mix_burst/b_10.jpg` shows green, violet and cyan copies in one chain, with the tinted screen.
 - **Saved place:** SHA-256 `78a95098d57d3d73ef22e96205280551c3610fbb78e9293510f2449d8fe7ca51`, 64/64. Protected files 9/9 OK.
+
+### 21.15 Rev 15g — dash cooldown halved, super-speed chain + smoother, wall-running (owner, 2026-11-16)
+Owner: "the dash cooldown should be half of what it currently is, the wall run still needs to be implemented and the super dash should feel smoother (also should be able to be used 2 times after initial activation". The only wall-run reference is MOV-03; the owner confirmed it.
+
+**Dash cooldown:** `DashCooldownRatio` 0.5 → 0.25 of SuperCooldown, so 5.5 s → **2.75 s**. Verified: a dash at +5.07 s, the next at +8.38 s.
+
+**Super-speed chain (server-authoritative, `MovementService`):**
+- After the Q-Q activation the player holds `SuperFollowUps` = 2 extra bursts.
+- Each fires with **one** Q:
+  - during a burst, it is queued to that burst's end (only one can be queued, so mashing is guarded);
+  - otherwise it must come within `SuperFollowWindow` 2.5 s after the burst ends.
+- The 11 s cooldown starts when the chain ends: after the last burst, or when the window runs out unused.
+- The gauge shows ◆ charges and a green follow-up window. A follow-up has a lighter cue and keeps the wind sound going.
+- **Verified:** activation at +0.67; follow-up at +2.10 (after the burst); follow-up at +2.93 queued to the burst end; a mashed Q ignored; chain end at +4.12, then super ready 11 s later.
+
+**Smoother super-speed:**
+- eased ramp-in from the current speed (`SuperAccelSeconds` 0.14);
+- exponential steering capped at 10 rad/s (`SuperSteerSmoothing` 7);
+- eased return to run speed (`SuperEaseOutSeconds` 0.32);
+- follow-ups continue in the current direction of travel.
+- **Root cause of the "not smooth" feel:** the Rev 15e clone afterimages keep a Humanoid (for clothing), and Humanoids force their parts collidable every frame. The clones posed at the runner bumped them, so measured speed flickered 74 ↔ 28. Fixed with the `WORLD_EXE_Afterimage` collision group (registered by the server, collides with nothing).
+- **Client trace after the fix:** 28→74 over ≈0.14 s, 74 held, eased 74→28 over ≈0.3 s, with 16 clones present.
+
+**Wall-running (`Controllers/WallRun.luau`, MoveState "wallrun"; MOV-03: ~4 s along building faces at window height, wrapping around corners):**
+- **Start:** airborne, moving, at least 18 studs/s, with a tall, collidable, non-character wall within 3.2 studs at the side or forward-diagonal. Head-on walls are excluded.
+- **While running:**
+  - carried along the wall at max(speed, 36) studs/s;
+  - a short lift, then **level running**, then a sink in the last 0.6 s;
+  - kept about 1.5 studs off the wall, body tilted 8°, run animation at 1.5×, dust at the feet;
+  - **outside corners** turn onto the side face (a ≈2-stud step), **inside corners** onto the wall ahead.
+- **Ends:**
+  - Space = wall jump: out 40, up 50, along 75% of speed, then a 0.5 s horizontal carry. Roblox air control otherwise cancelled the push in about 0.25 s;
+  - landing, the wall ending, letting go of the keys, or 4.0 s.
+  - Dash, super-speed and FLING SELF can take over.
+- **Verified:**
+  - straight wall: 1.62 s / 58 studs at the old 1.6 s limit;
+  - 24-stud block: **4.02 s, 6 corners**, height level at y = 9.2, wall gap 1.5–1.6 studs;
+  - wall jump: run → jump → **latched onto the opposite wall** → a second run.
+- **Test lane:** `tools/studio/hackproto/hp_21_wallrun_lane.luau` builds `HackProto.WallRunLane`, also saved in the place:
+  - two 70×16 walls at x = 320 and x = 340 (z 15–85);
+  - a 24×16×24 block at (330, 140);
+  - checked to overlap nothing.
+
+**Saved place:** SHA-256 `f00043470836310475dc38d6d6a9c32b2d10117b3aee28ccceea9fbdb8407cc2`, 65/65. Protected files 9/9 OK.
+
+**Not tested:**
+- how others see wall-running (two-client);
+- gamepad and touch;
+- wall-running on map geometry other than the lane.

@@ -5,6 +5,7 @@
 --   "dash"       = first-Q grounded dash (MovementController)
 --   "super"      = second-Q steerable super-speed (MovementController)
 --   "flingSelf"  = FLING SELF carry + air control (HackController)
+--   "wallrun"    = wall-running (WallRun, Rev 15g); "walljump" = the short carry after a wall jump
 --   (future)     "wallrun" — would claim ownership here, read the wall normal, and release on exit;
 --                nothing in this prototype assumes the character is always grounded or that velocity
 --                is only horizontal (dash/super drive the horizontal plane only and leave Y to physics).

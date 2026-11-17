@@ -29,6 +29,7 @@ local HackCatalog = require(sharedRoot:WaitForChild("Shared"):WaitForChild("Hack
 local UITheme = require(script.Parent:WaitForChild("UITheme"))
 local UIUtil = require(script.Parent:WaitForChild("UIUtil"))
 local MoveState = require(script.Parent:WaitForChild("MoveState"))
+local WallRun = require(script.Parent:WaitForChild("WallRun"))
 local C = UITheme.Color
 
 local Q_ACTION = "WORLD_EXE_MoveQ"
@@ -135,6 +136,8 @@ local function buildChain(live: Model): Chain?
 			p.CanTouch = false
 			p.CastShadow = false
 			p.Transparency = 1
+			p.CollisionGroup = "WORLD_EXE_Afterimage" -- collides with nothing (the clone Humanoid re-enables CanCollide)
+			p.Massless = true
 		elseif p:IsA("Decal") then
 			p.Transparency = 1
 		end
@@ -348,7 +351,28 @@ function MovementController.Start()
 	local windowMin, windowMax = 0.2, 0.8
 	local superReadyAt = 0 -- server time
 	local superEnd = -1 -- os.clock()
+	-- Rev 15g: wall-running (its own module; feedback hooks here)
+	WallRun.Start({
+		ignore = { fxFolder },
+		onStart = function()
+			sfx("rbxasset://sounds/action_footsteps_plastic.mp3", 1.6, 0.4)
+			gui:SetAttribute("LastMove", "wallrun")
+		end,
+		onStep = function(footPos: Vector3)
+			if not UITheme.reducedEffects() then
+				spawnDust(footPos, false)
+			end
+		end,
+		onEnd = function(how: string)
+			if how == "jump" then
+				sfx("rbxasset://sounds/action_jump.mp3", 1.3, 0.4)
+			end
+			gui:SetAttribute("LastWallRunEnd", how)
+		end,
+	})
 	local superLen = 1
+	local chainCharges = 0 -- Rev 15g: follow-up bursts left
+	local chainWindowEnd = -1 -- os.clock()
 	local wind: Sound? = nil
 	local baseFov: number? = nil
 	local grade = Instance.new("ColorCorrectionEffect")
@@ -389,11 +413,18 @@ function MovementController.Start()
 		if not c or not hrp or not hum or hum.Health <= 0 then
 			return
 		end
-		if not MoveState.Claim(kind, MoveState.Owner() == "dash" and kind == "super") then
-			return -- FLING SELF (or another state) owns the velocity right now
+		local owner = MoveState.Owner()
+		if owner == "flingSelf" then
+			return -- FLING SELF owns the velocity right now
 		end
-		stop()
-		local dir = flat(hum.MoveDirection) or flat(hrp.CFrame.LookVector) or Vector3.zAxis
+		stop() -- release our previous drive BEFORE claiming (a super -> super follow-up keeps ownership)
+		if not MoveState.Claim(kind, owner == "dash" or owner == "wallrun" or owner == "walljump" or owner == kind) then
+			return
+		end
+		-- Rev 15g smoother: start from the current motion (follow-up bursts and fast runs carry straight on)
+		local v0 = hrp.AssemblyLinearVelocity
+		local hs0 = Vector3.new(v0.X, 0, v0.Z).Magnitude
+		local dir = (if turn and hs0 > 20 then flat(v0) else nil) or flat(hum.MoveDirection) or flat(hrp.CFrame.LookVector) or Vector3.zAxis
 		local att = Instance.new("Attachment")
 		att.Name = "MoveDriveAttachment"
 		att.Parent = hrp
@@ -406,10 +437,18 @@ function MovementController.Start()
 		lv.SecondaryTangentAxis = Vector3.zAxis
 		lv.ForceLimitMode = Enum.ForceLimitMode.Magnitude
 		lv.MaxForce = hrp.AssemblyMass * 3000
-		lv.PlaneVelocity = Vector2.new(dir.X, dir.Z) * speed
+		lv.PlaneVelocity = Vector2.new(dir.X, dir.Z) * (if turn then math.max(hs0, tune("RunSpeed")) else speed)
 		lv.Parent = hrp
 		local t0 = os.clock()
 		local run = tune("RunSpeed")
+		local startSpeed = math.max(hs0, run)
+		local accel = if turn then tune("SuperAccelSeconds") else 0
+		local easeOut = if turn then tune("SuperEaseOutSeconds") else 0.15
+		local steerK = tune("SuperSteerSmoothing")
+		local function smooth(x: number): number
+			x = math.clamp(x, 0, 1)
+			return x * x * (3 - 2 * x)
+		end
 		local conn
 		conn = RunService.Heartbeat:Connect(function(dt)
 			if not hrp.Parent or hum.Health <= 0 then
@@ -423,16 +462,23 @@ function MovementController.Start()
 					local d = dir :: Vector3
 					local ang = math.acos(math.clamp(d:Dot(want), -1, 1))
 					if ang > 1e-3 then
-						local step = math.min(ang, turn * dt)
+						-- Rev 15g smoother: exponential approach, capped by the turn rate (no snapping)
+						local step = math.min(ang * (1 - math.exp(-steerK * dt)), turn * dt)
 						local cross = d:Cross(want).Y
 						local a = if cross >= 0 then step else -step -- CFrame.Angles(0, +a) turns -Z toward -X; cross.Y = d.z*w.x - d.x*w.z
 						dir = (CFrame.Angles(0, a, 0) * d).Unit
 					end
 				end
 			end
-			-- ease back toward run speed over the last 0.15 s (no hard stop, MOV-01 quick return)
-			local k = math.clamp((seconds - el) / 0.15, 0, 1)
-			local sp = run + (speed - run) * k
+			-- Rev 15g smoother: eased ramp-in from the current speed, eased return to run speed at the end
+			local sp = speed
+			if accel > 0 and el < accel then
+				sp = startSpeed + (speed - startSpeed) * smooth(el / accel)
+			end
+			local remaining = seconds - el
+			if remaining < easeOut then
+				sp = run + (sp - run) * smooth(remaining / math.max(0.01, easeOut))
+			end
 			lv.PlaneVelocity = Vector2.new(dir.X, dir.Z) * sp
 			if el >= seconds then
 				stop(kind)
@@ -469,10 +515,16 @@ function MovementController.Start()
 		elseif op == "super" then
 			superLen = tonumber(data.seconds) or 1
 			superEnd = os.clock() + superLen
+			chainCharges = tonumber(data.charges) or 0
+			chainWindowEnd = superEnd + (tonumber(data.window) or 0)
 			dashAt = -1
-			drive("super", superLen, tonumber(data.speed) or 74, tonumber(data.turn) or 14)
-			sfx("rbxasset://sounds/action_jump.mp3", 0.85, 0.45)
-			sfx("rbxasset://sounds/volume_slider.ogg", 2.6, 0.5)
+			drive("super", superLen, tonumber(data.speed) or 74, tonumber(data.turn) or 10)
+			if data.follow then
+				sfx("rbxasset://sounds/volume_slider.ogg", 2.2, 0.4) -- follow-up: lighter cue, no thump
+			else
+				sfx("rbxasset://sounds/action_jump.mp3", 0.85, 0.45)
+				sfx("rbxasset://sounds/volume_slider.ogg", 2.6, 0.5)
+			end
 			if not wind then
 				local w = Instance.new("Sound")
 				w.SoundId = "rbxasset://sounds/action_falling.ogg"
@@ -483,7 +535,11 @@ function MovementController.Start()
 				wind = w
 			end
 			(wind :: Sound):Play()
+			local myEnd = superEnd
 			task.delay(superLen, function()
+				if superEnd ~= myEnd then
+					return -- a follow-up burst continued the run: keep the wind going
+				end
 				if wind then
 					wind:Stop()
 				end
@@ -496,6 +552,9 @@ function MovementController.Start()
 				dashAt = -1 -- the window is gone: hide it
 			elseif data.kind == "super_cooldown" then
 				sfx("rbxasset://sounds/volume_slider.ogg", 0.5, 0.35)
+				superReadyAt = tonumber(data.readyAt) or superReadyAt
+			elseif data.kind == "super_chain_end" then
+				chainCharges = 0
 				superReadyAt = tonumber(data.readyAt) or superReadyAt
 			elseif data.kind == "dash_cooldown" then
 				sfx("rbxasset://sounds/volume_slider.ogg", 0.6, 0.25)
@@ -526,14 +585,22 @@ function MovementController.Start()
 		-- gauge
 		local inWindowDisplay = dashAt > 0 and now - dashAt <= windowMax + 0.05
 		local superOn = superEnd > now
-		local cooling = superReadyAt > st
-		gauge.Visible = inWindowDisplay or superOn or cooling
+		local cooling = superReadyAt > st and superReadyAt < 1e12
+		local chainOpen = not superOn and chainCharges > 0 and now < chainWindowEnd
+		gauge.Visible = inWindowDisplay or superOn or cooling or chainOpen
 		if superOn then
 			windowSeg.Size = UDim2.fromScale(0, 1)
 			fill.BackgroundColor3 = VIOLET
 			fill.Size = UDim2.fromScale(math.clamp((superEnd - now) / superLen, 0, 1), 1)
 			marker.Visible = false
-			label.Text = "SUPER"
+			label.Text = if chainCharges > 0 then "SUPER  " .. string.rep("◆", chainCharges) else "SUPER"
+		elseif chainOpen then
+			-- follow-up window: one Q fires the next burst
+			windowSeg.Size = UDim2.fromScale(0, 1)
+			fill.BackgroundColor3 = NEON_GREEN
+			fill.Size = UDim2.fromScale(math.clamp((chainWindowEnd - now) / math.max(0.1, tune("SuperFollowWindow")), 0, 1), 1)
+			marker.Visible = false
+			label.Text = "Q  " .. string.rep("◆", chainCharges)
 		elseif inWindowDisplay then
 			local span = windowMax + 0.05
 			windowSeg.Position = UDim2.fromScale(windowMin / span, 0)
@@ -599,7 +666,7 @@ function MovementController.Start()
 					local isDash = typeof(du) == "number" and du + 0.1 > st
 					local grounded = hum.FloorMaterial ~= Enum.Material.Air
 					for _, tr in f.trails do
-						tr.Enabled = not reduced and (isSuper or isDash or (grounded and hs > 22))
+						tr.Enabled = not reduced and (isSuper or isDash or (grounded and hs > 22) or c:GetAttribute("WORLD_EXE_WallRunning") == true)
 						tr.Color = ColorSequence.new(if isSuper then VIOLET else CYAN)
 						tr.Lifetime = if isSuper then 0.28 elseif isDash then 0.2 else 0.12
 					end
