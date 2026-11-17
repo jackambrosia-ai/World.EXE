@@ -411,6 +411,7 @@ type Grab = {
 	boss: boolean,
 	lastMode: string?,
 	lastPoint: Vector3,
+	anchor: Vector3, -- where it was grabbed (lifted); the hold may only sway HoldWiggle studs from here
 	done: boolean,
 }
 local grabs: { [Player]: Grab } = {}
@@ -538,7 +539,7 @@ local function grabStart(attacker: Player, model: Model, hum: Humanoid, root: Ba
 	local start = root.Position + Vector3.new(0, tune("FlingTarget", "HoldHeight"), 0)
 	ap.Position = start
 	ap.Parent = root
-	local g: Grab = { attacker = attacker, model = model, root = root, st = st, att = att, ap = ap, boss = boss, lastMode = nil, lastPoint = start, done = false }
+	local g: Grab = { attacker = attacker, model = model, root = root, st = st, att = att, ap = ap, boss = boss, lastMode = nil, lastPoint = start, anchor = start, done = false }
 	grabs[attacker] = g
 	local holdFor = tune("FlingTarget", "HoldSeconds")
 	model:SetAttribute(A.RagdollUntil, now() + holdFor + tune("FlingTarget", "MaxRagdollSeconds"))
@@ -582,14 +583,14 @@ function HackEffects.GrabHold(attacker: Player, pos: any, dir: any)
 		return
 	end
 	local tune = HackCatalog.Tune
-	local leash = tune("FlingTarget", "HoldLeash")
-	local off = Vector3.new(pos.X - aRoot.Position.X, 0, pos.Z - aRoot.Position.Z)
-	if off.Magnitude > leash then
-		off = off.Unit * leash
+	-- owner 2026-11-16: the held target must not be dragged around much before the click; it only
+	-- sways up to HoldWiggle studs from where it was grabbed, leaning toward the cursor
+	local wiggle = tune("FlingTarget", "HoldWiggle")
+	local off = Vector3.new(pos.X - g.anchor.X, 0, pos.Z - g.anchor.Z)
+	if off.Magnitude > wiggle then
+		off = off.Unit * wiggle
 	end
-	local flatPos = aRoot.Position + off
-	local y = groundY(flatPos, { g.model, attacker.Character :: Instance }) + tune("FlingTarget", "HoldHeight") * (if g.boss then 1.3 else 1)
-	local point = Vector3.new(flatPos.X, y, flatPos.Z)
+	local point = g.anchor + off
 	g.ap.Position = point
 	g.lastPoint = point
 	if typeof(dir) == "string" and THROW_MODES[dir] then

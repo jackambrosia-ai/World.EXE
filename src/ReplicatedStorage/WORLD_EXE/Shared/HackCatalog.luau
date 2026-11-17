@@ -51,7 +51,7 @@ local definitions: { HackDef } = {
 	{ Id = "FLING_SELF", DisplayName = "Fling Self", Short = "FLING SELF", Icon = "▲", Serial = "HX-01", Category = "Physics", Target = "self",
 		Effect = "Launch yourself up and forward. You keep control; no ragdoll.", Order = 1 },
 	{ Id = "FLING_TARGET", DisplayName = "Fling Target", Short = "FLING", Icon = "»", Serial = "HX-02", Category = "Entity", Target = "other",
-		Effect = "Grab a target and hold it. Drag up, sideways or down (behind you) and click to throw.", Order = 2 },
+		Effect = "Grab a target. Click with the cursor above, beside or below screen centre: up, sideways or behind you.", Order = 2 },
 	{ Id = "FREEZE", DisplayName = "Freeze", Short = "FREEZE", Icon = "❄", Serial = "HX-03", Category = "Environment", Target = "other",
 		Effect = "Freeze a target for about 3 s. Bosses resist (shorter).", Order = 3 },
 	{ Id = "SHIELD", DisplayName = "Shield", Short = "SHIELD", Icon = "◈", Serial = "HX-04", Category = "Beneficial", Target = "self",
@@ -125,15 +125,16 @@ HackCatalog.Tuning = table.freeze({
 		HoldSeconds = 2, -- owner 2026-11-16: "cut it's duration to 2 seconds"
 		HoldHeight = 7,
 		HoldLeash = 32,
+		HoldWiggle = 4, -- owner 2026-11-16: held target only sways this far from its grab point before the click
 		HoldResponsiveness = 18,
 		HoldMaxSpeed = 70,
 		ThrowSpeed = 65,
 		ThrowBonus = 35,
 		ThrowUp = 22,
 		BossThrowScale = 0.6,
-		UpThrowSpeed = 90, -- drag UP: launched straight up (+ power × UpThrowBonus)
+		UpThrowSpeed = 90, -- cursor ABOVE screen centre at the click: launched straight up (+ power × UpThrowBonus)
 		UpThrowBonus = 30,
-		BackThrowUp = 45, -- drag DOWN: thrown back over and past the attacker (higher arc to clear them)
+		BackThrowUp = 45, -- cursor BELOW centre: thrown back over and past the attacker (higher arc to clear them)
 		GlideSpeed = 85,
 		GlideSeconds = 1.8,
 		GlideRestSeconds = 0.6, -- stays down this long after the glide stops, then gets up

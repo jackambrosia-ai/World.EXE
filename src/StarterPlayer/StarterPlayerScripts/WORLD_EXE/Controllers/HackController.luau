@@ -1223,7 +1223,28 @@ function HackController.Start()
 		return nil
 	end
 
+	-- throw reticle at the screen centre: UP / LEFT / RIGHT / BEHIND, the active zone lit
+	local reticle = UIUtil.create("Frame", { Name = "ThrowReticle", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(280, 200), BackgroundTransparency = 1, Visible = false }, root) :: Frame
+	local dot = UIUtil.create("Frame", { Name = "Dot", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Text, BackgroundTransparency = 0.3, BorderSizePixel = 0 }, reticle) :: Frame
+	UIUtil.corner(dot, 4)
+	local zoneLabels: { [string]: TextLabel } = {}
+	for name, pos in { up = UDim2.new(0.5, 0, 0, 0), left = UDim2.new(0, 0, 0.5, 0), right = UDim2.new(1, 0, 0.5, 0), back = UDim2.new(0.5, 0, 1, 0) } do
+		zoneLabels[name] = UIUtil.text("Zone_" .. name, reticle, if name == "back" then "BEHIND" else string.upper(name), 14, C.Muted, F.Title, {
+			AnchorPoint = Vector2.new(0.5, 0.5), Position = pos, TextStrokeTransparency = 0.4,
+		})
+	end
+	local function updateReticle(mode: string?)
+		local m = mode or "up"
+		for name, l in zoneLabels do
+			local on = name == m
+			l.TextColor3 = if on then C.Coral else C.Muted
+			l.TextSize = if on then 18 else 13
+			l.TextTransparency = if on then 0 else 0.35
+		end
+	end
+
 	local function endHold(why: string?)
+		reticle.Visible = false
 		gui:SetAttribute("HoldEnd", why or "?")
 		hold = nil
 		table.clear(holdSamples)
@@ -1250,13 +1271,15 @@ function HackController.Start()
 		holdDir = nil
 		holdPower = 0
 		gui:SetAttribute("Holding", true)
+		reticle.Visible = true
+		updateReticle(nil)
 		ContextActionService:BindActionAtPriority(THROW_ACTION, function(_, st: Enum.UserInputState)
 			if st == Enum.UserInputState.Begin then
 				throwNow()
 			end
 			return Enum.ContextActionResult.Sink
 		end, false, Enum.ContextActionPriority.High.Value + 30, Enum.UserInputType.MouseButton1, Enum.KeyCode.ButtonR2)
-		HackFeel.Popup("DRAG UP · SIDEWAYS · DOWN (BEHIND YOU) — CLICK TO THROW", C.Coral)
+		HackFeel.Popup("AIM FROM THE CENTRE · CLICK TO THROW", C.Coral)
 	end
 
 	UserInputService.InputBegan:Connect(function(input: InputObject)
@@ -1293,39 +1316,25 @@ function HackController.Start()
 			return
 		end
 		local tnow = os.clock()
-		-- drag tracking (same screen → world mapping as the flick: right = camera right, up = away)
-		if UserInputService.MouseEnabled and UserInputService.MouseBehavior == Enum.MouseBehavior.Default then
-			local m = UserInputService:GetMouseLocation()
-			if holdLastMouse and (m - holdLastMouse).Magnitude > 0 then
-				table.insert(holdSamples, { t = tnow, d = m - (holdLastMouse :: Vector2) })
-			end
-			holdLastMouse = m
-		end
-		local sum = Vector2.zero
-		local oldest = tnow
-		for i = #holdSamples, 1, -1 do
-			if tnow - holdSamples[i].t > 0.2 then
-				table.remove(holdSamples, i)
+		-- throw mode from the CURSOR POSITION relative to the screen centre (owner 2026-11-16):
+		-- above = UP, left/right = that SIDE, below = BACK (over and behind you); near the centre = UP.
+		-- Farther from the centre = a stronger throw.
+		local vp = cam.ViewportSize
+		local mloc = UserInputService:GetMouseLocation()
+		local offC = mloc - vp / 2
+		local dead = 40
+		if UserInputService.MouseEnabled and offC.Magnitude >= dead then
+			if math.abs(offC.Y) >= math.abs(offC.X) then
+				holdDir = if offC.Y < 0 then "up" else "back"
 			else
-				sum += holdSamples[i].d
-				oldest = math.min(oldest, holdSamples[i].t)
+				holdDir = if offC.X > 0 then "right" else "left"
 			end
-		end
-		-- drag → one of the allowed throws (owner 2026-11-16: only sideways, backwards, upwards):
-		-- drag up = launch UP, drag left/right = that SIDE, drag down = BACK over and past you
-		if sum.Magnitude >= 16 then
-			if math.abs(sum.Y) >= math.abs(sum.X) then
-				holdDir = if sum.Y < 0 then "up" else "back"
-			else
-				holdDir = if sum.X > 0 then "right" else "left"
-			end
-			-- drag speed over the time the samples actually span (px/s): 300 → 0 power, 1800 → full
-			local speed = sum.Magnitude / math.max(1 / 60, tnow - oldest + 1 / 60)
-			holdPower = math.clamp((speed - 300) / 1500, 0, 1)
+			holdPower = math.clamp((offC.Magnitude - dead) / math.max(1, math.min(vp.X, vp.Y) * 0.45 - dead), 0, 1)
 		else
-			holdDir = nil -- not dragging right now: a click launches it straight up
+			holdDir = nil -- at the centre: a click launches it straight up
 			holdPower = 0
 		end
+		updateReticle(holdDir)
 		-- hold point (~20/s)
 		if tnow - holdLastSend >= 0.05 then
 			holdLastSend = tnow

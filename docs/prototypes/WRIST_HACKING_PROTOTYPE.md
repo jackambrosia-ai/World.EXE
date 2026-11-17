@@ -502,3 +502,35 @@ Directive: "WORLD.EXE — Hacking, cyberware & boss gameplay prototype". Same is
 | **real mouse**, drag down then click | classified `back`; landed 63 studs behind the attacker (capture `m9_grab_drag_down_back.jpg`) |
 
 **Saved place:** 59/59 scripts; hash 470C3A66…. Protected files: 9/9 unchanged.
+
+## 18. Revision 12 — aim from the screen centre; limited hold movement (2026-11-16)
+**Owner:**
+- "I like that the fling activates on clicking";
+- "I don't think that you should be able to move them around as much … before clicking";
+- "instead of just going off the last direction the mouse moved, it should go relative to the center of the screen".
+
+**Built:**
+- **Throw mode from the cursor's position relative to the screen centre at the click:**
+  - above → up; left/right → that side; below → behind you (over your head);
+  - within 40 px of the centre → up;
+  - power = distance from the centre (40 px → 0, 45 % of the short screen side → 1).
+
+  Mouse-movement (drag) sampling was removed.
+- **Reticle:** shown at the screen centre while holding — a dot plus UP / LEFT / RIGHT / BEHIND, with the active zone lit coral. Hint: "AIM FROM THE CENTRE · CLICK TO THROW". The chip text was updated.
+- **Limited hold movement:** the held target now only sways up to `HoldWiggle` (4) studs from its lifted grab point, leaning toward the cursor. It is no longer carried around within a 32-stud leash.
+- **Server-side protections from rev 11 are unchanged:** only up/left/right/back, computed from attacker → target geometry; 2 s hold.
+
+**Results (solo Studio):**
+
+| Check | Result |
+|---|---|
+| Reticle with cursor right of centre | RIGHT lit, throw arrow pointing right (capture `m10_reticle_right.jpg`) |
+| Zone maths on fixed screen points | centre → up p0; top → up; bottom → behind; far left/right → left/right p1.00; slightly right → right p0.37 |
+| Sway limit | hold points sent 30 studs sideways for the whole hold → the target moved at most 3.5 studs from its grab point |
+| Auto-throw | at 1.97 s, in the cursor's zone (right) → 67.5 studs right |
+
+**Real-mouse clicks:** these could not be verified this time. The physical Windows cursor sat over the Studio window and overrode the emulated cursor (`GetMouseLocation` read positions that were never sent), so one click registered as "back". The zone code path is the same as the verified maths.
+
+**Saved place:** 59/59 scripts; hash 8A3BE422…. Protected files: 9/9 unchanged.
+
+**Known limitation:** with shift-lock or a held right-click camera drag, the cursor is locked at the centre, so every click throws up. A keyboard/gamepad zone selection is not built.
