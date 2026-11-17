@@ -778,3 +778,44 @@ Owner: "the upward fling should still launch the player forward".
   - 50.8 studs horizontal (dx −42.5, dz −27.9, directly away from the attacker);
   - recovery 3.05 s, settled.
 - **Saved place:** SHA-256 `6d571e9bc630a59832a3646bcf26b55d2f91a90ce080bc9ae0c51035650f029e`, 62/62. Protected files 9/9 OK.
+
+### 21.10 Rev 15b — bigger dash, dash cooldown = half of super-speed, FLING SELF like the regular fling (owner, 2026-11-16)
+The owner said: "the regular dash is not substantial enough to affect gameplay at all", "the self fling should resemble the regular fling more, but with less ragdoll and more control" and "make the dash half the cooldown of the super speed dash". Asked how much ragdoll, they chose **loose limbs in the air**.
+
+- **Dash:**
+  - `DashSpeed` 88 → 115 and `DashSeconds` 0.17 → 0.30.
+  - Measured at 0.24 s: 19.3–20.7 studs (was 10–11), top speed 114–115, dy ≤ 0.02. At 0.30 s it is expected to be ≈25–28 studs; not re-measured.
+- **Dash cooldown:** `SuperCooldown × DashCooldownRatio` (0.5) = **5.5 s** (was 0.6 s).
+  - A Q during the cooldown gives a soft tick (`move_fx dash_cooldown`).
+  - A thin cyan bar under the gauge fills while the dash recharges.
+  - Measured: Q at +1.67 s was rejected (3.83 s left); Q at +6.27 s dashed.
+- **FLING SELF** — same launch, look and landing as the regular fling:
+  - the electric zap cue (not the old "boom");
+  - a 0.35 s shock on the body (cyan glow flicker, crackle, sparks);
+  - the cyan throw trail;
+  - the regular landing impact (thud, dust ring, cyan sparks).
+  - The old orange starburst, crater and camera kick are gone for FLING SELF.
+- **Loose limbs, client-side (`Controllers/LooseLimbs.luau`):**
+  - Only arm and leg joints go loose (12). Root, waist and neck stay powered, and the Humanoid state is unchanged, so steering and the upright body are untouched.
+  - A launch spin kick plus light kicks every 0.12 s make the limbs flail (in free fall, free limbs otherwise barely move).
+  - The limbs are restored on landing. If a real ragdoll takes over, the joints are handed to the server rather than restored.
+- **Rig finding:** the owner's avatar has **no Motor6Ds**. Each joint is an `AnimationConstraint` plus a `…BallSocket` constraint.
+  - Loose limbs and the server ragdoll (`ragdollBegin`/`recover`, also used by FLING TARGET on players) now handle both rigs.
+  - FLING TARGET against such a player rig had never been tested: the dummies use Motor6Ds.
+- **Two bugs found and fixed:**
+  - Loosening limbs on the server at launch collapsed the flight to 2.2 studs. It moved to the owning client.
+  - Freed limbs started at rest and dragged the body down (arms only gave 9.7 studs). Every part now gets the launch velocity.
+- **Landing impact:** the server raycasts from the client-reported landing point (accepted within 25 studs of the server position), because the server's copy of a fast fall lags.
+- **Measured (solo, owner's avatar):**
+  - flight 20.0–20.3 studs high, 38.1–38.9 forward, 0.90–0.92 s air (unchanged from before loosening);
+  - 12 joints loose, upright 1.00;
+  - arm swing ≤ 20°, leg swing ≤ 47°;
+  - all joints restored after landing (Running);
+  - landing impact received.
+- **Captures:** `selffling_burst/b_24.jpg`, `selffling_sheet.jpg`.
+- **Saved place:** SHA-256 `89d2d572aaca578df49ff7c634735eba91e1b4d374069d0af519e2c04a2a2324`, 63/63. Protected files 9/9 OK.
+
+**Not tested:**
+- how other players see the loose limbs (two-client);
+- FLING TARGET on a player using the AnimationConstraint rig;
+- the 0.30 s dash distance (only 0.24 s was measured).

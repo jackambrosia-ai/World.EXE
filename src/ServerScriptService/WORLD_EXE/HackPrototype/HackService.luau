@@ -809,6 +809,8 @@ function HackService.Start()
 			timed("input", function()
 				input(player, p)
 			end)
+		elseif op == "fling_self_end" then
+			HackEffects.FlingSelfEnd(player, if p.how == "landed" then "landed" else "other", p.pos) -- Rev 15b: landing impact
 		elseif op == "q" then
 			timed("q", function()
 				MovementService.Q(player, p)

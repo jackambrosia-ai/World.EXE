@@ -86,9 +86,9 @@ HackCatalog.Tuning = table.freeze({
 	-- = steerable super-speed. A second Q earlier than SuperMin VOIDS the window (spam-proof).
 	Move = table.freeze({
 		RunSpeed = 28, -- baseline Humanoid.WalkSpeed (Roblox default 16)
-		DashSpeed = 88, -- studs/s, horizontal only
-		DashSeconds = 0.17, -- ≈15 studs
-		DashCooldown = 0.6,
+		DashSpeed = 115, -- studs/s, horizontal only (Rev 15b: owner "not substantial enough" — was 88)
+		DashSeconds = 0.3, -- ≈25-30 studs (was 0.17 s ≈ 11 studs measured; 0.24 s measured 19-21)
+		DashCooldownRatio = 0.5, -- owner 2026-11-16: dash cooldown = half the super-speed cooldown (11 s -> 5.5 s)
 		SuperMin = 0.2, -- second Q earlier than this after the dash: too early (voids the window)
 		SuperMax = 0.8, -- later than this: expired (counts as a fresh first Q)
 		SuperSeconds = 1.0, -- MOV-02: ≈1 s bursts

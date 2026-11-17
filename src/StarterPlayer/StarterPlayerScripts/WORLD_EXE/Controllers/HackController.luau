@@ -35,6 +35,7 @@ local HackCatalog = require(sharedRoot:WaitForChild("Shared"):WaitForChild("Hack
 local UITheme = require(script.Parent:WaitForChild("UITheme"))
 local UIUtil = require(script.Parent:WaitForChild("UIUtil"))
 local MoveState = require(script.Parent:WaitForChild("MoveState"))
+local LooseLimbs = require(script.Parent:WaitForChild("LooseLimbs"))
 local CyberChip = require(script.Parent:WaitForChild("CyberChip"))
 local HackVfx = require(script.Parent:WaitForChild("HackVfx"))
 local ArrowGlyph = require(script.Parent:WaitForChild("ArrowGlyph"))
@@ -1479,7 +1480,10 @@ function HackController.Start()
 	-- FLING SELF executor (this client owns its character's physics).
 	local flingConn: RBXScriptConnection? = nil
 	local flingParts: { Instance } = {}
-	local function endFling()
+	local looseHandle: LooseLimbs.Handle? = nil
+	-- serverRagdoll: a real ragdoll (FLING TARGET) took the joints over — drop our loose state without
+	-- re-enabling joints the server just disabled
+	local function endFling(serverRagdoll: boolean?)
 		if flingConn then
 			flingConn:Disconnect()
 			flingConn = nil
@@ -1488,6 +1492,10 @@ function HackController.Start()
 			inst:Destroy()
 		end
 		table.clear(flingParts)
+		if looseHandle then
+			LooseLimbs.End(looseHandle, player.Character, not serverRagdoll)
+			looseHandle = nil
+		end
 		MoveState.Release("flingSelf")
 	end
 	local function flingSelf(v: Vector3, steer: number, minAir: number, maxT: number, blockedFrac: number, ctl: { turn: number, brake: number, fallCap: number, glideCap: number })
@@ -1500,7 +1508,16 @@ function HackController.Start()
 		end
 		MoveState.Claim("flingSelf", true) -- FLING SELF overrides dash / super-speed (MovementController stops its drive)
 		hum:ChangeState(Enum.HumanoidStateType.Jumping)
+		looseHandle = LooseLimbs.Begin(c :: Model) -- Rev 15b: arms/legs loose in the air, body upright, full control
 		hrp.AssemblyLinearVelocity = v
+		-- loose limbs are their own physics bodies now: launch them too, or they start at rest and drag the
+		-- body down (measured: arms-only loosening halved the rise, 9.7 vs 20.5 studs)
+		for _, part in (c :: Model):GetDescendants() do
+			if part:IsA("BasePart") and part ~= hrp and not part.Anchored then
+				part.AssemblyLinearVelocity = v
+			end
+		end
+		LooseLimbs.Flail(looseHandle, 1) -- launch kick: limbs fling out like a shocked body
 		local att = Instance.new("Attachment")
 		att.Name = "WristFlingAttachment"
 		att.Parent = hrp
@@ -1566,10 +1583,12 @@ function HackController.Start()
 			else
 				slowFor = 0
 			end
+			LooseLimbs.Flail(looseHandle, 0.45) -- light limb flail while airborne (throttled inside)
 			local landed = elapsed > minAir and hum.FloorMaterial ~= Enum.Material.Air
 			if landed or elapsed > maxT or slowFor > 0.15 then
 				local p = hrp.Position
 				gui:SetAttribute("LastFling", string.format("rise %.1f  horiz %.1f  air %.2fs  end=%s", stats.apexY - stats.startY, Vector3.new(p.X - stats.start.X, 0, p.Z - stats.start.Z).Magnitude, elapsed, if landed then "landed" elseif slowFor > 0.15 then "blocked" else "timeout"))
+				request:FireServer({ op = "fling_self_end", how = if landed then "landed" elseif slowFor > 0.15 then "blocked" else "timeout", pos = hrp.Position }) -- Rev 15b: landing impact (client position: the server view lags a fast fall)
 				endFling()
 			end
 		end)
@@ -1595,7 +1614,7 @@ function HackController.Start()
 				end)
 			end
 			if data.ok and data.reason == "applied" then
-				HackFeel.Cue(if id == "FLING_SELF" then "launch" else "hit")
+				HackFeel.Cue("hit") -- Rev 15b: FLING SELF uses the same electric zap as the regular fling
 			elseif not data.ok and data.reason ~= "success" then
 				HackFeel.Cue("failed")
 			end
@@ -1641,11 +1660,13 @@ function HackController.Start()
 		elseif op == "ragdoll" then
 			local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 			if hum then
-				endFling()
+				endFling(data.on == true)
 				hum:ChangeState(if data.on then Enum.HumanoidStateType.Physics else Enum.HumanoidStateType.GettingUp)
 			end
 		elseif op == "vfx" then
-			if data.kind == "launch" and typeof(data.pos) == "Vector3" then
+			if data.kind == "self_fling" and typeof(data.model) == "Instance" and data.model:IsA("Model") then
+				HackVfx.SelfFling(data.model) -- Rev 15b: regular-fling look (shock + cyan trail), no crater / camera shake
+			elseif data.kind == "launch" and typeof(data.pos) == "Vector3" then
 				HackVfx.Launch(if typeof(data.model) == "Instance" and data.model:IsA("Model") then data.model else nil, data.pos, tonumber(data.scale) or 1)
 			elseif data.kind == "glide" and typeof(data.model) == "Instance" and data.model:IsA("Model") then
 				HackVfx.Glide(data.model, tonumber(data.seconds) or 1.5)

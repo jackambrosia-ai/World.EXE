@@ -543,6 +543,72 @@ function HackVfx.ThrowTrail(model: Model)
 end
 
 
+
+-- Rev 15b: FLING SELF launch, matched to the regular fling (owner: "resemble the regular fling more").
+-- A short electric shock on the body (cyan glow flicker, crackle, sparks crawling over the limbs, ~0.35 s)
+-- then the same cyan throw trail; no crater, no orange starburst, no camera shake. Landing uses the
+-- regular fling's LandImpact (sent by the server when the flight ends on the ground).
+function HackVfx.SelfFling(model: Model)
+	HackVfx.ThrowTrail(model)
+	local body = (model:FindFirstChild("UpperTorso") or model:FindFirstChild("Torso")) :: BasePart?
+	if not body then
+		return
+	end
+	for i = 0, 4 do
+		task.delay(i * 0.06, function()
+			if not body.Parent then
+				return
+			end
+			local s = Instance.new("Sound")
+			s.SoundId = "rbxasset://sounds/volume_slider.ogg"
+			s.PlaybackSpeed = 2.6 + math.random() * 1.8
+			s.Volume = 0.4
+			s.RollOffMaxDistance = 120
+			s.Parent = body
+			s:Play()
+			task.delay(0.4, function()
+				s:Destroy()
+			end)
+		end)
+	end
+	if UITheme.reducedEffects() then
+		return
+	end
+	local h = Instance.new("Highlight")
+	h.FillColor = Color3.fromRGB(80, 220, 255)
+	h.FillTransparency = 0.6
+	h.OutlineColor = Color3.fromRGB(235, 250, 255)
+	h.OutlineTransparency = 0.2
+	h.Adornee = model
+	h.Parent = root()
+	local parts: { BasePart } = {}
+	for _, p in model:GetDescendants() do
+		if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
+			table.insert(parts, p)
+		end
+	end
+	local t0 = os.clock()
+	local frame = 0
+	local conn: RBXScriptConnection? = nil
+	conn = RunService.RenderStepped:Connect(function()
+		frame += 1
+		if os.clock() - t0 > 0.35 or not model.Parent then
+			if conn then
+				conn:Disconnect()
+			end
+			h:Destroy()
+			return
+		end
+		h.FillTransparency = 0.5 + math.random() * 0.4
+		if frame % 2 == 0 and #parts > 0 then
+			local p = parts[math.random(1, #parts)]
+			local spark = vpart("ShockSpark", Vector3.new(0.12, 0.12, 0.9 + math.random()), p.CFrame * CFrame.Angles(math.random() * 6.28, math.random() * 6.28, 0), Color3.fromRGB(200, 245, 255), Enum.Material.Neon)
+			task.delay(0.08, function()
+				spark:Destroy()
+			end)
+		end
+	end)
+end
 -- Rev 15: FLING TARGET landing impact (after the throw, seen by everyone). Grounded and physical, not
 -- an explosion: a low dust ring, a few cyan residual-shock sparks and a 3D body thud at the landing
 -- point. No camera shake, no explosion audio. Reduced Effects keeps only the thud.

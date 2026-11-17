@@ -126,17 +126,18 @@ function MovementService.Q(player: Player, p: { [string]: any })
 	-- a fresh first Q
 	if s.dashReady > t then
 		note(s, string.format("%.3f Q ignored (dash cooling %.2f s)", t, s.dashReady - t))
+		send(player, { op = "move_fx", kind = "dash_cooldown", readyAt = s.dashReady })
 		return
 	end
 	s.dashT = t
 	s.voided = false
-	s.dashReady = t + tune("DashCooldown")
+	s.dashReady = t + tune("SuperCooldown") * tune("DashCooldownRatio") -- owner: half the super-speed cooldown
 	publish(player, s)
 	local c = player.Character
 	if c then
 		c:SetAttribute("WORLD_EXE_DashUntil", t + tune("DashSeconds"))
 	end
-	send(player, { op = "dash", seconds = tune("DashSeconds"), speed = tune("DashSpeed"), windowMin = tune("SuperMin"), windowMax = tune("SuperMax"), superReady = s.superReady })
+	send(player, { op = "dash", seconds = tune("DashSeconds"), speed = tune("DashSpeed"), windowMin = tune("SuperMin"), windowMax = tune("SuperMax"), superReady = s.superReady, dashReady = s.dashReady })
 	note(s, string.format("%.3f DASH", t))
 end
 

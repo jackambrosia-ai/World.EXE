@@ -61,6 +61,7 @@ end
 -- FLING SELF
 
 local ragdollLaunch: (Model, Humanoid, BasePart, Player?, Vector3, number) -> (boolean, string?) -- defined below
+local flingSelfAt: { [Player]: number } = {} -- Rev 15b: last FLING SELF launch (landing-impact guard)
 
 function HackEffects.FlingSelf(player: Player, dirHint: any): (boolean, string?)
 	local character = player.Character
@@ -89,15 +90,92 @@ function HackEffects.FlingSelf(player: Player, dirHint: any): (boolean, string?)
 	local v = (dir :: Vector3) * pick("Forward") + Vector3.new(0, pick("Up"), 0)
 	send(player, { op = "fling_self", v = v, steer = pick("SteerSpeed"), minAir = tune("FlingSelf", "MinAirSeconds"), maxT = tune("FlingSelf", "MaxFlightSeconds"), blocked = tune("FlingSelf", "BlockedSpeedFraction"),
 		turn = pick("TurnRate"), brake = tune("FlingSelf", "BrakeRate"), fallCap = tune("FlingSelf", "MaxFallSpeed"), glideCap = tune("FlingSelf", "GlideFallSpeed") })
-	broadcast({ op = "vfx", kind = "launch", model = character, pos = root.Position, scale = 1 })
+	-- Rev 15b: resembles the regular fling — the same electric shock + cyan throw trail at launch and the
+	-- same landing impact — with loose arms/legs in the air instead of a full ragdoll (control kept).
+	broadcast({ op = "vfx", kind = "self_fling", model = character, pos = root.Position })
+	flingSelfAt[player] = os.clock() -- the client loosens its own limbs (LooseLimbs, same frame as the launch)
 	return true, nil
+end
+
+-- Client report: FLING SELF flight ended (landed / blocked / timeout). A landing gets the regular fling's landing impact (thud + dust + cyan sparks).
+function HackEffects.FlingSelfEnd(player: Player, how: any, clientPos: any)
+	local character = player.Character
+	local at = flingSelfAt[player]
+	if not character or not at or os.clock() - at > HackCatalog.Tune("FlingSelf", "MaxFlightSeconds") + 2 then
+		return -- only right after a real FLING SELF (no free landing effects)
+	end
+	flingSelfAt[player] = nil
+	local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if how == "landed" and root then
+		-- the server's copy of a fast fall lags the owner by a few studs: use the client's landing point
+		-- when it is plausibly close to the server position, else the server position
+		local from = root.Position
+		if typeof(clientPos) == "Vector3" and clientPos == clientPos and (clientPos - from).Magnitude < 25 then
+			from = clientPos
+		end
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = { character }
+		params.RespectCanCollide = true
+		local hit = workspace:Raycast(from + Vector3.new(0, 2, 0), Vector3.new(0, -12, 0), params)
+		if hit then
+			broadcast({ op = "vfx", kind = "land", model = character, pos = hit.Position, strength = 0.55 })
+		end
+	end
 end
 
 ---------------------------------------------------------------------------------------------------
 -- RAGDOLL (FLING TARGET)
 
+-- Rev 15b: newer Roblox avatars have no Motor6Ds. Each joint is an AnimationConstraint (e.g. "LeftWrist")
+-- paired with a normally-disabled BallSocketConstraint ("LeftWristBallSocket"). Going limp = animation
+-- joint off + ball socket on; restoring reverses it. (Found when FLING SELF's loose limbs did nothing
+-- on the owner's avatar; the test dummies use Motor6Ds.)
+type AnimSwap = { ac: AnimationConstraint, bs: BallSocketConstraint, bsWas: boolean }
+local function animJointsLoose(model: Model, want: (string) -> boolean, made: { Instance }): { AnimSwap }
+	local list: { AnimSwap } = {}
+	for _, ac in model:GetDescendants() do
+		if ac:IsA("AnimationConstraint") and ac.Enabled and want(ac.Name) and ac.Attachment0 and ac.Attachment1 and ac.Parent then
+			local found = ac.Parent:FindFirstChild(ac.Name .. "BallSocket")
+			local bs: BallSocketConstraint
+			local was = false
+			if found and found:IsA("BallSocketConstraint") then
+				bs = found
+				was = found.Enabled
+			else
+				bs = Instance.new("BallSocketConstraint")
+				bs.Name = ac.Name .. "HackBallSocket"
+				bs.Attachment0 = ac.Attachment0
+				bs.Attachment1 = ac.Attachment1
+				bs.LimitsEnabled = true
+				bs.UpperAngle = 75
+				bs.TwistLimitsEnabled = true
+				bs.TwistLowerAngle = -45
+				bs.TwistUpperAngle = 45
+				bs.Parent = ac.Parent
+				table.insert(made, bs)
+			end
+			bs.Enabled = true
+			ac.Enabled = false
+			table.insert(list, { ac = ac, bs = bs, bsWas = was })
+		end
+	end
+	return list
+end
+local function animJointsRestore(list: { AnimSwap })
+	for _, sw in list do
+		if sw.ac.Parent then
+			sw.ac.Enabled = true
+		end
+		if sw.bs.Parent then
+			sw.bs.Enabled = sw.bsWas
+		end
+	end
+end
+
 type RagdollState = {
 	motors: { Motor6D },
+	anims: { AnimSwap },
 	made: { Instance },
 	collide: { [BasePart]: boolean },
 	requiresNeck: boolean,
@@ -156,6 +234,7 @@ local function recover(model: Model)
 			m.Enabled = true
 		end
 	end
+	animJointsRestore(s.anims)
 	for part, was in s.collide do
 		if part.Parent then
 			part.CanCollide = was
@@ -180,6 +259,7 @@ local function recover(model: Model)
 end
 HackEffects.Recover = recover
 
+
 -- Shared ragdoll setup: limp joints (Motor6D -> BallSocket), limbs collide, server owns the physics.
 local function ragdollBegin(model: Model, hum: Humanoid, root: BasePart, player: Player?): (RagdollState?, string?)
 	if ragdolls[model] then
@@ -189,7 +269,7 @@ local function ragdollBegin(model: Model, hum: Humanoid, root: BasePart, player:
 		return nil, "target_frozen"
 	end
 	local minLimp = HackCatalog.Tune("FlingTarget", "RagdollSeconds")
-	local s: RagdollState = { motors = {}, made = {}, collide = {}, requiresNeck = hum.RequiresNeck, player = player, done = false }
+	local s: RagdollState = { motors = {}, anims = {}, made = {}, collide = {}, requiresNeck = hum.RequiresNeck, player = player, done = false }
 	ragdolls[model] = s
 	hum.RequiresNeck = false
 	hum.PlatformStand = true
@@ -225,6 +305,9 @@ local function ragdollBegin(model: Model, hum: Humanoid, root: BasePart, player:
 			table.insert(s.motors, m)
 		end
 	end
+	s.anims = animJointsLoose(model, function(n: string): boolean
+		return n ~= "Root" and n ~= "RootJoint"
+	end, s.made)
 	for _, p in model:GetDescendants() do
 		if p:IsA("BasePart") and p ~= root and p.Parent and p.Parent.Name ~= "WristDevice" then
 			s.collide[p] = p.CanCollide

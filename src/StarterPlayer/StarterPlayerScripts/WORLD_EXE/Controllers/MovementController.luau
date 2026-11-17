@@ -190,6 +190,12 @@ function MovementController.Start()
 	UIUtil.corner(fill, 3)
 	local marker = UIUtil.create("Frame", { Name = "Marker", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0, 0.5), Size = UDim2.fromOffset(3, 12), BackgroundColor3 = C.Text, BorderSizePixel = 0, Visible = false }, gauge) :: Frame
 	local label = UIUtil.text("Label", gauge, "", 11, C.Muted, UITheme.Font.Label, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 0, -2) })
+	-- Rev 15b: dash cooldown (half the super-speed cooldown) as a thin cyan bar under the gauge
+	local dashBar = UIUtil.create("Frame", { Name = "DashBar", AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -110), Size = UDim2.fromOffset(150, 3), BackgroundColor3 = C.Charcoal, BackgroundTransparency = 0.25, BorderSizePixel = 0, Visible = false }, root) :: Frame
+	UIUtil.corner(dashBar, 2)
+	local dashFill = UIUtil.create("Frame", { Name = "Fill", BackgroundColor3 = CYAN, BackgroundTransparency = 0.2, BorderSizePixel = 0, Size = UDim2.fromScale(0, 1) }, dashBar) :: Frame
+	UIUtil.corner(dashFill, 2)
+	local dashReadyAt = 0 -- server time
 
 	local n = 0
 	local dashAt = -1 -- os.clock() of the last executed dash (for the window display only)
@@ -294,7 +300,8 @@ function MovementController.Start()
 			windowMin = tonumber(data.windowMin) or 0.2
 			windowMax = tonumber(data.windowMax) or 0.8
 			superReadyAt = tonumber(data.superReady) or 0
-			drive("dash", tonumber(data.seconds) or 0.17, tonumber(data.speed) or 88, nil)
+			dashReadyAt = tonumber(data.dashReady) or 0
+			drive("dash", tonumber(data.seconds) or 0.24, tonumber(data.speed) or 115, nil)
 			sfx("rbxasset://sounds/action_jump.mp3", 1.75, 0.35)
 			local c = player.Character
 			local hrp = c and c:FindFirstChild("HumanoidRootPart") :: BasePart?
@@ -339,6 +346,9 @@ function MovementController.Start()
 			elseif data.kind == "super_cooldown" then
 				sfx("rbxasset://sounds/volume_slider.ogg", 0.5, 0.35)
 				superReadyAt = tonumber(data.readyAt) or superReadyAt
+			elseif data.kind == "dash_cooldown" then
+				sfx("rbxasset://sounds/volume_slider.ogg", 0.6, 0.25)
+				dashReadyAt = tonumber(data.readyAt) or dashReadyAt
 			end
 			gui:SetAttribute("LastMove", tostring(data.kind))
 		elseif op == "ragdoll" or op == "frozen" then
@@ -388,6 +398,11 @@ function MovementController.Start()
 			fill.Size = UDim2.fromScale(1 - math.clamp((superReadyAt - st) / tune("SuperCooldown"), 0, 1), 1)
 			marker.Visible = false
 			label.Text = ""
+		end
+		local dashCd = tune("SuperCooldown") * tune("DashCooldownRatio")
+		dashBar.Visible = dashReadyAt > st
+		if dashBar.Visible then
+			dashFill.Size = UDim2.fromScale(1 - math.clamp((dashReadyAt - st) / math.max(0.1, dashCd), 0, 1), 1)
 		end
 		gui:SetAttribute("MoveOwner", MoveState.Owner())
 		-- FOV (local camera only)

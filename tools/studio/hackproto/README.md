@@ -38,7 +38,7 @@ This is an **isolated prototype** for the owner-approved milestone of 2026-11-16
 - **Challenges (Rev 15):** use the **number keys 1–4** (Signal Lock also uses **5**), the keypad, the **D-pad** (Left/Up/Right/Down = 1/2/3/4, **Y** = 5), or tap the on-screen pad on touch. While a challenge is active, the number keys go to it rather than to the quick chips. WASD keeps moving. **Backspace** or **B** cancels.
 - **Movement (Rev 15):**
   - Run speed is 28.
-  - **Q** / **X** (gamepad) does a short grounded dash.
+  - **Q** / **X** (gamepad) does a grounded dash (~25 studs). Its cooldown is half the super-speed cooldown (5.5 s), shown as a thin cyan bar under the gauge.
   - A *separate* second **Q** between 0.2 and 0.8 s after the dash starts 1 s of steerable super-speed (11 s cooldown). Pressing earlier voids the window, so spamming Q never triggers it.
   - A small gauge under the screen centre shows the window, the drain and the cooldown.
 - **FLING aiming with shift-lock / first person:** hold **W / A / D / S** (up / left / right / behind) and click. Otherwise, slide the mouse; with no input the throw goes up.
@@ -55,7 +55,7 @@ Format: `HackTune_<Group>_<Key>`, overriding `HackCatalog.Tuning`. Examples:
 - **Incoming:** `HackTune_Incoming_ReactionWindow`, `HackTune_Incoming_PerfectWindow` (0 = off), `HackTune_Incoming_DodgeRadius`, `HackTune_Incoming_LatencyGrace`
 - **Dummy reaction:** Workspace string attribute `HackProto_DummyReaction` = none / shield / perfect / dodge
 - **Assist:** `HackTune_Challenge_TimeScale` (1-8) is an accessibility/assist time scale. It gives longer limits and windows and a slower boss.
-- **Movement (Rev 15):** `HackTune_Move_RunSpeed`, `_DashSpeed`, `_DashSeconds`, `_DashCooldown`, `_SuperMin`, `_SuperMax`, `_SuperSeconds`, `_SuperSpeed`, `_SuperTurnRate`, `_SuperCooldown`, `_FovRun`, `_FovSuper`
+- **Movement (Rev 15):** `HackTune_Move_RunSpeed`, `_DashSpeed`, `_DashSeconds`, `_DashCooldownRatio` (× SuperCooldown), `_SuperMin`, `_SuperMax`, `_SuperSeconds`, `_SuperSpeed`, `_SuperTurnRate`, `_SuperCooldown`, `_FovRun`, `_FovSuper`
 - **FLING post-throw (Rev 15):** `HackTune_FlingTarget_PostThrowSeconds` (default 3.0; tested 2.5 / 3.0 / 3.5), `_PostThrowCap`, `_SettleSpeed`
 
 ## Studio-only test controls
