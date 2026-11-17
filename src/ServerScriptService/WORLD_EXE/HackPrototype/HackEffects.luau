@@ -562,8 +562,11 @@ local function grabThrow(g: Grab, mode: string?, power: number, useLast: boolean
 	if m == "drop" then
 		d, v = right, Vector3.zero
 	elseif m == "up" then
-		d = right
-		v = Vector3.new(0, (tune("FlingTarget", "UpThrowSpeed") + p * tune("FlingTarget", "UpThrowBonus")) * scale, 0)
+		-- owner 2026-11-16: "the upward fling should still launch the player forward" — up plus a push
+		-- AWAY from the attacker (forward from the attacker's point of view), tumbling forward
+		d = -(toMe :: Vector3)
+		v = d * (tune("FlingTarget", "UpThrowForward") + p * tune("FlingTarget", "UpThrowForwardBonus")) * scale
+			+ Vector3.new(0, (tune("FlingTarget", "UpThrowSpeed") + p * tune("FlingTarget", "UpThrowBonus")) * scale, 0)
 	elseif m == "back" then
 		d = toMe :: Vector3 -- over and past the attacker
 		v = d * speed + Vector3.new(0, tune("FlingTarget", "BackThrowUp") * scale, 0)

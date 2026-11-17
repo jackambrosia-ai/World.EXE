@@ -150,8 +150,10 @@ HackCatalog.Tuning = table.freeze({
 		ThrowBonus = 35,
 		ThrowUp = 22,
 		BossThrowScale = 0.6,
-		UpThrowSpeed = 90, -- cursor ABOVE screen centre at the click: launched straight up (+ power × UpThrowBonus)
+		UpThrowSpeed = 90, -- cursor ABOVE screen centre at the click: launched up (+ power × UpThrowBonus) and forward (UpThrowForward)
 		UpThrowBonus = 30,
+		UpThrowForward = 32, -- owner 2026-11-16: the up-throw still launches the target forward (away from the attacker)
+		UpThrowForwardBonus = 10, -- + power x this
 		BackThrowUp = 45, -- cursor BELOW centre: thrown back over and past the attacker (higher arc to clear them)
 		-- Rev 15 (owner-authorized): longer, more impactful post-throw ragdoll, measured FROM THE THROW.
 		-- Recovery needs: PostThrowSeconds elapsed AND torso grounded AND settled (speed < SettleSpeed for

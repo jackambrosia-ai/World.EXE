@@ -767,3 +767,14 @@ Scope is the owner-authorized "AUTHORIZED MOVEMENT & HACKING REVISION, Rev 15" d
 - gamepad and touch hardware;
 - how the audio sounds to a person;
 - absolute fps on a focused window.
+
+### 21.9 Rev 15a — the up-throw also launches forward (owner, 2026-11-16)
+Owner: "the upward fling should still launch the player forward".
+- **Change:** the "up" mode now pushes the target **away from the attacker** (`-toMe`, i.e. forward from the attacker's view) at `UpThrowForward` 32 + power × `UpThrowForwardBonus` 10 studs/s, on top of the vertical `UpThrowSpeed` 90 + power × 30. It tumbles forward.
+- **Throw hint:** the arrow tilts forward to match.
+- **Other modes:** side and back are unchanged.
+- **Measured (Dummy-A, power 0.5):**
+  - apex 27.8 studs, air 1.15 s;
+  - 50.8 studs horizontal (dx −42.5, dz −27.9, directly away from the attacker);
+  - recovery 3.05 s, settled.
+- **Saved place:** SHA-256 `6d571e9bc630a59832a3646bcf26b55d2f91a90ce080bc9ae0c51035650f029e`, 62/62. Protected files 9/9 OK.

@@ -1430,7 +1430,7 @@ function HackController.Start()
 		local toMe = (myRoot and flat(myRoot.Position - root.Position)) or Vector3.zAxis
 		local rightV = (-toMe):Cross(Vector3.yAxis).Unit
 		local mode = holdDir or "up"
-		local dir: Vector3 = if mode == "up" then Vector3.yAxis elseif mode == "back" then toMe elseif mode == "right" then rightV else -rightV
+		local dir: Vector3 = if mode == "up" then (Vector3.yAxis * 2.6 - toMe).Unit elseif mode == "back" then toMe elseif mode == "right" then rightV else -rightV
 		local bright = holdDir ~= nil
 		for _, p in { aimShaft, aimHeadA, aimHeadB } do
 			p.Transparency = if bright then 0.25 else 0.7
