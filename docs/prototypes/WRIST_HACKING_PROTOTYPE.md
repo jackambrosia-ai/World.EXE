@@ -534,3 +534,21 @@ Directive: "WORLD.EXE — Hacking, cyberware & boss gameplay prototype". Same is
 **Saved place:** 59/59 scripts; hash 8A3BE422…. Protected files: 9/9 unchanged.
 
 **Known limitation:** with shift-lock or a held right-click camera drag, the cursor is locked at the centre, so every click throws up. A keyboard/gamepad zone selection is not built.
+
+## 19. Revision 13 — throw zones split by the screen diagonals (2026-11-16)
+**Owner:** "imagine a point in the center of the screen, from there draw 4 lines from the center to the corners of the screen, this should separate it into 4 separate regions. Each one corresponding to a direction."
+
+**Built:**
+- **Classification:** the cursor offset from the centre is normalised by the half-screen size (`nx = dx / (W/2)`, `ny = dy / (H/2)`). If `|ny| ≥ |nx|`, the cursor is in the top triangle (up) or the bottom triangle (behind); otherwise it is in the left or right triangle. These are exactly the four triangles cut by the corner-to-corner lines; rev 12's 45° split was only correct on a square screen.
+- **Centre:** within 6 px of the centre = up.
+- **Power:** `max(|nx|, |ny|)` — 0 at the centre, 1 at the screen edge.
+- **Drawn zones:** while holding, a separate full-screen GUI (ignoring the top-bar inset, so its centre is the camera centre used by the maths) draws the centre dot, four faint lines to the corners, and UP / LEFT / RIGHT / BEHIND YOU labels, with the active one lit.
+
+**Results (solo Studio, 1914 × 761 viewport):**
+- **Fixed points:**
+  - centre → up;
+  - just above the top-right diagonal → up; just right of it → right;
+  - (75 %, 20 %) → up (rev 12's 45° rule said right);
+  - (25 %, 85 %) → behind; (10 %, 50 %) → left; (50 %, 95 %) → behind.
+- **Capture:** `m11_corner_zones.jpg` shows the four corner lines, UP lit, and the held dummy with its up arrow. The LEFT label sat under the wrist panel, so the side labels were moved to 28 % / 72 % (after this capture).
+- **Saved place:** 59/59 scripts; hash 33BFE866…. Protected files: 9/9 unchanged.

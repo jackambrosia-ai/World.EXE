@@ -1223,28 +1223,56 @@ function HackController.Start()
 		return nil
 	end
 
-	-- throw reticle at the screen centre: UP / LEFT / RIGHT / BEHIND, the active zone lit
-	local reticle = UIUtil.create("Frame", { Name = "ThrowReticle", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(280, 200), BackgroundTransparency = 1, Visible = false }, root) :: Frame
-	local dot = UIUtil.create("Frame", { Name = "Dot", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Text, BackgroundTransparency = 0.3, BorderSizePixel = 0 }, reticle) :: Frame
+	-- Throw zones (owner 2026-11-16): a point at the screen centre and four lines from it to the
+	-- screen CORNERS split the screen into four triangles — top = UP, left = LEFT, right = RIGHT,
+	-- bottom = BEHIND. While holding, the lines are drawn faintly and the active zone's label is lit.
+	-- Its own ScreenGui ignores the top-bar inset so the drawn centre is exactly the camera centre
+	-- (the same point the classification uses).
+	local zonesGui = Instance.new("ScreenGui")
+	zonesGui.Name = "WORLD_EXE_ThrowZones"
+	zonesGui.IgnoreGuiInset = true
+	zonesGui.ResetOnSpawn = false
+	zonesGui.DisplayOrder = 8
+	zonesGui.Enabled = false
+	zonesGui.Parent = playerGui
+	local reticle = UIUtil.create("Frame", { Name = "ThrowReticle", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1 }, zonesGui) :: Frame
+	local dot = UIUtil.create("Frame", { Name = "Dot", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Text, BackgroundTransparency = 0.2, BorderSizePixel = 0 }, reticle) :: Frame
 	UIUtil.corner(dot, 4)
+	local zoneLines: { Frame } = {}
+	for i = 1, 4 do
+		local ln = UIUtil.create("Frame", { Name = "Diagonal" .. i, AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = C.Text, BackgroundTransparency = 0.75, BorderSizePixel = 0 }, reticle) :: Frame
+		table.insert(zoneLines, ln)
+	end
 	local zoneLabels: { [string]: TextLabel } = {}
-	for name, pos in { up = UDim2.new(0.5, 0, 0, 0), left = UDim2.new(0, 0, 0.5, 0), right = UDim2.new(1, 0, 0.5, 0), back = UDim2.new(0.5, 0, 1, 0) } do
-		zoneLabels[name] = UIUtil.text("Zone_" .. name, reticle, if name == "back" then "BEHIND" else string.upper(name), 14, C.Muted, F.Title, {
+	for name, pos in { up = UDim2.fromScale(0.5, 0.22), left = UDim2.fromScale(0.28, 0.5), right = UDim2.fromScale(0.72, 0.5), back = UDim2.fromScale(0.5, 0.8) } do -- side labels kept clear of the wrist panel
+		zoneLabels[name] = UIUtil.text("Zone_" .. name, reticle, if name == "back" then "BEHIND YOU" else string.upper(name), 16, C.Muted, F.Title, {
 			AnchorPoint = Vector2.new(0.5, 0.5), Position = pos, TextStrokeTransparency = 0.4,
 		})
 	end
+	local function layoutZoneLines()
+		local s = reticle.AbsoluteSize
+		local c = s / 2
+		for i, corner in { Vector2.new(0, 0), Vector2.new(s.X, 0), Vector2.new(s.X, s.Y), Vector2.new(0, s.Y) } do
+			local d = corner - c
+			local ln = zoneLines[i]
+			ln.Size = UDim2.fromOffset(d.Magnitude, 2)
+			ln.Position = UDim2.fromOffset(c.X + d.X / 2, c.Y + d.Y / 2)
+			ln.Rotation = math.deg(math.atan2(d.Y, d.X))
+		end
+	end
+	reticle:GetPropertyChangedSignal("AbsoluteSize"):Connect(layoutZoneLines)
 	local function updateReticle(mode: string?)
 		local m = mode or "up"
 		for name, l in zoneLabels do
 			local on = name == m
 			l.TextColor3 = if on then C.Coral else C.Muted
-			l.TextSize = if on then 18 else 13
-			l.TextTransparency = if on then 0 else 0.35
+			l.TextSize = if on then 22 else 15
+			l.TextTransparency = if on then 0 else 0.4
 		end
 	end
 
 	local function endHold(why: string?)
-		reticle.Visible = false
+		zonesGui.Enabled = false
 		gui:SetAttribute("HoldEnd", why or "?")
 		hold = nil
 		table.clear(holdSamples)
@@ -1271,7 +1299,8 @@ function HackController.Start()
 		holdDir = nil
 		holdPower = 0
 		gui:SetAttribute("Holding", true)
-		reticle.Visible = true
+		zonesGui.Enabled = true
+		layoutZoneLines()
 		updateReticle(nil)
 		ContextActionService:BindActionAtPriority(THROW_ACTION, function(_, st: Enum.UserInputState)
 			if st == Enum.UserInputState.Begin then
@@ -1319,17 +1348,19 @@ function HackController.Start()
 		-- throw mode from the CURSOR POSITION relative to the screen centre (owner 2026-11-16):
 		-- above = UP, left/right = that SIDE, below = BACK (over and behind you); near the centre = UP.
 		-- Farther from the centre = a stronger throw.
+		-- regions are the four triangles made by the lines from the centre to the screen CORNERS:
+		-- normalise the offset by the half-screen size, then compare |x| and |y|
 		local vp = cam.ViewportSize
 		local mloc = UserInputService:GetMouseLocation()
 		local offC = mloc - vp / 2
-		local dead = 40
-		if UserInputService.MouseEnabled and offC.Magnitude >= dead then
-			if math.abs(offC.Y) >= math.abs(offC.X) then
-				holdDir = if offC.Y < 0 then "up" else "back"
+		local nx, ny = offC.X / math.max(1, vp.X / 2), offC.Y / math.max(1, vp.Y / 2)
+		if UserInputService.MouseEnabled and offC.Magnitude >= 6 then
+			if math.abs(ny) >= math.abs(nx) then
+				holdDir = if ny < 0 then "up" else "back"
 			else
-				holdDir = if offC.X > 0 then "right" else "left"
+				holdDir = if nx > 0 then "right" else "left"
 			end
-			holdPower = math.clamp((offC.Magnitude - dead) / math.max(1, math.min(vp.X, vp.Y) * 0.45 - dead), 0, 1)
+			holdPower = math.clamp(math.max(math.abs(nx), math.abs(ny)), 0, 1) -- centre 0 → screen edge 1
 		else
 			holdDir = nil -- at the centre: a click launches it straight up
 			holdPower = 0
