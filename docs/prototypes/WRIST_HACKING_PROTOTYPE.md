@@ -472,3 +472,33 @@ Directive: "WORLD.EXE — Hacking, cyberware & boss gameplay prototype". Same is
 - a real player being held (server takes physics ownership, same as the ragdoll);
 - touch and gamepad (no hold steering; the target is auto-thrown away after 3 s; R2 throws);
 - the trimmed throw values.
+
+## 17. Revision 11 — throw directions limited; 2 s hold (2026-11-16)
+**Owner:**
+- "fling directions should only be sideways, backwards and upwards";
+- "cut it's duration to 2 seconds";
+- backwards means "behind me" (confirmed after a clarifying question).
+
+**Built:**
+- **Four throw modes only**, classified on the client from the drag direction:
+  - drag **up** → `up` (straight up, `UpThrowSpeed` 90 + power × 30);
+  - drag **left/right** → that **side** (`ThrowSpeed` 65 + power × 35, up 22);
+  - drag **down** → `back`: over and past the attacker, landing behind them (`BackThrowUp` 45 so it clears the attacker's head).
+- **No drag at click:** up. Auto-throw: the last dragged mode, else up.
+- **Server-enforced:** directions are computed on the server from attacker → target geometry, and the client only sends a mode name. Anything else (e.g. "forward") becomes `up`, so a target can never be thrown forward or away from the attacker.
+- **Arrow:** the throw arrow at the held target shows the current mode (vertical for up). The hint reads "DRAG UP · SIDEWAYS · DOWN (BEHIND YOU) — CLICK TO THROW"; words are used because arrow symbols can render as boxes. The chip text was updated.
+- **Hold:** `HoldSeconds` 3 → **2**.
+
+**Results (solo Studio; positions measured relative to the attacker):**
+
+| Throw | Result |
+|---|---|
+| up | peak rise 27.8; lands about 4 studs from where it was held |
+| right | 76.6 studs to the right |
+| left | 24.4 studs left (stopped early; it probably hit the height-lane platforms on that side) |
+| back | 83 studs past and behind the attacker; peak +5 above the 7-stud hold height |
+| invalid "forward" | server used `up` |
+| no input | auto-thrown `up` after exactly 2.00 s |
+| **real mouse**, drag down then click | classified `back`; landed 63 studs behind the attacker (capture `m9_grab_drag_down_back.jpg`) |
+
+**Saved place:** 59/59 scripts; hash 470C3A66…. Protected files: 9/9 unchanged.

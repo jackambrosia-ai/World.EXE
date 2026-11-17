@@ -1193,7 +1193,7 @@ function HackController.Start()
 	local holdSamples: { { t: number, d: Vector2 } } = {}
 	local holdLastMouse: Vector2? = nil
 	local holdLastSend = 0
-	local holdDir: Vector3? = nil
+	local holdDir: string? = nil -- "up" | "left" | "right" | "back" while dragging
 	local holdPower = 0
 
 	local function holdCursorGround(model: Model): Vector3?
@@ -1239,7 +1239,7 @@ function HackController.Start()
 			return
 		end
 		request:FireServer({ op = "throw", dir = holdDir, power = holdPower })
-		gui:SetAttribute("LastThrow", if holdDir then string.format("%.2f,%.2f p%.2f", holdDir.X, holdDir.Z, holdPower) else "away")
+		gui:SetAttribute("LastThrow", string.format("%s p%.2f", holdDir or "up (no drag)", holdPower))
 		endHold("throw")
 	end
 
@@ -1256,7 +1256,7 @@ function HackController.Start()
 			end
 			return Enum.ContextActionResult.Sink
 		end, false, Enum.ContextActionPriority.High.Value + 30, Enum.UserInputType.MouseButton1, Enum.KeyCode.ButtonR2)
-		HackFeel.Popup("DRAG TO AIM · CLICK TO THROW", C.Coral)
+		HackFeel.Popup("DRAG UP · SIDEWAYS · DOWN (BEHIND YOU) — CLICK TO THROW", C.Coral)
 	end
 
 	UserInputService.InputBegan:Connect(function(input: InputObject)
@@ -1311,15 +1311,19 @@ function HackController.Start()
 				oldest = math.min(oldest, holdSamples[i].t)
 			end
 		end
+		-- drag → one of the allowed throws (owner 2026-11-16: only sideways, backwards, upwards):
+		-- drag up = launch UP, drag left/right = that SIDE, drag down = BACK over and past you
 		if sum.Magnitude >= 16 then
-			local fwd = flat(cam.CFrame.LookVector) or Vector3.zAxis
-			local right = flat(cam.CFrame.RightVector) or Vector3.xAxis
-			holdDir = flat(right * sum.X - fwd * sum.Y)
+			if math.abs(sum.Y) >= math.abs(sum.X) then
+				holdDir = if sum.Y < 0 then "up" else "back"
+			else
+				holdDir = if sum.X > 0 then "right" else "left"
+			end
 			-- drag speed over the time the samples actually span (px/s): 300 → 0 power, 1800 → full
 			local speed = sum.Magnitude / math.max(1 / 60, tnow - oldest + 1 / 60)
 			holdPower = math.clamp((speed - 300) / 1500, 0, 1)
 		else
-			holdDir = nil -- not dragging right now: a click throws straight away from you
+			holdDir = nil -- not dragging right now: a click launches it straight up
 			holdPower = 0
 		end
 		-- hold point (~20/s)
@@ -1330,28 +1334,29 @@ function HackController.Start()
 				request:FireServer({ op = "hold", pos = p, dir = holdDir })
 			end
 		end
-		gui:SetAttribute("HoldDir", if holdDir then string.format("%.2f,%.2f", holdDir.X, holdDir.Z) else nil)
-		-- throw arrow at the held target
+		gui:SetAttribute("HoldDir", holdDir)
+		-- throw arrow at the held target, using the same geometry as the server:
+		-- toMe = target → me, right = my right while facing the target, up = up
 		local myRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
-		local dir = holdDir or (myRoot and flat(root.Position - myRoot.Position)) or nil
-		if not dir then
-			aimFolder.Parent = nil
-			return
-		end
+		local toMe = (myRoot and flat(myRoot.Position - root.Position)) or Vector3.zAxis
+		local rightV = (-toMe):Cross(Vector3.yAxis).Unit
+		local mode = holdDir or "up"
+		local dir: Vector3 = if mode == "up" then Vector3.yAxis elseif mode == "back" then toMe elseif mode == "right" then rightV else -rightV
 		local bright = holdDir ~= nil
 		for _, p in { aimShaft, aimHeadA, aimHeadB } do
 			p.Transparency = if bright then 0.15 else 0.7
 		end
 		aimLand.Transparency = 1
-		local len = 10 + 14 * holdPower
-		local start = root.Position + dir * 2
+		local len = 9 + 10 * holdPower
+		local start = root.Position + dir * 2.5
 		local tip = root.Position + dir * len
+		local upRef = if mode == "up" then toMe else Vector3.yAxis -- lookAt needs a non-parallel up
 		aimShaft.Size = Vector3.new(0.6, 0.1, (tip - start).Magnitude)
-		aimShaft.CFrame = CFrame.lookAt((start + tip) / 2, tip)
+		aimShaft.CFrame = CFrame.lookAt((start + tip) / 2, tip, upRef)
 		local headLen = 3
 		for i, hp in { aimHeadA, aimHeadB } do
 			local side = if i == 1 then 1 else -1
-			local back = CFrame.lookAt(tip, tip + dir) * CFrame.Angles(0, math.rad(150 * side), 0)
+			local back = CFrame.lookAt(tip, tip + dir, upRef) * CFrame.Angles(0, math.rad(150 * side), 0)
 			hp.Size = Vector3.new(0.6, 0.1, headLen)
 			hp.CFrame = back * CFrame.new(0, 0, -headLen / 2)
 		end

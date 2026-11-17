@@ -409,7 +409,7 @@ type Grab = {
 	att: Attachment,
 	ap: AlignPosition,
 	boss: boolean,
-	lastDir: Vector3?,
+	lastMode: string?,
 	lastPoint: Vector3,
 	done: boolean,
 }
@@ -458,7 +458,12 @@ local function groundY(at: Vector3, ignore: { Instance }): number
 	return if hit then hit.Position.Y else at.Y - 3
 end
 
-local function grabThrow(g: Grab, dir: Vector3?, power: number, useLast: boolean?)
+-- Allowed throw modes (owner 2026-11-16: "fling directions should only be sideways, backwards and
+-- upwards"; backwards = toward and past the attacker, landing behind them). Directions come from the
+-- attacker → target geometry on the server, so a client can never throw a target forward/away.
+local THROW_MODES = { up = true, left = true, right = true, back = true }
+
+local function grabThrow(g: Grab, mode: string?, power: number, useLast: boolean?)
 	if g.done then
 		return
 	end
@@ -471,12 +476,32 @@ local function grabThrow(g: Grab, dir: Vector3?, power: number, useLast: boolean
 	local root = g.root
 	local tune = HackCatalog.Tune
 	local aRoot = g.attacker.Character and g.attacker.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
-	local d = (dir and horizontal(dir)) or (if useLast then g.lastDir else nil) or (aRoot and horizontal(root.Position - aRoot.Position)) or horizontal(root.CFrame.LookVector) or Vector3.zAxis
+	local m = if mode and THROW_MODES[mode] then mode elseif useLast and g.lastMode then g.lastMode else "up"
+	if mode == "drop" then
+		m = "drop"
+	end
+	-- toMe: target → attacker (horizontal); right: the attacker's right while facing the target
+	local toMe = (aRoot and horizontal(aRoot.Position - root.Position)) or horizontal(-root.CFrame.LookVector) or Vector3.zAxis
+	local right = (-(toMe :: Vector3)):Cross(Vector3.yAxis).Unit
 	local p = math.clamp(power, 0, 1)
 	local scale = if g.boss then tune("FlingTarget", "BossThrowScale") else 1
 	local speed = (tune("FlingTarget", "ThrowSpeed") + p * tune("FlingTarget", "ThrowBonus")) * scale
-	local v = (d :: Vector3) * speed + Vector3.new(0, tune("FlingTarget", "ThrowUp") * scale, 0)
-	local spinAxis = Vector3.yAxis:Cross(d :: Vector3)
+	local v: Vector3
+	local d: Vector3
+	if m == "drop" then
+		d, v = right, Vector3.zero
+	elseif m == "up" then
+		d = right
+		v = Vector3.new(0, (tune("FlingTarget", "UpThrowSpeed") + p * tune("FlingTarget", "UpThrowBonus")) * scale, 0)
+	elseif m == "back" then
+		d = toMe :: Vector3 -- over and past the attacker
+		v = d * speed + Vector3.new(0, tune("FlingTarget", "BackThrowUp") * scale, 0)
+	else
+		d = if m == "right" then right else -right
+		v = d * speed + Vector3.new(0, tune("FlingTarget", "ThrowUp") * scale, 0)
+	end
+	g.model:SetAttribute("HackLastThrow", m)
+	local spinAxis = Vector3.yAxis:Cross(d)
 	for _, part in g.model:GetDescendants() do
 		if part:IsA("BasePart") and not part.Anchored then
 			part.AssemblyLinearVelocity = v
@@ -513,7 +538,7 @@ local function grabStart(attacker: Player, model: Model, hum: Humanoid, root: Ba
 	local start = root.Position + Vector3.new(0, tune("FlingTarget", "HoldHeight"), 0)
 	ap.Position = start
 	ap.Parent = root
-	local g: Grab = { attacker = attacker, model = model, root = root, st = st, att = att, ap = ap, boss = boss, lastDir = nil, lastPoint = start, done = false }
+	local g: Grab = { attacker = attacker, model = model, root = root, st = st, att = att, ap = ap, boss = boss, lastMode = nil, lastPoint = start, done = false }
 	grabs[attacker] = g
 	local holdFor = tune("FlingTarget", "HoldSeconds")
 	model:SetAttribute(A.RagdollUntil, now() + holdFor + tune("FlingTarget", "MaxRagdollSeconds"))
@@ -567,11 +592,8 @@ function HackEffects.GrabHold(attacker: Player, pos: any, dir: any)
 	local point = Vector3.new(flatPos.X, y, flatPos.Z)
 	g.ap.Position = point
 	g.lastPoint = point
-	if typeof(dir) == "Vector3" then
-		local h = horizontal(dir)
-		if h then
-			g.lastDir = h
-		end
+	if typeof(dir) == "string" and THROW_MODES[dir] then
+		g.lastMode = dir -- the mode currently being dragged (used by the auto-throw)
 	end
 end
 
@@ -580,14 +602,14 @@ function HackEffects.GrabThrow(attacker: Player, dir: any, power: any)
 	if not g then
 		return
 	end
-	grabThrow(g, if typeof(dir) == "Vector3" then dir else nil, if typeof(power) == "number" and power == power then power else 0)
+	grabThrow(g, if typeof(dir) == "string" and THROW_MODES[dir] then dir else nil, if typeof(power) == "number" and power == power then power else 0)
 end
 
 -- Attacker died / left: drop what they hold (no throw).
 function HackEffects.GrabDrop(attacker: Player)
 	local g = grabs[attacker]
 	if g then
-		grabThrow(g, nil, 0)
+		grabThrow(g, "drop", 0)
 	end
 end
 
