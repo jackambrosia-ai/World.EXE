@@ -2,7 +2,7 @@
 
 Status: **isolated prototype, draft PR, not for merge.** The owner approved the milestone on 2026-11-16. This is **not** an adopted gameplay design. Every number is provisional.
 
-## 0. Current state (Rev 15n, 2026-11-17) — read this first
+## 0. Current state (Rev 15o, 2026-11-17) — read this first
 Sections 1–21 are the revision history and keep superseded designs for the record. **This section is the current behaviour.** Where an older section disagrees, this one wins.
 
 **Superseded (do not implement from the history):**
@@ -18,6 +18,7 @@ Sections 1–21 are the revision history and keep superseded designs for the rec
 | **H** (gamepad L1, WRIST pill) | Open the wrist terminal |
 | **1–4** (keypad, D-pad) | Pick a quick hack; during a challenge, the challenge inputs (Signal Lock adds **5** / Y) |
 | Same key again, **Enter** or EXECUTE | Run the selected quick hack; **X** cycles the target; **T** typed commands |
+| FLING (hack on a target), while holding it | **W** = throw up, **A** = left, **D** = right, **S** = behind, then click (Rev 15o: keys decide in every camera mode); no key held = the cursor's screen zone |
 | **C** / R1 / SHIELD button | Shield against an incoming hack |
 | **Q** / gamepad X | Grounded **dash** (115 studs/s × 0.3 s ≈ 28 studs, 6 s cooldown) and a **skill check** |
 | **Q** when the shrinking outer square is on the inner square's border (Rev 15n look, UI-01) | +1 diamond (two containers, bottom middle). One attempt per dash; pink = hit, grey = miss |
@@ -1268,3 +1269,22 @@ Other checks:
 - multiplayer (the squares are local-only by design: only you see your check).
 
 **Saved place:** SHA-256 `f7465a80c59b81fbfde368c946302bec9f088c9608911de3aa55133f120dacbb`, **66/66** scripts (new `Controllers/SquareCheck.luau`). Protected files 9/9 OK.
+
+### 21.23 Rev 15o — FLING throw follows the movement keys (owner, 2026-11-17)
+Owner: "make it so the fling corresponds to the directional keys of the player".
+
+**Change (client, `HackController` hold aim):** while a target is held, a held movement key now picks the throw in **every** camera mode:
+- **W / ↑ = up**, **A = left**, **D = right**, **S = behind**;
+- gamepad stick and touch thumbstick too (camera-relative `Humanoid.MoveDirection`);
+- keys throw at 80 % power.
+
+Before, keys counted only with a locked cursor (shift-lock / first person); with a free cursor the screen zones always decided. With no key held, the cursor decides exactly as before (screen zones when free, the virtual cursor when locked). The server is unchanged: it already uses the mode the client sends at the click and the last held mode for the auto-throw.
+
+**Verified (solo Studio, free cursor `MouseBehavior.Default`, emulated keys and click):**
+- hold **D**: aim read `right` in 63/63 samples (`AimScheme = keys`);
+- hold **A** + click with the cursor just right of centre → server `HackLastThrow = left`, power 0.80 (the key overrides the cursor);
+- hold **S** + click → `back`.
+
+**Note:** directions are relative to the line between you and the target. Holding a key also walks you, so a long hold moves you and turns that line. The first test held D for 3.5 s without clicking: the auto-throw went "right" of the new line, which pointed down the original forward axis.
+
+**Saved place:** SHA-256 `497e1d3771bfb02d867777cb998c3a81f60f7771120e8acae419a64172a3ed12`, 66/66. Protected files 9/9 OK.

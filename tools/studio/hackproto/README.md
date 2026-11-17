@@ -25,7 +25,7 @@ This is an **isolated prototype** for the owner-approved milestone of 2026-11-16
    ```bash
    node tools/studio/hackproto/hp_40_verify_saved.js <place.rbxlx>
    ```
-   The latest save (Rev 15n, 2026-11-17) reported 66/66; place SHA-256 F7465A80….
+   The latest save (Rev 15o, 2026-11-17) reported 66/66; place SHA-256 497E1D37….
 
 ## Playing it
 - Press Play (solo). You spawn at the launch area.
@@ -44,7 +44,7 @@ This is an **isolated prototype** for the owner-approved milestone of 2026-11-16
   - **Chaining (Rev 15l):** press **Q** again during a super-speed to start the next one at once, if a diamond is left (at least 0.25 s after the last start).
 - **Wall-running:** while moving, press **Space** with a wall at your **side** (left or right, not in front), or arrive at the wall already holding Space (also straight out of a dash or a FLING SELF flight). You run up and along it (up to 4 s). It stops at corners and wall ends. While attached: keep moving forward to cruise, hold **back** to brake, push **away** from the wall to peel off. **Space** again wall-jumps off, also within 0.3 s after the run ends at a wall end; press Space at the next wall (side-on) to catch it. `HackTune_WallRun_Flow = 0` restores the Rev 15l feel for comparison. Test lane: `hp_21_wallrun_lane.luau` (two walls plus a block, west of the launch area).
 - **FLING SELF:** launches you with loose limbs; steer with WASD; hold **Space** while falling to glide. The blue aura stays until you land.
-- **FLING aiming with shift-lock / first person:** hold **W / A / D / S** (up / left / right / behind) and click. Otherwise, slide the mouse; with no input the throw goes up.
+- **FLING aiming (Rev 15o):** while holding a target, hold **W / A / D / S** (up / left / right / behind) and click, in any camera mode. With no key held, the cursor decides (its screen zone; a slide when the cursor is locked); with no input the throw goes up.
 - **Boss challenge type:** walk to a console at the boss arena entrance and use its prompt.
 - **Incoming hack (you are targeted):** a banner, a pointer toward the attacker, and a draining window. Defend with **C** / **R1** / the on-screen SHIELD button, or by breaking line of sight behind cover (the ring dodge was removed in Rev 8).
 - **TestStation:** step on a pad and use its prompt to pick boots (Starter / Vault / Vector), the reaction window (0.7 / 1.0 / 1.4 s), perfect deflect on/off, the dummy reaction (none / shield / perfect / dodge), or reset the boss.

@@ -1372,35 +1372,37 @@ function HackController.Start()
 		-- read "up" forever. While locked, the zone comes from (1) a held movement key / left stick
 		-- (W/↑ = up, A = left, D = right, S = behind), else (2) a virtual cursor that accumulates this
 		-- hold's mouse deltas (slide right = right, as when unlocked). Unlocked keeps the screen zones.
+		-- Rev 15o (owner 2026-11-17: "make it so the fling corresponds to the directional keys of the
+		-- player"): a held movement key decides the throw in EVERY camera mode (W/↑ = up, A = left,
+		-- D = right, S = behind; the stick / touch thumbstick too). No key held: the cursor zones as before
+		-- (screen zones when the cursor is free, the virtual cursor when it is locked).
 		local locked = UserInputService.MouseBehavior ~= Enum.MouseBehavior.Default
 		local aimScheme = "screen"
-		if locked or not UserInputService.MouseEnabled then
-			for _, sm in holdSamples do
-				holdVirtual += sm.d
+		for _, sm in holdSamples do
+			holdVirtual += sm.d
+		end
+		table.clear(holdSamples)
+		holdVirtual = Vector2.new(math.clamp(holdVirtual.X, -vp.X / 2, vp.X / 2), math.clamp(holdVirtual.Y, -vp.Y / 2, vp.Y / 2))
+		-- movement intent in CAMERA space (one path for WASD, arrows, gamepad stick and the touch
+		-- thumbstick): Humanoid.MoveDirection is world-space and camera-relative by construction
+		local kx, ky = 0, 0
+		local myHum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+		local md = if myHum then myHum.MoveDirection else Vector3.zero
+		if md.Magnitude > 0.3 then
+			local camLook = Vector3.new(cam.CFrame.LookVector.X, 0, cam.CFrame.LookVector.Z)
+			local camRight = Vector3.new(cam.CFrame.RightVector.X, 0, cam.CFrame.RightVector.Z)
+			if camLook.Magnitude > 0.01 and camRight.Magnitude > 0.01 then
+				local fx, fy = md:Dot(camRight.Unit), -md:Dot(camLook.Unit)
+				kx = if math.abs(fx) > 0.38 then math.sign(fx) else 0
+				ky = if math.abs(fy) > 0.38 then math.sign(fy) else 0
 			end
-			table.clear(holdSamples)
-			holdVirtual = Vector2.new(math.clamp(holdVirtual.X, -vp.X / 2, vp.X / 2), math.clamp(holdVirtual.Y, -vp.Y / 2, vp.Y / 2))
-			-- movement intent in CAMERA space (one path for WASD, arrows, gamepad stick and the touch
-			-- thumbstick): Humanoid.MoveDirection is world-space and camera-relative by construction
-			local kx, ky = 0, 0
-			local myHum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-			local md = if myHum then myHum.MoveDirection else Vector3.zero
-			if md.Magnitude > 0.3 then
-				local camLook = Vector3.new(cam.CFrame.LookVector.X, 0, cam.CFrame.LookVector.Z)
-				local camRight = Vector3.new(cam.CFrame.RightVector.X, 0, cam.CFrame.RightVector.Z)
-				if camLook.Magnitude > 0.01 and camRight.Magnitude > 0.01 then
-					local fx, fy = md:Dot(camRight.Unit), -md:Dot(camLook.Unit)
-					kx = if math.abs(fx) > 0.38 then math.sign(fx) else 0
-					ky = if math.abs(fy) > 0.38 then math.sign(fy) else 0
-				end
-			end
-			if kx ~= 0 or ky ~= 0 then
-				aimScheme = "keys"
-				offC = Vector2.new(math.clamp(kx, -1, 1) * vp.X / 2, math.clamp(ky, -1, 1) * vp.Y / 2) * 0.8 -- keys throw at 80 % power; W+A/D ties go UP
-			else
-				aimScheme = "virtual"
-				offC = holdVirtual
-			end
+		end
+		if kx ~= 0 or ky ~= 0 then
+			aimScheme = "keys"
+			offC = Vector2.new(math.clamp(kx, -1, 1) * vp.X / 2, math.clamp(ky, -1, 1) * vp.Y / 2) * 0.8 -- keys throw at 80 % power; W+A/D ties go UP
+		elseif locked or not UserInputService.MouseEnabled then
+			aimScheme = "virtual"
+			offC = holdVirtual
 		end
 		gui:SetAttribute("AimScheme", aimScheme)
 		local nx, ny = offC.X / math.max(1, vp.X / 2), offC.Y / math.max(1, vp.Y / 2)
