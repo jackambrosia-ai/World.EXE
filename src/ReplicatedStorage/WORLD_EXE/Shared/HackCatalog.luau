@@ -130,7 +130,7 @@ HackCatalog.Tuning = table.freeze({
 		LeanDegrees = 8, -- slight tilt away from the wall (MOV-03 runner is nearly upright)
 		ReattachDelay = 0.35, -- seconds before another wall run can start
 		-- Rev 15m "Flow" (owner play-test of 15l: wall-running "needs work"). Flow = 0 restores Rev 15l exactly.
-		Flow = 1,
+		Flow = 2, -- Rev 15s: 2 = "Runner" (default), 3 = "Planted" (stronger lean, feet on the wall), 1 = Rev 15m, 0 = Rev 15l
 		EntryBlendSeconds = 0.14, -- blend from the arrival velocity into the wall run (no yank)
 		MaxEntrySpeed = 52, -- along-wall entry momentum kept up to this (a dash hand-over arrives faster) ...
 		SpeedSettle = 18, -- ... settling toward Speed at this rate (studs/s per s)
@@ -142,6 +142,12 @@ HackCatalog.Tuning = table.freeze({
 		ExitCarrySeconds = 0.25, -- leaving at a wall end / corner / time limit / peel keeps the momentum this long
 		ForwardLeanDegrees = 7, -- lean into the run direction
 		AnimRate = 1.5, -- run animation rate at Speed (scales with the wall-run speed)
+		-- Rev 15s (Flow >= 2)
+		RunAnimStuds = 14.8, -- run cycle rate = speed / this (measured ground run: 1.89x at 28 studs/s); no foot sliding
+		StepsVolume = 0.45, -- footsteps while on the wall
+		CamPushOut = 2.5, -- camera eases this far out from the wall during a run (Humanoid.CameraOffset)
+		CamLift = 0.6, -- and this far up
+		PlantedLeanDegrees = 18, -- Flow 3: lean away from the wall so the feet reach the wall face
 	}),
 	FlingSelf = table.freeze({
 		Up = 90, -- initial vertical velocity (apex ~ Up^2 / (2 * 196.2) = 20.6 studs). Sweep 2026-11-16: A 78/48, B 90/42 (chosen), C 98/48

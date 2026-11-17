@@ -29,6 +29,14 @@
 --   * leaving at a wall end / corner / time limit / peel keeps the momentum for ExitCarrySeconds (Roblox air
 --     control would otherwise cancel it at once);
 --   * a fresh Space press during a grounded DASH next to a wall hands the dash over to a wall run.
+-- Rev 15s (owner: Rev 15m Flow "still needs work"; presentation findings measured with the normal camera):
+--   Flow 2 "Runner" (default) = Flow 1 plus: the run cycle plays at the ground-run rate for the speed
+--   (speed / RunAnimStuds; it played ~38% too slow = feet sliding = "gliding"); the default Freefall wind
+--   sound is muted and real footsteps play while on the wall (the Humanoid is in Freefall, so it played the
+--   FALLING sound and no steps); the camera eases a little out from the wall (Humanoid.CameraOffset) so the
+--   runner is seen against the wall instead of the wall filling half the screen.
+--   Flow 3 "Planted" = Flow 2 with a stronger lean away from the wall (PlantedLeanDegrees) so the feet
+--   reach the wall face. Flow 1 = Rev 15m, Flow 0 = Rev 15l (kept for comparison).
 -- Physics stays on this (owning) client like all character movement, so others see it replicate.
 
 local Players = game:GetService("Players")
@@ -79,8 +87,15 @@ function WallRun.Start(deps: Deps)
 		base: number, -- Rev 15m: cruise target along the wall
 		peelT: number, -- Rev 15m: how long the stick has pushed away from the wall
 		flow: boolean,
+		runner: boolean, -- Rev 15s Flow >= 2
+		planted: boolean, -- Rev 15s Flow >= 3
+		steps: Sound?,
+		fallSound: Sound?,
+		fallVolume: number,
 	}
 	local run: Run? = nil
+	local camTarget = Vector3.zero -- Rev 15s: world-space camera offset wanted (eased in Heartbeat)
+	local camNow = Vector3.zero
 	local lastEnd = -10
 	-- wall-jump carry: Roblox air control (holding a direction) cancels the jump-out push in ~0.25 s
 	-- (measured 40 -> 0 studs/s), so the jump keeps its horizontal velocity for up to JumpCarrySeconds,
@@ -169,6 +184,13 @@ function WallRun.Start(deps: Deps)
 		if r.track then
 			r.track:Stop(0.15)
 		end
+		if r.steps then
+			r.steps:Destroy()
+		end
+		if r.fallSound and r.fallSound.Parent then
+			r.fallSound.Volume = r.fallVolume
+		end
+		camTarget = Vector3.zero
 		if r.hum.Parent then
 			r.hum.AutoRotate = r.autoRotate
 		end
@@ -203,7 +225,7 @@ function WallRun.Start(deps: Deps)
 	end
 
 	local function orientation(r: Run): CFrame
-		local lean = math.rad(tune("LeanDegrees"))
+		local lean = math.rad(if r.planted then tune("PlantedLeanDegrees") else tune("LeanDegrees"))
 		if not r.flow then
 			local up = (Vector3.yAxis * math.cos(lean) + r.n * math.sin(lean)).Unit
 			return CFrame.lookAt(Vector3.zero, r.t, up)
@@ -217,7 +239,10 @@ function WallRun.Start(deps: Deps)
 
 	local function tryStart(c: Model, hrp: BasePart, hum: Humanoid)
 		local owner = MoveState.Owner()
-		local flow = tune("Flow") >= 0.5
+		local level = tune("Flow")
+		local flow = level >= 0.5
+		local runner = level >= 1.5
+		local planted = level >= 2.5
 		-- Rev 15m: a grounded dash, or a FLING SELF flight (beside a wall), can hand over to a wall run
 		local fromDash = flow and (owner == "dash" or owner == "flingSelf")
 		if (owner ~= nil and owner ~= "walljump" and not fromDash) or os.clock() - lastEnd < tune("ReattachDelay") then
@@ -301,11 +326,33 @@ function WallRun.Start(deps: Deps)
 							track = tr
 							tr.Priority = Enum.AnimationPriority.Action
 							tr:Play(0.1)
-							tr:AdjustSpeed(if flow then tune("AnimRate") * speed / tune("Speed") else 1.5)
+							tr:AdjustSpeed(if runner then speed / tune("RunAnimStuds") elseif flow then tune("AnimRate") * speed / tune("Speed") else 1.5)
 						end
 					end
 					local r: Run = { n = n, t = t, speed = speed, t0 = os.clock(), lift = tune("ClimbSpeed") * (if grounded then 1 else tune("AirClimbScale")), att = att, lv = lv, ao = ao, track = track, hum = hum, hrp = hrp,
-						autoRotate = hum.AutoRotate, lastStep = 0, startPos = hrp.Position, corners = 0, v0 = v0, base = tune("Speed"), peelT = 0, flow = flow }
+						autoRotate = hum.AutoRotate, lastStep = 0, startPos = hrp.Position, corners = 0, v0 = v0, base = tune("Speed"), peelT = 0, flow = flow,
+						runner = runner, planted = planted, steps = nil, fallSound = nil, fallVolume = 0 }
+					if runner then
+						-- footsteps on the wall; the Humanoid's own Freefall wind is muted for the run
+						local fs = hrp:FindFirstChild("FreeFalling")
+						if fs and fs:IsA("Sound") then
+							r.fallSound = fs
+							r.fallVolume = fs.Volume
+							fs.Volume = 0
+						end
+						local st = Instance.new("Sound")
+						st.Name = "WallRunSteps"
+						st.SoundId = "rbxasset://sounds/action_footsteps_plastic.mp3"
+						st.Looped = true
+						st.Volume = tune("StepsVolume")
+						st.PlaybackSpeed = speed / tune("Speed") * 1.1
+						st.RollOffMode = Enum.RollOffMode.InverseTapered
+						st.RollOffMinDistance = 8
+						st.RollOffMaxDistance = 70
+						st.Parent = hrp
+						st:Play()
+						r.steps = st
+					end
 					hum.AutoRotate = false
 					ao.CFrame = orientation(r)
 					run = r
@@ -363,7 +410,17 @@ function WallRun.Start(deps: Deps)
 				r.speed = math.min(target, r.speed + tune("SpeedSettle") * dt)
 			end
 			if r.track then
-				r.track:AdjustSpeed(tune("AnimRate") * math.max(0.6, r.speed / tune("Speed")))
+				if r.runner then
+					r.track:AdjustSpeed(math.max(0.8, r.speed / tune("RunAnimStuds"))) -- ground-run rate: no foot sliding
+				else
+					r.track:AdjustSpeed(tune("AnimRate") * math.max(0.6, r.speed / tune("Speed")))
+				end
+			end
+			if r.steps then
+				r.steps.PlaybackSpeed = math.max(0.7, r.speed / tune("Speed") * 1.1)
+			end
+			if r.runner then
+				camTarget = r.n * tune("CamPushOut") + Vector3.new(0, tune("CamLift"), 0)
 			end
 		end
 
@@ -468,6 +525,14 @@ function WallRun.Start(deps: Deps)
 				finish("dead")
 			end
 			return
+		end
+		if camNow ~= camTarget or camTarget.Magnitude > 0 then
+			local k = math.clamp(dt * (if camTarget.Magnitude > 0 then 5 else 3.5), 0, 1)
+			camNow = camNow:Lerp(camTarget, k)
+			if camTarget.Magnitude == 0 and camNow.Magnitude < 0.02 then
+				camNow = Vector3.zero
+			end
+			hum.CameraOffset = hrp.CFrame:VectorToObjectSpace(camNow)
 		end
 		local cr = carry
 		if cr and (os.clock() > cr.untilT or MoveState.Owner() ~= "walljump" or (cr.hum.FloorMaterial ~= Enum.Material.Air and os.clock() > cr.t0 + 0.15)) then

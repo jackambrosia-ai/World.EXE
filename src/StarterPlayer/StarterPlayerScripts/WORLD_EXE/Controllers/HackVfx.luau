@@ -552,6 +552,7 @@ end
 -- Reduced Effects keeps only the trail. (Rev 15b-15l used the 1.0 s throw trail, which vanished
 -- mid-air on longer flights: measured 1.25 s before landing on a 2.2 s high launch.)
 local AURA_MAX_SECONDS = 10
+local HUM_VOLUME = 0.32 -- Rev 15s flight hum: clearly audible locally, below hack / warning cues
 local CYAN_ENERGY = Color3.fromRGB(90, 215, 255)
 local auras: { [Model]: (landed: boolean) -> () } = {}
 
@@ -633,6 +634,53 @@ local function selfFlingAura(model: Model)
 		table.insert(fx, pl)
 		table.insert(fx, h)
 	end
+	-- Rev 15s (owner: "The sound effect should last as long as the blue effect is present"): continuous
+	-- flight audio owned by THIS aura (same start, same stop, same cleanup). No uploads: the built-in wind
+	-- loop pitched up, chopped by a fast tremolo and EQ'd thin = a soft electric hum, plus an occasional very
+	-- quiet crackle from ONE reused Sound at random intervals (never per frame). Spatial (heard by everyone
+	-- near, attenuated with distance). Reduced Effects keeps the hum, drops the crackle.
+	for _, old in body:GetChildren() do
+		if old:IsA("Sound") and (old.Name == "SelfFlingHum" or old.Name == "SelfFlingCrackle") then
+			old:Destroy() -- a relaunch replaces the previous flight's audio at once (never two loops)
+		end
+	end
+	local humSound = Instance.new("Sound")
+	humSound.Name = "SelfFlingHum"
+	humSound.SoundId = "rbxasset://sounds/action_falling.ogg"
+	humSound.Looped = true
+	humSound.PlaybackSpeed = 2.2
+	humSound.Volume = 0
+	humSound.RollOffMode = Enum.RollOffMode.InverseTapered
+	humSound.RollOffMinDistance = 10
+	humSound.RollOffMaxDistance = 90
+	local tremolo = Instance.new("TremoloSoundEffect")
+	tremolo.Depth = 0.55
+	tremolo.Frequency = 24
+	tremolo.Duty = 0.5
+	tremolo.Parent = humSound
+	local eq = Instance.new("EqualizerSoundEffect")
+	eq.LowGain = -12
+	eq.MidGain = -2
+	eq.HighGain = 3
+	eq.Parent = humSound
+	humSound.Parent = body
+	humSound:Play()
+	TweenService:Create(humSound, TweenInfo.new(0.15), { Volume = HUM_VOLUME }):Play()
+	table.insert(fx, humSound)
+	local crackle: Sound? = nil
+	if not reduced then
+		local cs = Instance.new("Sound")
+		cs.Name = "SelfFlingCrackle"
+		cs.SoundId = "rbxasset://sounds/volume_slider.ogg"
+		cs.Volume = 0.12
+		cs.RollOffMode = Enum.RollOffMode.InverseTapered
+		cs.RollOffMinDistance = 8
+		cs.RollOffMaxDistance = 60
+		cs.Parent = body
+		crackle = cs
+		table.insert(fx, cs)
+	end
+	local nextCrackle = os.clock() + 0.2
 	model:SetAttribute("SelfFlingAura", true)
 	local t0 = os.clock()
 	local frame = 0
@@ -651,6 +699,15 @@ local function selfFlingAura(model: Model)
 		end
 		if model.Parent then
 			model:SetAttribute("SelfFlingAura", nil)
+		end
+		-- the hum fades out quickly (before the landing thud lands on top of it), then stops
+		if humSound.Parent then
+			TweenService:Create(humSound, TweenInfo.new(0.15), { Volume = 0 }):Play()
+			task.delay(0.16, function()
+				if humSound.Parent then
+					humSound:Stop()
+				end
+			end)
 		end
 		tr.Enabled = false
 		if emitter then
@@ -677,6 +734,15 @@ local function selfFlingAura(model: Model)
 		frame += 1
 		if glow and frame % 3 == 0 then
 			glow.FillTransparency = 0.76 + math.random() * 0.14 -- faint electric flicker
+		end
+		-- the hum rises a little with speed (sense of motion); a sparse, quiet crackle
+		local sp = body.AssemblyLinearVelocity.Magnitude
+		humSound.PlaybackSpeed = 2.0 + math.clamp(sp / 220, 0, 0.45)
+		local nowC = os.clock()
+		if crackle and nowC >= nextCrackle then
+			nextCrackle = nowC + 0.14 + math.random() * 0.24
+			crackle.PlaybackSpeed = 2.6 + math.random() * 1.6
+			crackle:Play()
 		end
 	end)
 end

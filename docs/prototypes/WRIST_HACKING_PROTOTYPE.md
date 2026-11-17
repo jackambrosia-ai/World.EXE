@@ -2,7 +2,7 @@
 
 Status: **isolated prototype, draft PR, not for merge.** The owner approved the milestone on 2026-11-16. This is **not** an adopted gameplay design. Every number is provisional.
 
-## 0. Current state (Rev 15r, 2026-11-17) — read this first
+## 0. Current state (Rev 15s, 2026-11-17) — read this first
 Sections 1–21 are the revision history and keep superseded designs for the record. **This section is the current behaviour.** Where an older section disagrees, this one wins.
 
 **Superseded (do not implement from the history):**
@@ -33,8 +33,8 @@ Sections 1–21 are the revision history and keep superseded designs for the rec
 | Group | Values |
 |---|---|
 | Move | RunSpeed 28; DashSpeed 115; DashSeconds 0.3; DashCooldown 6; CheckDelay 0.1; CheckSweepSeconds 0.6; **CheckZoneSeconds 0.11** (Rev 15m, was 0.07); CheckZoneEarliest 0.2; CheckLatency 0.04; **CheckStyle 1** (Rev 15n); SuperChargesMax 2; SuperChainMinGap 0.25; SuperSeconds 1.0; SuperSpeed 74 |
-| WallRun | Speed 36; Seconds 4; ClimbSpeed 30 over ClimbSeconds 1; MaxSink 6; Reach 3.2; SideFacingMaxDot 0.5; JumpOut 40; JumpUp 50; EdgeJumpGrace 0.3; **Flow 1** (Rev 15m; 0 = Rev 15l feel) with EntryBlendSeconds 0.14, MaxEntrySpeed 52, SpeedSettle 18, BackBrake 40, MinCruise 16, PeelDot 0.6, PeelSeconds 0.12, PeelOut 16, ExitCarrySeconds 0.25, ForwardLeanDegrees 7, AnimRate 1.5 |
-| FlingSelf | Up 90; Forward 42; SteerSpeed 24; GlideFallSpeed 28; MaxFlightSeconds 4; **AuraMaxSeconds 10** (Rev 15m) |
+| WallRun | Speed 36; Seconds 4; ClimbSpeed 30 over ClimbSeconds 1; MaxSink 6; Reach 3.2; SideFacingMaxDot 0.5; JumpOut 40; JumpUp 50; EdgeJumpGrace 0.3; **Flow 2** (Rev 15s "Runner"; 3 = "Planted", 1 = Rev 15m, 0 = Rev 15l) with RunAnimStuds 14.8, StepsVolume 0.45, CamPushOut 2.5, CamLift 0.6, PlantedLeanDegrees 18, EntryBlendSeconds 0.14, MaxEntrySpeed 52, SpeedSettle 18, BackBrake 40, MinCruise 16, PeelDot 0.6, PeelSeconds 0.12, PeelOut 16, ExitCarrySeconds 0.25, ForwardLeanDegrees 7, AnimRate 1.5 |
+| FlingSelf | Up 90; Forward 42; SteerSpeed 24; GlideFallSpeed 28; MaxFlightSeconds 4; **AuraMaxSeconds 10** (Rev 15m); flight hum lives with the aura (Rev 15s) |
 | Config | `ForceR6 = true` (prototype feature; see the deferred issue below) |
 
 **Tested (solo Studio, one client, Rev 15m session 2026-11-17):** see §21.21 for numbers — skill-check A/B/baseline, display-vs-judge timing, chaining regression, wall-run entry / climb / brake / peel / exit / wall jump / dash hand-over, R6 silhouettes + cost, FLING SELF aura in 9 flight cases, Reduced Effects, dash distance and cooldown, Q spam, FLING TARGET, R6 dressing, saved-file parity 65/65.
@@ -1355,3 +1355,101 @@ Removed: the cursor screen zones (Rev 12–13) and the mouse-slide virtual curso
 - **D** held with the cursor on the far LEFT → throw **right**.
 
 **Saved place:** SHA-256 `10534438294a07424efb6a89c4546d6575e4cee791ee882b123ec58a67757d78`, 66/66. Protected files 9/9 OK.
+
+### 21.27 Rev 15s — FLING SELF flight audio + wall-running presentation (ChatGPT directive "Rev 15n", owner-authorized, 2026-11-17)
+**Naming:** the directive called itself "Rev 15n", but Rev 15n–15r were already used by the owner's direct changes (skill-check look, keys-only aim, hold arrows, wall slam). It is recorded here as **Rev 15s**.
+
+**Scope respected:** none of these were touched:
+- skill check (look, timing, judgment, diamonds);
+- Q dash, super-speed and chaining;
+- silhouettes;
+- FLING TARGET;
+- hacking inputs, SHIELD, FREEZE.
+
+The diff is limited to `HackVfx.luau` (aura audio), `WallRun.luau` and the WallRun tuning in `HackCatalog.luau`. Baseline: game `84df302`, vault `0b80009`, lessons `d32b216`, all in sync, no uncommitted work. Pre-revision backup `place/backup_pre_rev15s/` = `10534438…` (66/66). MOV-03 re-hashed: MATCH.
+
+#### 1. FLING SELF: the sound lasts as long as the blue aura
+Owner: "The sound effect should last as long as the blue effect is present". Before, only the five short launch crackles played (~0.3 s); the aura lasts the whole flight (Rev 15m).
+
+**Now:** the aura owns a continuous **flight hum**, built from built-in assets only (no uploads):
+- the built-in wind loop pitched up (×2.0–2.45, rising a little with speed);
+- a TremoloSoundEffect (24 Hz, depth 0.55) and an EQ (lows −12 dB): a soft electric buzz;
+- a sparse, very quiet crackle from **one reused** Sound at random 0.14–0.38 s intervals (never per frame).
+
+Properties:
+- spatial (InverseTapered, 10 → 90 studs), volume 0.32 (below hack and warning cues);
+- fades in over 0.15 s at launch;
+- fades out over 0.15 s when the aura ends, then is destroyed with the aura;
+- a relaunch removes the previous flight's audio at once;
+- Reduced Effects keeps the hum and drops the crackle;
+- the launch shock sounds and the landing thud are unchanged.
+
+**Verified** (solo Studio; per-frame check that the hum is *playing and audible* while the aura is on; all hum instances in the world counted):
+| # | Case | Aura | Audio | Aura without audio | Hum instances (max / at end) | Landing impacts |
+|---|---|---|---|---|---|---|
+| 1 | Normal arc | 0.18–1.13 s | 0.18–1.23 s | 0 frames | 1 / 0 | 1 |
+| 2 | High launch (Up 140) | 0.17–1.77 | 0.18–1.87 | 0 | 1 / 0 | 1 |
+| 3+4 | Long glide (Space held) + steering (A) | 0.17–2.53 | 0.18–2.63 | 0 | 1 / 0 | 1 |
+| 5 | FLING SELF → wall-run hand-over | 0.17–2.18 (run 1.22 s) | 0.18–2.28 | 0 | 1 / 0 | 1 |
+| 6 | Landing (aimed at the block top; it landed on the ground) | 0.17–1.35 | 0.18–1.45 | 0 | 1 / 0 | 1 |
+| 7 | Collision with a wall | 0.17–0.77 | 0.18–0.86 | 0 | 1 / 0 | 1 |
+| 8 | Death mid-flight | 0.12–0.78 | 0.13–0.88 | 0 | 1 / 0 | 0 (cancel); nothing left after respawn |
+| 9 | Relaunch mid-air (y 46.5) | — | — | — | **1** / 0 | — |
+| 10 | Reduced Effects | trail only | hum playing, no crackle | — | 1 / 0 | — |
+
+Audio ends ≈ 0.10 s after the aura (its fade-out), which is during the landing thud and does not overlap it awkwardly. The first pass of case 9 briefly held **two** hum instances (the old one silent and awaiting cleanup); fixed so a relaunch destroys the old one at once.
+
+**Not produced:** a video *with sound*. The capture tools here grab silent frames only. The audio lifecycle was verified with the instrumented Sound state above; the owner should listen in play-testing.
+
+#### 2. Wall-running: why Rev 15m Flow "still needs work"
+Measured with the **normal player camera** and per-frame logging (anim tracks, Humanoid state, foot distance to the wall, tilt, camera distance), Flow 0 and Flow 1:
+| Finding | Type | Evidence |
+|---|---|---|
+| Run cycle ~38 % too slow for the speed (feet slide = "gliding") | **Confirmed defect** | Ground run plays at **1.89×** at 28 studs/s; the wall-run played **1.50×** at 36 studs/s (ground-equivalent ≈ 2.43×) |
+| The Humanoid is in **Freefall** for the whole run, so Roblox plays the **falling wind** sound and the Fall pose underneath, and **no footsteps** | **Confirmed defect** (presentation) | State `Freefall`, `FreeFalling` sound, Core FallAnim at weight 1.0 under the Action run track |
+| The default follow camera sits right behind the runner; the wall fills half the screen and hides the body–wall interaction | **Presentation** | Normal-camera frames, Flow 0 |
+| Feet hang beside the wall (near leg 0.75–0.85 studs off it; tilt 8–11°) | **Design choice** (owner input) | Measured |
+| Camera instability | Not a cause | Camera distance a steady 12.5 studs, no jumps |
+| Mechanics (entry blend, climb, exit carry, brake, peel, wall jump) | Behaving as designed (Rev 15m) | Re-checked below |
+
+#### 3. Wall-running changes: two variants (no new abilities, all rules unchanged)
+`HackTune_WallRun_Flow`: **2 = "Runner" (new default)**, **3 = "Planted"**, 1 = Rev 15m, 0 = Rev 15l.
+- **Flow 2 "Runner":**
+  - run cycle at the ground-run rate for the speed (`speed / RunAnimStuds` 14.8; measured **2.43×**, was 1.50×);
+  - the Humanoid's falling wind is muted on the wall and restored after;
+  - **footsteps** play (built-in footstep loop, spatial, pitch follows speed);
+  - the camera eases **2.5 studs out from the wall and 0.6 up** (`Humanoid.CameraOffset`, smoothed in and out), so you see the runner against the wall. Measured: camera shifted +2.5 during the run, back after; distance steady 12.5–12.9.
+- **Flow 3 "Planted":** Flow 2 with an **18° lean** away from the wall (measured tilt 19°), bringing the near foot to the wall face (0.5 studs from the leg's centre = touching). A clearly different look for the owner to compare.
+
+**Before / after (private captures):** `C:\WORLD.EXE-Art\HackProto\evidence\rev15s\`, all taken with the normal player camera.
+- `wallrun_flow0_sheet.jpg` (Rev 15l): upright, legs nearly together.
+- `wallrun_flow2_sheet.jpg` (Runner): legs mid-stride, leaning into the run.
+- `wallrun_flow3` (Planted).
+- `wallrun_flow0_vs_flow2.jpg`: side by side, the static "glide" pose vs a mid-stride run.
+
+The Flow 1 capture latched the opposite wall (the camera steered W slightly right); its measurements match Flow 0 except a 10–11° tilt.
+
+**Acceptance (Flow 2, solo Studio):**
+- ground entry 28 → 36 with the run cycle at 2.43×;
+- air entry with Space held (latched at 0.51 s);
+- dash hand-over (dash → wall run in the same press sequence);
+- FLING SELF hand-over (case 5 above);
+- climb 13.8 studs, then descent;
+- wall-end exit with the carry (32 → 28 studs/s);
+- corner / end stop at the block's end (`wall_end` at z 152.9, no wrap);
+- wall jump (out 40 / up 51; the far wall was above its usable height, so no second latch, correctly);
+- brake (36 → 17) then peel off (out 17);
+- death mid-run: `dead`, no footstep sounds left, CameraOffset 0, movement owner released, the new character's fall sound normal.
+
+The end-of-wall jump grace was not separately re-run (code unchanged since Rev 15k). The owner's feel remains the acceptance test.
+
+**Saved place:** SHA-256 `8043f064b82aca205b5782b6700e644ba9aa6073359cb9d72379009dce8d09d4`, 66/66. Protected files 9/9 OK.
+
+**Not tested:**
+- multiplayer (others hear the spatial hum and footsteps; unverified);
+- touch / gamepad hardware;
+- real shift-lock (CameraOffset under shift-lock not exercised);
+- real network latency;
+- recorded audio.
+
+Deferred, unchanged: R6 isolation; skill-check network fairness.
