@@ -207,6 +207,8 @@ HackCatalog.Tuning = table.freeze({
 		PostThrowSeconds = 3.0, -- tested 2.5 / 3.0 / 3.5 (Workspace HackTune_FlingTarget_PostThrowSeconds)
 		PostThrowCap = 5.5,
 		SettleSpeed = 6,
+		SlamDownSeconds = 4.5, -- Rev 15q owner 2026-11-17: a thrown body that slams into a wall stays down this long from the throw ("4.5 seconds in total"; open throws: PostThrowSeconds)
+		SlamMinSpeed = 20, -- horizontal studs/s needed for a wall hit to count as a slam
 		-- Rev 15d (owner): thrown targets look dragged by the torso (chest pulled + facing the throw, limbs trail)
 		DragLeanDegrees = 50, -- upper body pitched forward into the pull (legs trail behind)
 		DragTrailStart = 0.3, -- limbs start at this share of the launch speed (torso yanks them)

@@ -772,6 +772,70 @@ function HackVfx.LandImpact(model: Model?, pos: Vector3, strength: number)
 		model:SetAttribute("HackLandFx", (model:GetAttribute("HackLandFx") or 0) + 1)
 	end
 end
+-- Rev 15q (owner: "slamming into a wall should stun"): a thrown body hit a wall. The wall impact (thud, dust
+-- ring on the wall, cyan sparks) and dizzy stars circling over the target's head until it gets up
+-- (`seconds`, from the server). Reduced Effects: the thud only.
+function HackVfx.Slam(model: Model?, pos: Vector3, normal: Vector3, seconds: number, strength: number)
+	local host = vpart("SlamThudHost", Vector3.new(0.2, 0.2, 0.2), CFrame.new(pos), Color3.new(), nil)
+	host.Transparency = 1
+	local s = Instance.new("Sound")
+	s.SoundId = "rbxasset://sounds/action_jump_land.mp3"
+	s.PlaybackSpeed = 0.5
+	s.Volume = 0.9 + 0.5 * strength
+	s.RollOffMinDistance = 12
+	s.RollOffMaxDistance = 160
+	s.Parent = host
+	s:Play()
+	task.delay(2, function()
+		host:Destroy()
+	end)
+	if UITheme.reducedEffects() then
+		return
+	end
+	-- a flat ring on the wall surface, facing out of it
+	local ring = vpart("SlamRing", Vector3.new(0.2, 1, 1), CFrame.lookAt(pos + normal * 0.15, pos + normal * 2) * CFrame.Angles(0, math.rad(90), 0), Color3.fromRGB(220, 214, 200), Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+	ring.Transparency = 0.35
+	tween(ring, 0.35, { Size = Vector3.new(0.2, 7 + 4 * strength, 7 + 4 * strength), Transparency = 1 })
+	task.delay(0.4, function()
+		ring:Destroy()
+	end)
+	sparks(pos + normal * 0.5, math.floor(8 + 8 * strength), 16, Color3.fromRGB(120, 230, 255))
+	if not model then
+		return
+	end
+	local head = model:FindFirstChild("Head") :: BasePart?
+	if not head then
+		return
+	end
+	local stars: { Part } = {}
+	for i = 1, 3 do
+		local st = vpart("DizzyStar", Vector3.new(0.45, 0.45, 0.45), head.CFrame, Color3.fromRGB(255, 220, 70), Enum.Material.Neon, Enum.PartType.Ball)
+		table.insert(stars, st)
+	end
+	model:SetAttribute("HackDizzy", true)
+	local t0 = os.clock()
+	local conn: RBXScriptConnection? = nil
+	conn = RunService.RenderStepped:Connect(function()
+		local el = os.clock() - t0
+		if el > seconds or not head.Parent or not model.Parent then
+			if conn then
+				conn:Disconnect()
+			end
+			for _, st in stars do
+				st:Destroy()
+			end
+			if model.Parent then
+				model:SetAttribute("HackDizzy", nil)
+			end
+			return
+		end
+		for i, st in stars do
+			local a = el * 5 + i * (2 * math.pi / 3)
+			st.CFrame = CFrame.new(head.Position + Vector3.new(math.cos(a) * 1.3, 1.3 + 0.15 * math.sin(el * 7 + i), math.sin(a) * 1.3))
+		end
+	end)
+end
+
 -- Deflection burst on the defender (seen by everyone); perfect = bigger, whiter, longer.
 function HackVfx.Deflect(target: Model, perfect: boolean)
 	local tRoot = target:FindFirstChild("HumanoidRootPart") :: BasePart?

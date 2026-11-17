@@ -621,6 +621,16 @@ local function postThrowRecovery(model: Model, root: BasePart, st: RagdollState,
 	local t0 = os.clock()
 	local startPos = torso.Position
 	local apex = startPos.Y
+	-- Rev 15q (owner 2026-11-17: "slamming into a wall should stun ... 4.5 seconds in total"): a thrown body
+	-- that hits a wall (fast horizontal motion stopped by a near-vertical, non-character surface right ahead)
+	-- stays down SlamDownSeconds from the throw instead of PostThrowSeconds. The drag pull stops at the wall,
+	-- everyone sees an impact at the wall and dizzy stars until the target gets up.
+	local slamAt: number? = nil
+	local prevVel = torso.AssemblyLinearVelocity
+	local function isCharacterPart(inst: Instance): boolean
+		local m = inst:FindFirstAncestorOfClass("Model")
+		return m ~= nil and m:FindFirstChildOfClass("Humanoid") ~= nil
+	end
 	task.spawn(function()
 		local landedAt: number? = nil
 		local calmFor = 0
@@ -636,6 +646,23 @@ local function postThrowRecovery(model: Model, root: BasePart, st: RagdollState,
 			end
 			apex = math.max(apex, torso.Position.Y)
 			local vel = torso.AssemblyLinearVelocity
+			-- wall slam (once per throw)
+			local prevH = Vector3.new(prevVel.X, 0, prevVel.Z)
+			local curH = Vector3.new(vel.X, 0, vel.Z)
+			if not slamAt and el > 0.04 and prevH.Magnitude >= tune("FlingTarget", "SlamMinSpeed") and curH.Magnitude < prevH.Magnitude * 0.6 then
+				local ahead = workspace:Raycast(torso.Position, prevH.Unit * (prevH.Magnitude * 0.08 + 2.5), params)
+				if ahead and math.abs(ahead.Normal.Y) < 0.5 and not isCharacterPart(ahead.Instance) then
+					slamAt = tNow
+					want = math.max(want, tune("FlingTarget", "SlamDownSeconds"))
+					cap = math.max(cap, want + 0.5)
+					model:SetAttribute(A.RagdollUntil, now() + (cap - el))
+					model:SetAttribute("HackFlingPhase", "slammed") -- ends the torso drag pull (no pushing into the wall)
+					model:SetAttribute("HackSlamAt", now())
+					broadcast({ op = "vfx", kind = "slam", model = model, pos = ahead.Position, normal = ahead.Normal,
+						seconds = math.max(0.5, want - el), strength = math.clamp(prevH.Magnitude / 60, 0.4, 1) })
+				end
+			end
+			prevVel = vel
 			local hit = workspace:Raycast(torso.Position, Vector3.new(0, -4.5, 0), params)
 			local grounded = hit ~= nil and vel.Y > -6
 			if not landedAt and el >= minAir and grounded then
@@ -661,9 +688,10 @@ local function postThrowRecovery(model: Model, root: BasePart, st: RagdollState,
 		end
 		local total = os.clock() - t0
 		local p = torso.Position
-		model:SetAttribute("HackPostThrow", string.format("mode=%s air=%.2fs down=%.2fs total=%.2fs end=%s apex=%.1f horiz=%.1f",
+		model:SetAttribute("HackPostThrow", string.format("mode=%s air=%.2fs down=%.2fs total=%.2fs end=%s apex=%.1f horiz=%.1f slam=%s",
 			mode, if landedAt then landedAt - t0 else -1, if landedAt then os.clock() - landedAt else -1, total, ending,
-			apex - startPos.Y, Vector3.new(p.X - startPos.X, 0, p.Z - startPos.Z).Magnitude))
+			apex - startPos.Y, Vector3.new(p.X - startPos.X, 0, p.Z - startPos.Z).Magnitude,
+			if slamAt then string.format("%.2fs", slamAt - t0) else "no"))
 		model:SetAttribute("HackFlingPhase", nil)
 		recover(model)
 	end)

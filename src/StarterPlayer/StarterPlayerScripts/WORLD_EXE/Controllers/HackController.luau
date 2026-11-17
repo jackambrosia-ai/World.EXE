@@ -1756,6 +1756,9 @@ function HackController.Start()
 				HackVfx.Glide(data.model, tonumber(data.seconds) or 1.5)
 			elseif data.kind == "throw" and typeof(data.model) == "Instance" and data.model:IsA("Model") then
 				HackVfx.ThrowTrail(data.model)
+			elseif data.kind == "slam" and typeof(data.pos) == "Vector3" then
+				HackVfx.Slam(if typeof(data.model) == "Instance" and data.model:IsA("Model") then data.model else nil, data.pos,
+					if typeof(data.normal) == "Vector3" then data.normal else Vector3.yAxis, tonumber(data.seconds) or 2, tonumber(data.strength) or 0.6)
 			elseif data.kind == "land" and typeof(data.pos) == "Vector3" then
 				HackVfx.LandImpact(if typeof(data.model) == "Instance" and data.model:IsA("Model") then data.model else nil, data.pos, tonumber(data.strength) or 0.5)
 			end

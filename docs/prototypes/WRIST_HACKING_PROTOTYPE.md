@@ -2,7 +2,7 @@
 
 Status: **isolated prototype, draft PR, not for merge.** The owner approved the milestone on 2026-11-16. This is **not** an adopted gameplay design. Every number is provisional.
 
-## 0. Current state (Rev 15p, 2026-11-17) — read this first
+## 0. Current state (Rev 15q, 2026-11-17) — read this first
 Sections 1–21 are the revision history and keep superseded designs for the record. **This section is the current behaviour.** Where an older section disagrees, this one wins.
 
 **Superseded (do not implement from the history):**
@@ -19,6 +19,7 @@ Sections 1–21 are the revision history and keep superseded designs for the rec
 | **1–4** (keypad, D-pad) | Pick a quick hack; during a challenge, the challenge inputs (Signal Lock adds **5** / Y) |
 | Same key again, **Enter** or EXECUTE | Run the selected quick hack; **X** cycles the target; **T** typed commands |
 | FLING (hack on a target), while holding it (3 s, Rev 15p) | **W** = throw up, **A** = left, **D** = right, **S** = behind, then click (Rev 15o: keys decide in every camera mode); no key held = the cursor's screen zone. All four arrows show in translucent yellow; the selected one is red (Rev 15p) |
+| FLING throw into a wall (Rev 15q) | The target slams: stunned (down, dizzy stars) **4.5 s from the throw** instead of 3 s |
 | **C** / R1 / SHIELD button | Shield against an incoming hack |
 | **Q** / gamepad X | Grounded **dash** (115 studs/s × 0.3 s ≈ 28 studs, 6 s cooldown) and a **skill check** |
 | **Q** when the shrinking outer square is on the inner square's border (Rev 15n look, UI-01) | +1 diamond (two containers, bottom middle). One attempt per dash; pink = hit, grey = miss |
@@ -1311,3 +1312,30 @@ The Rev 14 single cyan hint arrow is hidden during the hold.
 Captures (private): `C:\WORLD.EXE-Art\HackProto\evidence\rev15p\`. A first pass with 3.5-stud arrows left the yellow ones as stubs inside the body, so all four were lengthened to 5 studs.
 
 **Saved place:** SHA-256 `2a2d20714967fe31f561f6c6995df2acbf5ac3fc6efd0b558ee5402194317ea7`, 66/66. Protected files 9/9 OK.
+
+### 21.25 Rev 15q — wall slam stun (owner, 2026-11-17)
+Owner: "slamming into a wall should stun for 2.5 seconds", then, asked how it combines with the existing ~3 s knockdown: "4.5 seconds in total".
+
+**Rule:** a FLING-thrown body (player, NPC or boss) that slams into a wall stays down **4.5 s from the throw** (`FlingTarget.SlamDownSeconds`), instead of the normal `PostThrowSeconds` 3.0. Open throws are unchanged.
+
+**Detection** (server, the post-throw loop at 20 Hz), once per throw. All of these must hold:
+- the torso's horizontal speed was ≥ `SlamMinSpeed` (20 studs/s);
+- it drops below 60 % in one tick;
+- a ray along the previous motion finds a near-vertical (|normal.Y| < 0.5), non-character surface just ahead.
+
+**On a slam:**
+- the torso drag pull stops (phase `slammed`), so nothing keeps pushing into the wall;
+- `RagdollUntil` is extended, so the target can't move, dash or hack while down;
+- everyone sees a wall impact: a low thud, a dust ring on the wall and cyan sparks;
+- three yellow **dizzy stars** circle the target's head until it gets up.
+
+Reduced Effects keeps the thud only. Recovery still needs the body grounded and settled; the hard cap rises to 5.0 s for a slam.
+
+**Verified (solo Studio, Dummy-A between the wall-run lane walls, throw right into the wall):**
+- slam detected 0.18 s after the throw; the body stopped against the wall (7.9 studs travelled);
+- down **4.57 s total** (target 4.5);
+- stars shown until it stood up.
+
+Control: an open throw that missed the walls flew 97.7 studs, recorded `slam=no` and was down 3.05 s, as before. The `HackPostThrow` attribute now records `slam=<time>|no`.
+
+**Saved place:** SHA-256 `1dd1c8362464b81f67a90fd3538eccd1b4896bb1d87f0e5aab632058e05ed0e5`, 66/66. Protected files 9/9 OK.

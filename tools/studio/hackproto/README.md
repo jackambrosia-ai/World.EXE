@@ -25,7 +25,7 @@ This is an **isolated prototype** for the owner-approved milestone of 2026-11-16
    ```bash
    node tools/studio/hackproto/hp_40_verify_saved.js <place.rbxlx>
    ```
-   The latest save (Rev 15p, 2026-11-17) reported 66/66; place SHA-256 2A2D2071….
+   The latest save (Rev 15q, 2026-11-17) reported 66/66; place SHA-256 1DD1C836….
 
 ## Playing it
 - Press Play (solo). You spawn at the launch area.
@@ -62,7 +62,7 @@ Format: `HackTune_<Group>_<Key>`, overriding `HackCatalog.Tuning`. Examples:
 - **Wall-run (Rev 15g–15m):** `HackTune_WallRun_MinSpeed`, `_Speed`, `_Seconds`, `_ClimbSpeed`, `_AirClimbScale`, `_ClimbSeconds`, `_MaxSink`, `_Gravity`, `_Reach`, `_Stick`, `_JumpOut`, `_JumpUp`, `_JumpCarrySeconds`, `_EdgeJumpGrace`, `_LeanDegrees`, `_ReattachDelay`; Rev 15m Flow: `_Flow` (1/0), `_EntryBlendSeconds`, `_MaxEntrySpeed`, `_SpeedSettle`, `_BackBrake`, `_MinCruise`, `_PeelDot`, `_PeelSeconds`, `_PeelOut`, `_ExitCarrySeconds`, `_ForwardLeanDegrees`, `_AnimRate`
 - **FLING SELF aura (Rev 15m):** `HackTune_FlingSelf_AuraMaxSeconds` (safety cap, default 10)
 - **Skill check and super-speed (Rev 15j):** `HackTune_Move_DashCooldown`, `_CheckDelay`, `_CheckSweepSeconds`, `_CheckZoneSeconds`, `_CheckZoneEarliest`, `_CheckLatency`, `_CheckStyle` (1 squares / 0 bar), `_SuperChargesMax`, `_SuperAccelSeconds`, `_SuperEaseOutSeconds`, `_SuperSteerSmoothing`, `_SuperChainMinGap`
-- **FLING post-throw (Rev 15):** `HackTune_FlingTarget_PostThrowSeconds` (default 3.0; tested 2.5 / 3.0 / 3.5), `_PostThrowCap`, `_SettleSpeed`
+- **FLING post-throw (Rev 15):** `HackTune_FlingTarget_PostThrowSeconds` (default 3.0; tested 2.5 / 3.0 / 3.5), `_PostThrowCap`, `_SettleSpeed`; wall slam (Rev 15q): `_SlamDownSeconds` (4.5), `_SlamMinSpeed` (20); hold: `_HoldSeconds` (3)
 
 ## Studio-only test controls
 - **Test hooks:** `ServerStorage.HackProtoTest` (BindableFunction, Studio only) offers `Session`, `Events`, `BossLog`, `Effects`, `Perf`, `IncomingStats`, `ClearCooldowns`, `MoveLog(player)` (Q decisions with server times) and `SimulateIncoming(player, hackId, npcModel)`. The Workspace attribute `HackTest_BossPassive = true` (Studio only) keeps the boss idle so its long challenge types can be tested without attack interruptions. The last one sends a dummy through the real incoming stage as a stand-in attacker; label its results as stand-in, not two-client.
