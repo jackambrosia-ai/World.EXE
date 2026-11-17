@@ -345,11 +345,38 @@ function MovementController.Start()
 	local dashFill = UIUtil.create("Frame", { Name = "Fill", BackgroundColor3 = CYAN, BackgroundTransparency = 0.2, BorderSizePixel = 0, Size = UDim2.fromScale(0, 1) }, dashBar) :: Frame
 	UIUtil.corner(dashFill, 2)
 	local dashReadyAt = 0 -- server time
+	-- Rev 15j (owner): two empty DIAMOND containers at the bottom middle; each skill-check hit fills one.
+	-- Q while the dash is cooling spends a filled diamond on super-speed.
+	local chargeRow = UIUtil.create("Frame", { Name = "SuperCharges", AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -136), Size = UDim2.fromOffset(64, 26), BackgroundTransparency = 1 }, root) :: Frame
+	local diamonds: { { box: Frame, fill: Frame, stroke: UIStroke, scale: UIScale } } = {}
+	for i = 1, 2 do
+		local box = UIUtil.create("Frame", { Name = "Diamond" .. i, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, (i - 1.5) * 30, 0.5, 0), Size = UDim2.fromOffset(17, 17), Rotation = 45, BackgroundColor3 = C.Charcoal, BackgroundTransparency = 0.35, BorderSizePixel = 0 }, chargeRow) :: Frame
+		local stroke = UIUtil.stroke(box, CYAN, 2)
+		local fillD = UIUtil.create("Frame", { Name = "Fill", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.62, 0.62), BackgroundColor3 = VIOLET, BorderSizePixel = 0, Visible = false }, box) :: Frame
+		local scale = Instance.new("UIScale")
+		scale.Parent = box
+		table.insert(diamonds, { box = box, fill = fillD, stroke = stroke, scale = scale })
+	end
+	local charges = 0
+	local function renderCharges(pulse: number?)
+		for i, d in diamonds do
+			d.fill.Visible = i <= charges
+			d.stroke.Color = if i <= charges then VIOLET else CYAN
+		end
+		if pulse and diamonds[pulse] and not UITheme.reducedEffects() then
+			local d = diamonds[pulse]
+			d.scale.Scale = 1.6
+			TweenService:Create(d.scale, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+		end
+		gui:SetAttribute("SuperCharges", charges)
+	end
+	renderCharges()
 
 	local n = 0
 	local dashAt = -1 -- os.clock() of the last executed dash (for the window display only)
-	local windowMin, windowMax = 0.2, 0.8
-	local superReadyAt = 0 -- server time
+	-- skill check of the last dash (client display; the server judges)
+	local checkStart, checkSweep, zoneA, zoneB = -1, 0.75, 0, 0
+	local checkResult, checkResultAt = "", -1
 	local superEnd = -1 -- os.clock()
 	-- Rev 15g: wall-running (its own module; feedback hooks here)
 	WallRun.Start({
@@ -371,8 +398,6 @@ function MovementController.Start()
 		end,
 	})
 	local superLen = 1
-	local chainCharges = 0 -- Rev 15g: follow-up bursts left
-	local chainWindowEnd = -1 -- os.clock()
 	local wind: Sound? = nil
 	local baseFov: number? = nil
 	local grade = Instance.new("ColorCorrectionEffect")
@@ -494,10 +519,17 @@ function MovementController.Start()
 		local op = data.op
 		if op == "dash" then
 			dashAt = os.clock()
-			windowMin = tonumber(data.windowMin) or 0.2
-			windowMax = tonumber(data.windowMax) or 0.8
-			superReadyAt = tonumber(data.superReady) or 0
 			dashReadyAt = tonumber(data.dashReady) or 0
+			local ck = data.check
+			if typeof(ck) == "table" then
+				checkStart = dashAt + (tonumber(ck.delay) or 0.1)
+				checkSweep = tonumber(ck.sweep) or 0.75
+				zoneA = tonumber(ck.zoneA) or 0.3
+				zoneB = tonumber(ck.zoneB) or 0.4
+				checkResult = ""
+			end
+			charges = tonumber(data.charges) or charges
+			renderCharges()
 			drive("dash", tonumber(data.seconds) or 0.24, tonumber(data.speed) or 115, nil)
 			sfx("rbxasset://sounds/action_jump.mp3", 1.75, 0.35)
 			local c = player.Character
@@ -515,16 +547,13 @@ function MovementController.Start()
 		elseif op == "super" then
 			superLen = tonumber(data.seconds) or 1
 			superEnd = os.clock() + superLen
-			chainCharges = tonumber(data.charges) or 0
-			chainWindowEnd = superEnd + (tonumber(data.window) or 0)
+			charges = tonumber(data.charges) or charges
+			renderCharges()
 			dashAt = -1
+			checkStart = -1
 			drive("super", superLen, tonumber(data.speed) or 74, tonumber(data.turn) or 10)
-			if data.follow then
-				sfx("rbxasset://sounds/volume_slider.ogg", 2.2, 0.4) -- follow-up: lighter cue, no thump
-			else
-				sfx("rbxasset://sounds/action_jump.mp3", 0.85, 0.45)
-				sfx("rbxasset://sounds/volume_slider.ogg", 2.6, 0.5)
-			end
+			sfx("rbxasset://sounds/action_jump.mp3", 0.85, 0.45)
+			sfx("rbxasset://sounds/volume_slider.ogg", 2.6, 0.5)
 			if not wind then
 				local w = Instance.new("Sound")
 				w.SoundId = "rbxasset://sounds/action_falling.ogg"
@@ -538,7 +567,7 @@ function MovementController.Start()
 			local myEnd = superEnd
 			task.delay(superLen, function()
 				if superEnd ~= myEnd then
-					return -- a follow-up burst continued the run: keep the wind going
+					return -- a newer burst started: keep the wind going
 				end
 				if wind then
 					wind:Stop()
@@ -547,18 +576,27 @@ function MovementController.Start()
 			end)
 			gui:SetAttribute("LastMove", "super")
 		elseif op == "move_fx" then
-			if data.kind == "early" then
-				sfx("rbxasset://sounds/volume_slider.ogg", 0.7, 0.25) -- soft "too early" tick
-				dashAt = -1 -- the window is gone: hide it
-			elseif data.kind == "super_cooldown" then
-				sfx("rbxasset://sounds/volume_slider.ogg", 0.5, 0.35)
-				superReadyAt = tonumber(data.readyAt) or superReadyAt
-			elseif data.kind == "super_chain_end" then
-				chainCharges = 0
-				superReadyAt = tonumber(data.readyAt) or superReadyAt
-			elseif data.kind == "dash_cooldown" then
-				sfx("rbxasset://sounds/volume_slider.ogg", 0.6, 0.25)
+			if data.kind == "check_hit" then
+				local before = charges
+				charges = tonumber(data.charges) or charges
+				checkResult, checkResultAt = "hit", os.clock()
+				sfx("rbxasset://sounds/volume_slider.ogg", 2.4, 0.6)
+				sfx("rbxasset://sounds/volume_slider.ogg", 3.1, 0.5)
+				renderCharges(if charges > before then charges else nil)
+			elseif data.kind == "check_miss" then
+				checkResult, checkResultAt = "miss", os.clock()
+				sfx("rbxasset://sounds/volume_slider.ogg", 0.55, 0.45)
+			elseif data.kind == "no_charge" then
+				sfx("rbxasset://sounds/volume_slider.ogg", 0.6, 0.25) -- soft tick: no diamond to spend
 				dashReadyAt = tonumber(data.readyAt) or dashReadyAt
+				if not UITheme.reducedEffects() then
+					task.spawn(function()
+						for _, dx in { -4, 4, -2, 2, 0 } do
+							chargeRow.Position = UDim2.new(0.5, dx, 1, -136)
+							task.wait(0.03)
+						end
+					end)
+				end
 			end
 			gui:SetAttribute("LastMove", tostring(data.kind))
 		elseif op == "ragdoll" or op == "frozen" then
@@ -583,41 +621,31 @@ function MovementController.Start()
 		local st = workspace:GetServerTimeNow()
 		local reduced = UITheme.reducedEffects()
 		-- gauge
-		local inWindowDisplay = dashAt > 0 and now - dashAt <= windowMax + 0.05
 		local superOn = superEnd > now
-		local cooling = superReadyAt > st and superReadyAt < 1e12
-		local chainOpen = not superOn and chainCharges > 0 and now < chainWindowEnd
-		gauge.Visible = inWindowDisplay or superOn or cooling or chainOpen
+		-- skill check: shown from the dash until the sweep ends (plus a short result flash)
+		local checkOn = checkStart > 0 and now <= checkStart + checkSweep + 0.35 and (checkResult == "" or now - checkResultAt < 0.35)
+		gauge.Visible = superOn or checkOn
 		if superOn then
 			windowSeg.Size = UDim2.fromScale(0, 1)
 			fill.BackgroundColor3 = VIOLET
 			fill.Size = UDim2.fromScale(math.clamp((superEnd - now) / superLen, 0, 1), 1)
 			marker.Visible = false
-			label.Text = if chainCharges > 0 then "SUPER  " .. string.rep("◆", chainCharges) else "SUPER"
-		elseif chainOpen then
-			-- follow-up window: one Q fires the next burst
-			windowSeg.Size = UDim2.fromScale(0, 1)
-			fill.BackgroundColor3 = NEON_GREEN
-			fill.Size = UDim2.fromScale(math.clamp((chainWindowEnd - now) / math.max(0.1, tune("SuperFollowWindow")), 0, 1), 1)
-			marker.Visible = false
-			label.Text = "Q  " .. string.rep("◆", chainCharges)
-		elseif inWindowDisplay then
-			local span = windowMax + 0.05
-			windowSeg.Position = UDim2.fromScale(windowMin / span, 0)
-			windowSeg.Size = UDim2.fromScale((windowMax - windowMin) / span, 1)
-			windowSeg.BackgroundColor3 = if cooling then C.Muted else CYAN
+			label.Text = "SUPER"
+			label.TextColor3 = C.Muted
+		elseif checkOn then
+			windowSeg.Position = UDim2.fromScale(zoneA / checkSweep, 0)
+			windowSeg.Size = UDim2.fromScale((zoneB - zoneA) / checkSweep, 1)
+			windowSeg.BackgroundTransparency = 0.15
+			windowSeg.BackgroundColor3 = if checkResult == "hit" then NEON_GREEN elseif checkResult == "miss" then C.Coral else CYAN
 			fill.Size = UDim2.fromScale(0, 1)
 			marker.Visible = true
-			marker.Position = UDim2.fromScale(math.clamp((now - dashAt) / span, 0, 1), 0.5)
-			label.Text = if cooling then "SUPER COOLING" else "Q AGAIN"
-		elseif cooling then
-			windowSeg.Size = UDim2.fromScale(0, 1)
-			fill.BackgroundColor3 = C.Muted
-			fill.Size = UDim2.fromScale(1 - math.clamp((superReadyAt - st) / tune("SuperCooldown"), 0, 1), 1)
-			marker.Visible = false
-			label.Text = ""
+			if checkResult == "" then
+				marker.Position = UDim2.fromScale(math.clamp((now - checkStart) / checkSweep, 0, 1), 0.5)
+			end
+			label.Text = if checkResult == "hit" then "◆ +1" elseif checkResult == "miss" then "MISS" else "Q"
+			label.TextColor3 = if checkResult == "hit" then NEON_GREEN elseif checkResult == "miss" then C.Coral else C.Text
 		end
-		local dashCd = tune("SuperCooldown") * tune("DashCooldownRatio")
+		local dashCd = tune("DashCooldown")
 		dashBar.Visible = dashReadyAt > st
 		if dashBar.Visible then
 			dashFill.Size = UDim2.fromScale(1 - math.clamp((dashReadyAt - st) / math.max(0.1, dashCd), 0, 1), 1)

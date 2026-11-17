@@ -13,10 +13,8 @@
 --   (Rev 15i: runs UP the wall first - ClimbSpeed easing to 0 over ClimbSeconds - then a gentle capped
 --   descent; stops climbing at the top edge), kept close to the wall, body tilted away from it, the run animation playing.
 --   The wall normal is re-read every frame, so gently curved walls are followed.
--- Corners (MOV-03 wraps around buildings): outside corners turn onto the side face, inside corners onto
---   the wall ahead.
+-- Corners (Rev 15j, owner): NO corner wrapping; the run ends at a corner or the wall's end.
 -- Ends: Space = wall jump (out + up + along); landing; the wall ends; letting go of the movement keys
---   (steering does not end it: around corners every held direction points away from some face);
 --   Seconds elapsed; dash / super-speed / FLING SELF taking over (MoveState). Never ragdolls.
 -- Physics stays on this (owning) client like all character movement, so others see it replicate.
 
@@ -269,7 +267,7 @@ function WallRun.Start(deps: Deps)
 			return
 		end
 		local md = r.hum.MoveDirection
-		-- the wall decides the direction (it may turn around corners); you stay on while holding any direction
+		-- you stay on while holding any direction
 		-- and leave by letting go, Space (wall jump), the wall ending or the time limit
 		if md.Magnitude < 0.2 then
 			finish("released")
@@ -278,33 +276,26 @@ function WallRun.Start(deps: Deps)
 
 		params.FilterDescendantsInstances = { c, table.unpack(deps.ignore) }
 		local pos = r.hrp.Position
-		-- MOV-03: the runner wraps around building corners and keeps going on the next face.
-		-- Inside corner: a wall straight ahead -> turn onto it (new normal = its normal, run away from the old wall).
+		-- Rev 15j (owner 2026-11-16): the wall run does NOT take you around corners. A wall straight ahead
+		-- (inside corner) or the face ending (outside corner) ends the run, and so does a sharp change of the
+		-- wall normal (> 25 degrees): only gently curved walls are followed.
 		local ahead = wallHit(pos, r.t, 2.4)
 		if ahead then
-			local n2 = flat(ahead.Normal)
-			if n2 and n2:Dot(r.t) < -0.7 then
-				r.t, r.n = r.n, n2
-				r.corners += 1
+			local na = flat(ahead.Normal)
+			if na and na:Dot(r.t) < -0.7 then
+				finish("wall_ahead")
+				return
 			end
 		end
 		local hit = wallHit(pos, -r.n, tune("Reach") + 1.2)
 		if not hit then
-			-- Outside corner: the face ended. Look back from just past the corner for the side face
-			-- (its normal points along our run); turn onto it.
-			local probe = wallHit(pos + r.t * 2 - r.n * 2.2, -r.t, 3.5)
-			local n2 = probe and flat(probe.Normal)
-			if probe and n2 and n2:Dot(r.t) > 0.7 then
-				r.t, r.n = -r.n, n2
-				r.corners += 1
-				-- step around the corner onto the new face (≈2 studs, about one frame at wall-run speed)
-				local onFace = Vector3.new(probe.Position.X, pos.Y, probe.Position.Z) + n2 * 1.5 + r.t * 0.6
-				r.hrp.CFrame = CFrame.new(onFace) * (r.hrp.CFrame - r.hrp.CFrame.Position)
-				hit = probe
-			else
-				finish("wall_end")
-				return
-			end
+			finish("wall_end")
+			return
+		end
+		local hn = flat(hit.Normal)
+		if hn and hn:Dot(r.n) < math.cos(math.rad(25)) then
+			finish("corner")
+			return
 		end
 		local h = hit :: RaycastResult
 		local n = flat(h.Normal)

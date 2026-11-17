@@ -81,25 +81,27 @@ end
 ---------------------------------------------------------------------------------------------------
 -- Provisional tuning (prototype configuration). Studs, studs/s, seconds.
 HackCatalog.Tuning = table.freeze({
-	-- Rev 15 movement (owner-authorized prototype; provisional values, tune by playtest):
-	-- fast baseline run, first Q = grounded dash, second Q inside [SuperMin, SuperMax] after the dash
-	-- = steerable super-speed. A second Q earlier than SuperMin VOIDS the window (spam-proof).
+	-- Rev 15j movement (owner design 2026-11-16; provisional values, tune by playtest): fast baseline run;
+	-- Q = grounded dash + a SKILL CHECK (a marker sweeps a bar; Q inside the random target zone = +1 super
+	-- charge, shown as diamonds, max SuperChargesMax); Q while the dash is cooling = SUPER-SPEED (uses a charge).
 	Move = table.freeze({
 		RunSpeed = 28, -- baseline Humanoid.WalkSpeed (Roblox default 16)
 		DashSpeed = 115, -- studs/s, horizontal only (Rev 15b: owner "not substantial enough" — was 88)
 		DashSeconds = 0.3, -- ≈25-30 studs (was 0.17 s ≈ 11 studs measured; 0.24 s measured 19-21)
-		DashCooldownRatio = 0.25, -- owner 2026-11-16: halved again -> a quarter of the super-speed cooldown (11 s -> 2.75 s)
-		SuperMin = 0.2, -- second Q earlier than this after the dash: too early (voids the window)
-		SuperMax = 0.8, -- later than this: expired (counts as a fresh first Q)
+		DashCooldown = 2.75, -- owner 2026-11-16 (halved twice from 11 s); super-speed is used DURING this cooldown
+		-- skill check after each dash (owner: "like the one that is already there, except it should be harder")
+		CheckDelay = 0.1, -- the marker starts sweeping this long after the dash
+		CheckSweepSeconds = 0.75, -- marker crosses the whole bar in this time (old window check: 0.8 s)
+		CheckZoneSeconds = 0.11, -- target zone width in time (old check: a 0.6 s window -> much harder)
+		CheckZoneEarliest = 0.2, -- the zone starts at a random time between this and the sweep end - zone
+		CheckLatency = 0.08, -- server tolerance after the zone for network delay
+		SuperChargesMax = 2, -- owner: two diamond containers
 		SuperSeconds = 1.0, -- MOV-02: ≈1 s bursts
 		SuperSpeed = 74,
 		SuperTurnRate = 10, -- rad/s cap on turning (Rev 15g smoother: was 14)
 		SuperSteerSmoothing = 7, -- exponential steering response (higher = snappier)
 		SuperAccelSeconds = 0.14, -- eased ramp up to SuperSpeed (Rev 15g: was instant)
 		SuperEaseOutSeconds = 0.32, -- eased return to run speed at the end (was 0.15 s linear)
-		SuperFollowUps = 2, -- owner 2026-11-16: usable 2 more times after the Q-Q activation (single Q each)
-		SuperFollowWindow = 2.5, -- seconds after a burst ends to fire the next one; the cooldown starts when the chain ends
-		SuperCooldown = 11, -- 10-12 s starting range
 		FovRun = 3, -- extra degrees at full run speed
 		FovSuper = 9, -- extra degrees during super-speed
 	}),

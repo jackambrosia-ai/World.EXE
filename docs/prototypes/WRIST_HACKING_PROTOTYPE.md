@@ -1015,3 +1015,41 @@ Owner: "make the wall running more true to the reference i sent, you shouldn't j
 **Saved place:** SHA-256 `9cdcda2b383313ba9f6b9de9bc57a6e53746837e7a32aedb04d564d751618c57`, 65/65. Protected files 9/9 OK.
 
 **Not tested:** how it feels to the owner; behaviour on real map buildings.
+
+### 21.18 Rev 15j — no corner wrapping; super-speed through a skill check and diamond charges (owner, 2026-11-16)
+Owner: "the wall run shouldn't be able to take you around corners. Also, regarding the super dash, after hitting a regular dash, it should activate a skill check like the one that is already there, except it should be harder than that. And if you hit it, it fills up a bar … in the middle bottom of the screen, like an empty diamond, like two of them to be containers … and hitting Q while dash is on cooldown would activate the super dash."
+
+**Wall-run:** no corner wrapping. The run ends at a wall ahead (inside corner), when the face ends (outside corner), or on a normal change over 25°; gently curved walls are still followed. Verified on the block: "wall_end" at the corner, 0 corners, after climbing 11 studs.
+
+**Super-speed redesign (server-authoritative, `MovementService`):**
+- **Q (dash ready):**
+  - a grounded dash and a **skill check**;
+  - the marker sweeps the bar in `CheckSweepSeconds` 0.75, starting `CheckDelay` 0.1 after the dash;
+  - the target zone is `CheckZoneSeconds` **0.11** wide at a **random** spot (start between 0.2 and the end).
+  - The old window was 0.6 s wide at a fixed spot, so this is much harder.
+- **One Q during the sweep is the only attempt:**
+  - inside the zone (−0.02 / +`CheckLatency` 0.08) = **hit**, +1 charge, capped at `SuperChargesMax` 2;
+  - anything else = miss.
+- **Q while the dash is cooling** (`DashCooldown` 2.75 s) after the check: **super-speed** (1 s, steerable, smooth) if a charge is stored, which uses it; otherwise a soft "no charge" tick and a small shake of the diamonds.
+- **Removed:**
+  - super-speed's own 11 s cooldown and the 15g follow-up chain (the diamonds are the gate now);
+  - the old early/void logic (the check allows one attempt).
+- **UI:** two diamond containers (outlined, empty) at the bottom middle, above the gauge; violet when filled, with a pop on fill. The gauge shows the target zone and the sweeping marker, then a "◆ +1" / "MISS" flash. Player attribute `WORLD_EXE_SuperCharges`.
+
+**Verified** (zone fixed with live tuning for repeatable key timing, then reset to random):
+
+| Case | Result |
+|---|---|
+| Dash, then Q at 0.50 s | HIT → 1 charge |
+| Dash, then Q at 0.23 s | MISS |
+| Q during cooldown | SUPER, 0 charges left |
+| Dash, no hit, then Q | "no charge" |
+| Three hits | charges capped at 2 |
+
+- **Capture:** `check_burst/b_05.jpg` (empty diamonds, bar with zone and marker) and `diamonds_full_zoom.jpg` (two filled).
+- **Saved place:** SHA-256 `31b4ac4af8643f32ea0e86c62750f1ee1a0f9b7cb805fb6ae81844617a6bfc27`, 65/65. Protected files 9/9 OK.
+
+**Not tested:**
+- whether 0.11 s is the right difficulty with a person's reflexes (tunable);
+- gamepad and touch;
+- two-client play.

@@ -1,14 +1,16 @@
 --!strict
--- MovementService (wrist-hacking prototype, server) — Rev 15, owner-authorized 2026-11-16.
--- Fast baseline run + two-stage Q: first Q = short grounded dash; a SECOND, separate Q pressed
--- between SuperMin and SuperMax seconds after the dash = ~1 s steerable super-speed (long cooldown).
---
--- Server-authoritative timing and cooldowns (the client only reports "Q pressed", with an increasing
--- sequence number). The CLIENT executes the motion because it owns its character's physics.
---   t - dashT <  SuperMin  -> too early: ignored AND the window is voided (spamming can't slide into it)
---   SuperMin <= t - dashT <= SuperMax and window not voided -> super-speed (if its cooldown is ready)
---   otherwise -> a fresh first Q (dash, if the dash cooldown is ready)
--- Cooldown state is keyed by Player, so respawning does not reset it.
+-- MovementService (wrist-hacking prototype, server) — Rev 15j, owner design 2026-11-16.
+-- Fast baseline run + Q:
+--   Q (dash ready)           -> grounded dash, and a SKILL CHECK starts: a marker sweeps across a bar in
+--                               CheckSweepSeconds; the target zone (CheckZoneSeconds wide) sits at a random
+--                               spot each time. One Q inside the zone = HIT: +1 super charge (a diamond,
+--                               max SuperChargesMax). A Q outside it, or no Q, = miss. One attempt per dash.
+--   Q while the dash is cooling (skill check over) -> SUPER-SPEED if a charge is stored (uses one);
+--                               otherwise a soft "no charge" tick.
+-- Server-authoritative: the client only reports "Q pressed" (sequence-numbered); the server judges the
+-- skill check on its own clock (a small LatencyAllowance after the zone), stores charges and cooldowns per
+-- Player (respawns do not reset them), and publishes WORLD_EXE_SuperCharges for the diamond UI.
+-- The CLIENT executes the motion because it owns its character's physics.
 -- Rejected while frozen, ragdolled, held by a grab, or dead.
 
 local Players = game:GetService("Players")
@@ -19,22 +21,19 @@ local A = HackCatalog.Attr
 
 local MovementService = {}
 
+type Check = { start: number, zoneA: number, zoneB: number, done: boolean }
 type State = {
-	dashT: number?,
-	voided: boolean,
 	dashReady: number,
-	superReady: number,
 	superUntil: number,
-	charges: number, -- Rev 15g: follow-up bursts left in the current chain
-	chainDeadline: number, -- a single Q before this (after the burst ends) fires the next burst
-	chainToken: number,
-	queued: boolean, -- a follow-up is already queued to the end of the current burst (mash guard)
+	charges: number, -- stored super charges (diamonds)
+	check: Check?, -- the skill check of the last dash
 	lastN: number,
 	log: { string },
 }
 local states: { [Player]: State } = {}
 local send: (Player, { [string]: any }) -> () = function() end
 local logEvent: (string) -> () = function() end
+local rng = Random.new()
 
 local function now(): number
 	return workspace:GetServerTimeNow()
@@ -47,7 +46,7 @@ end
 local function stateOf(player: Player): State
 	local s = states[player]
 	if not s then
-		s = { dashT = nil, voided = false, dashReady = 0, superReady = 0, superUntil = 0, charges = 0, chainDeadline = 0, chainToken = 0, queued = false, lastN = 0, log = {} }
+		s = { dashReady = 0, superUntil = 0, charges = 0, check = nil, lastN = 0, log = {} }
 		states[player] = s
 	end
 	return s
@@ -80,36 +79,13 @@ end
 
 local function publish(player: Player, s: State)
 	player:SetAttribute("WORLD_EXE_DashReady", s.dashReady)
-	player:SetAttribute("WORLD_EXE_SuperReady", s.superReady)
+	player:SetAttribute("WORLD_EXE_SuperCharges", s.charges)
 end
 
--- Rev 15g (owner 2026-11-16: super-speed "should be able to be used 2 times after initial activation"):
--- after the Q-Q activation the player holds SuperFollowUps extra bursts, each fired by ONE Q press while
--- the previous burst runs (queued to its end) or within SuperFollowWindow after it ends. The super
--- cooldown starts when the chain ends (last burst finished, or the window ran out unused).
-local function startBurst(player: Player, s: State, t: number, follow: boolean)
-	local secs = tune("SuperSeconds")
-	s.superUntil = t + secs
-	s.chainDeadline = s.superUntil + tune("SuperFollowWindow")
-	s.superReady = math.huge -- set when the chain ends
-	s.chainToken += 1
-	local token = s.chainToken
-	local c = player.Character
-	if c then
-		c:SetAttribute("WORLD_EXE_SuperUntil", s.superUntil) -- every client draws the afterimages
-	end
-	send(player, { op = "super", seconds = secs, speed = tune("SuperSpeed"), turn = tune("SuperTurnRate"), follow = follow, charges = s.charges, window = tune("SuperFollowWindow") })
-	local endAt = if s.charges > 0 then s.chainDeadline else s.superUntil
-	task.delay(math.max(0, endAt - t), function()
-		if s.chainToken ~= token or states[player] ~= s then
-			return -- a newer burst continued the chain
-		end
-		s.charges = 0
-		s.superReady = now() + tune("SuperCooldown")
-		publish(player, s)
-		send(player, { op = "move_fx", kind = "super_chain_end", readyAt = s.superReady })
-		note(s, string.format("%.3f chain ended; super ready at +%.1f", now(), tune("SuperCooldown")))
-	end)
+-- the skill check is open from its start until the marker finishes its sweep (+ latency allowance)
+local function checkOpen(s: State, t: number): boolean
+	local ck = s.check
+	return ck ~= nil and not ck.done and t <= ck.start + tune("CheckSweepSeconds") + tune("CheckLatency")
 end
 
 -- One Q press from the client. p = { op = "q", n = number }
@@ -125,70 +101,60 @@ function MovementService.Q(player: Player, p: { [string]: any })
 		note(s, string.format("%.3f Q rejected (%s)", t, why))
 		return
 	end
-	-- follow-up burst: one Q during the current burst (queued to its end) or within the window after it
-	if s.queued then
-		note(s, string.format("%.3f Q ignored (follow-up already queued)", t))
-		return
-	end
-	if s.charges > 0 and t <= s.chainDeadline then
-		s.charges -= 1
-		local at = math.max(t, s.superUntil)
-		note(s, string.format("%.3f FOLLOW-UP burst (%d left)%s", t, s.charges, if at > t then " queued to burst end" else ""))
-		if at > t then
-			s.chainToken += 1 -- hold the chain open until the queued burst starts
-			s.queued = true
-			task.delay(at - t, function()
-				s.queued = false
-				if states[player] == s and not blocked(player) then
-					startBurst(player, s, now(), true)
-				end
-			end)
-		else
-			startBurst(player, s, t, true)
-		end
-		return
-	end
 	if s.superUntil > t then
 		note(s, string.format("%.3f Q ignored (already super)", t))
 		return
 	end
-	local dt = if s.dashT then t - (s.dashT :: number) else math.huge
-	if dt < tune("SuperMin") then
-		s.voided = true -- too early: this window is gone
-		note(s, string.format("%.3f Q too early (+%.3f) -> window voided", t, dt))
-		send(player, { op = "move_fx", kind = "early" })
+	-- 1) skill check attempt (one per dash)
+	if checkOpen(s, t) then
+		local ck = s.check :: Check
+		ck.done = true
+		local rel = t - ck.start
+		local hit = rel >= ck.zoneA - 0.02 and rel <= ck.zoneB + tune("CheckLatency")
+		if hit then
+			s.charges = math.min(s.charges + 1, math.floor(tune("SuperChargesMax")))
+			publish(player, s)
+			note(s, string.format("%.3f CHECK HIT at %.3f (zone %.3f-%.3f) -> charges %d", t, rel, ck.zoneA, ck.zoneB, s.charges))
+		else
+			note(s, string.format("%.3f CHECK MISS at %.3f (zone %.3f-%.3f)", t, rel, ck.zoneA, ck.zoneB))
+		end
+		send(player, { op = "move_fx", kind = if hit then "check_hit" else "check_miss", charges = s.charges, at = rel })
 		return
 	end
-	if dt <= tune("SuperMax") and not s.voided then
-		s.dashT = nil
-		if s.superReady > t then
-			note(s, string.format("%.3f Q in window (+%.3f) but super cooling (%.1f s)", t, dt, s.superReady - t))
-			send(player, { op = "move_fx", kind = "super_cooldown", readyAt = s.superReady })
+	-- 2) dash cooling: super-speed on a stored charge
+	if s.dashReady > t then
+		if s.charges <= 0 then
+			note(s, string.format("%.3f Q no charge (dash cooling %.2f s)", t, s.dashReady - t))
+			send(player, { op = "move_fx", kind = "no_charge", readyAt = s.dashReady })
 			return
 		end
-		s.charges = math.floor(tune("SuperFollowUps"))
-		startBurst(player, s, t, false)
+		s.charges -= 1
+		local secs = tune("SuperSeconds")
+		s.superUntil = t + secs
 		publish(player, s)
-		note(s, string.format("%.3f SUPER (+%.3f after dash) for %.2f s; %d follow-ups", t, dt, tune("SuperSeconds"), s.charges))
-		logEvent(string.format("%s super-speed (+%.2f s after dash)", player.Name, dt))
+		local c = player.Character
+		if c then
+			c:SetAttribute("WORLD_EXE_SuperUntil", s.superUntil) -- every client draws the afterimages
+		end
+		send(player, { op = "super", seconds = secs, speed = tune("SuperSpeed"), turn = tune("SuperTurnRate"), charges = s.charges })
+		note(s, string.format("%.3f SUPER for %.2f s (charges left %d)", t, secs, s.charges))
+		logEvent(string.format("%s super-speed (charges left %d)", player.Name, s.charges))
 		return
 	end
-	-- a fresh first Q
-	if s.dashReady > t then
-		note(s, string.format("%.3f Q ignored (dash cooling %.2f s)", t, s.dashReady - t))
-		send(player, { op = "move_fx", kind = "dash_cooldown", readyAt = s.dashReady })
-		return
-	end
-	s.dashT = t
-	s.voided = false
-	s.dashReady = t + tune("SuperCooldown") * tune("DashCooldownRatio") -- owner: half the super-speed cooldown
+	-- 3) dash + a new skill check
+	s.dashReady = t + tune("DashCooldown")
+	local sweep = tune("CheckSweepSeconds")
+	local zone = tune("CheckZoneSeconds")
+	local zoneA = rng:NextNumber(tune("CheckZoneEarliest"), math.max(tune("CheckZoneEarliest"), sweep - zone - 0.05))
+	s.check = { start = t + tune("CheckDelay"), zoneA = zoneA, zoneB = zoneA + zone, done = false }
 	publish(player, s)
 	local c = player.Character
 	if c then
 		c:SetAttribute("WORLD_EXE_DashUntil", t + tune("DashSeconds"))
 	end
-	send(player, { op = "dash", seconds = tune("DashSeconds"), speed = tune("DashSpeed"), windowMin = tune("SuperMin"), windowMax = tune("SuperMax"), superReady = s.superReady, dashReady = s.dashReady })
-	note(s, string.format("%.3f DASH", t))
+	send(player, { op = "dash", seconds = tune("DashSeconds"), speed = tune("DashSpeed"), dashReady = s.dashReady, charges = s.charges,
+		check = { delay = tune("CheckDelay"), sweep = sweep, zoneA = zoneA, zoneB = zoneA + zone } })
+	note(s, string.format("%.3f DASH; check zone %.3f-%.3f of %.2f s", t, zoneA, zoneA + zone, sweep))
 end
 
 function MovementService.Log(player: Player): { string }
