@@ -1182,6 +1182,185 @@ function HackController.Start()
 	end)
 
 	-----------------------------------------------------------------------------------------------
+	-- FLING GRAB control (owner 2026-11-16: "almost like the gravity gun"). When the server sends
+	-- grab_control, the target is held: every frame the cursor is projected onto the ground and sent
+	-- as the hold point (~20/s), together with the current drag direction. LEFT-CLICK throws it the
+	-- way the mouse is being dragged (power from drag speed); clicking without dragging throws it
+	-- straight away from you. The server auto-throws after HoldSeconds. The arrow at the target's
+	-- feet shows the throw: bright = your drag, dim = the default (away from you).
+	local THROW_ACTION = "WORLD_EXE_HackGrabThrow"
+	local hold: { target: Model, boss: boolean, untilT: number }? = nil
+	local holdSamples: { { t: number, d: Vector2 } } = {}
+	local holdLastMouse: Vector2? = nil
+	local holdLastSend = 0
+	local holdDir: Vector3? = nil
+	local holdPower = 0
+
+	local function holdCursorGround(model: Model): Vector3?
+		local cam = workspace.CurrentCamera
+		if not cam or not UserInputService.MouseEnabled then
+			return nil
+		end
+		local m = UserInputService:GetMouseLocation()
+		local ray = cam:ViewportPointToRay(m.X, m.Y)
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = { model, player.Character :: any, aimFolder }
+		local hit = workspace:Raycast(ray.Origin, ray.Direction * 500, params)
+		if hit then
+			return hit.Position
+		end
+		if ray.Direction.Y < -1e-3 then
+			local t = -ray.Origin.Y / ray.Direction.Y
+			return ray.Origin + ray.Direction * t
+		end
+		-- cursor in the sky: aim along the cursor direction at the leash distance (server clamps it)
+		local myRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local fl = flat(ray.Direction)
+		if myRoot and fl then
+			return myRoot.Position + fl * HackCatalog.Tune("FlingTarget", "HoldLeash")
+		end
+		return nil
+	end
+
+	local function endHold(why: string?)
+		gui:SetAttribute("HoldEnd", why or "?")
+		hold = nil
+		table.clear(holdSamples)
+		holdDir = nil
+		holdPower = 0
+		ContextActionService:UnbindAction(THROW_ACTION)
+		aimFolder.Parent = nil
+		gui:SetAttribute("Holding", false)
+	end
+
+	local function throwNow()
+		if not hold then
+			return
+		end
+		request:FireServer({ op = "throw", dir = holdDir, power = holdPower })
+		gui:SetAttribute("LastThrow", if holdDir then string.format("%.2f,%.2f p%.2f", holdDir.X, holdDir.Z, holdPower) else "away")
+		endHold("throw")
+	end
+
+	local function startHold(target: Model, boss: boolean, untilT: number)
+		hold = { target = target, boss = boss, untilT = untilT }
+		table.clear(holdSamples)
+		holdLastMouse = UserInputService:GetMouseLocation()
+		holdDir = nil
+		holdPower = 0
+		gui:SetAttribute("Holding", true)
+		ContextActionService:BindActionAtPriority(THROW_ACTION, function(_, st: Enum.UserInputState)
+			if st == Enum.UserInputState.Begin then
+				throwNow()
+			end
+			return Enum.ContextActionResult.Sink
+		end, false, Enum.ContextActionPriority.High.Value + 30, Enum.UserInputType.MouseButton1, Enum.KeyCode.ButtonR2)
+		HackFeel.Popup("DRAG TO AIM · CLICK TO THROW", C.Coral)
+	end
+
+	UserInputService.InputBegan:Connect(function(input: InputObject)
+		if hold and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.KeyCode == Enum.KeyCode.ButtonR2) then
+			throwNow()
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input: InputObject)
+		if not hold or input.UserInputType ~= Enum.UserInputType.MouseMovement then
+			return
+		end
+		if UserInputService.MouseBehavior == Enum.MouseBehavior.Default then
+			return -- free cursor: sampled per frame below
+		end
+		local d = Vector2.new(input.Delta.X, input.Delta.Y)
+		if d.Magnitude > 0 then
+			table.insert(holdSamples, { t = os.clock(), d = d })
+		end
+	end)
+
+	RunService.RenderStepped:Connect(function()
+		local h = hold
+		if not h then
+			return
+		end
+		if nowT() > h.untilT + 0.5 or not h.target.Parent then
+			endHold(if h.target.Parent then "timeout" else "target gone")
+			return
+		end
+		local root = h.target:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local cam = workspace.CurrentCamera
+		if not root or not cam then
+			return
+		end
+		local tnow = os.clock()
+		-- drag tracking (same screen → world mapping as the flick: right = camera right, up = away)
+		if UserInputService.MouseEnabled and UserInputService.MouseBehavior == Enum.MouseBehavior.Default then
+			local m = UserInputService:GetMouseLocation()
+			if holdLastMouse and (m - holdLastMouse).Magnitude > 0 then
+				table.insert(holdSamples, { t = tnow, d = m - (holdLastMouse :: Vector2) })
+			end
+			holdLastMouse = m
+		end
+		local sum = Vector2.zero
+		local oldest = tnow
+		for i = #holdSamples, 1, -1 do
+			if tnow - holdSamples[i].t > 0.2 then
+				table.remove(holdSamples, i)
+			else
+				sum += holdSamples[i].d
+				oldest = math.min(oldest, holdSamples[i].t)
+			end
+		end
+		if sum.Magnitude >= 16 then
+			local fwd = flat(cam.CFrame.LookVector) or Vector3.zAxis
+			local right = flat(cam.CFrame.RightVector) or Vector3.xAxis
+			holdDir = flat(right * sum.X - fwd * sum.Y)
+			-- drag speed over the time the samples actually span (px/s): 300 → 0 power, 1800 → full
+			local speed = sum.Magnitude / math.max(1 / 60, tnow - oldest + 1 / 60)
+			holdPower = math.clamp((speed - 300) / 1500, 0, 1)
+		else
+			holdDir = nil -- not dragging right now: a click throws straight away from you
+			holdPower = 0
+		end
+		-- hold point (~20/s)
+		if tnow - holdLastSend >= 0.05 then
+			holdLastSend = tnow
+			local p = holdCursorGround(h.target)
+			if p then
+				request:FireServer({ op = "hold", pos = p, dir = holdDir })
+			end
+		end
+		gui:SetAttribute("HoldDir", if holdDir then string.format("%.2f,%.2f", holdDir.X, holdDir.Z) else nil)
+		-- throw arrow at the held target
+		local myRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local dir = holdDir or (myRoot and flat(root.Position - myRoot.Position)) or nil
+		if not dir then
+			aimFolder.Parent = nil
+			return
+		end
+		local bright = holdDir ~= nil
+		for _, p in { aimShaft, aimHeadA, aimHeadB } do
+			p.Transparency = if bright then 0.15 else 0.7
+		end
+		aimLand.Transparency = 1
+		local len = 10 + 14 * holdPower
+		local start = root.Position + dir * 2
+		local tip = root.Position + dir * len
+		aimShaft.Size = Vector3.new(0.6, 0.1, (tip - start).Magnitude)
+		aimShaft.CFrame = CFrame.lookAt((start + tip) / 2, tip)
+		local headLen = 3
+		for i, hp in { aimHeadA, aimHeadB } do
+			local side = if i == 1 then 1 else -1
+			local back = CFrame.lookAt(tip, tip + dir) * CFrame.Angles(0, math.rad(150 * side), 0)
+			hp.Size = Vector3.new(0.6, 0.1, headLen)
+			hp.CFrame = back * CFrame.new(0, 0, -headLen / 2)
+		end
+		aimFolder.Parent = cam
+	end)
+
+	local grabBeams: { [Model]: () -> () } = {}
+
+	-----------------------------------------------------------------------------------------------
 	-- Server events
 	local function showChallenge(on: boolean)
 		grid.Visible = not on
@@ -1373,6 +1552,8 @@ function HackController.Start()
 				HackVfx.Launch(if typeof(data.model) == "Instance" and data.model:IsA("Model") then data.model else nil, data.pos, tonumber(data.scale) or 1)
 			elseif data.kind == "glide" and typeof(data.model) == "Instance" and data.model:IsA("Model") then
 				HackVfx.Glide(data.model, tonumber(data.seconds) or 1.5)
+			elseif data.kind == "throw" and typeof(data.model) == "Instance" and data.model:IsA("Model") then
+				HackVfx.ThrowTrail(data.model)
 			end
 		elseif op == "incoming" then
 			local tgt = data.target
@@ -1439,6 +1620,38 @@ function HackController.Start()
 				HackFeel.Popup("CONDUCTOR RESET", C.Muted)
 			end
 			gui:SetAttribute("LastBossEvent", ev)
+		elseif op == "grab" then
+			if typeof(data.target) == "Instance" and data.target:IsA("Model") then
+				local old = grabBeams[data.target]
+				if old then
+					old()
+				end
+				local atk = if typeof(data.attacker) == "Instance" and data.attacker:IsA("Model") then data.attacker else nil
+				grabBeams[data.target] = HackVfx.GrabBeam(atk, data.target)
+				local tgt = data.target
+				task.delay(8, function() -- safety cleanup
+					local f = grabBeams[tgt]
+					if f then
+						grabBeams[tgt] = nil
+						f()
+					end
+				end)
+			end
+		elseif op == "grab_control" then
+			if typeof(data.target) == "Instance" and data.target:IsA("Model") then
+				startHold(data.target, data.boss == true, tonumber(data.untilT) or nowT() + 3)
+			end
+		elseif op == "grab_end" then
+			if typeof(data.target) == "Instance" then
+				local f = grabBeams[data.target :: any]
+				if f then
+					grabBeams[data.target :: any] = nil
+					f()
+				end
+				if hold and hold.target == data.target then
+					endHold("grab_end")
+				end
+			end
 		elseif op == "flick" then
 			if typeof(data.target) == "Instance" and data.target:IsA("Model") then
 				startFlick(data.target, data.boss == true, tonumber(data.untilT) or nowT() + 1)

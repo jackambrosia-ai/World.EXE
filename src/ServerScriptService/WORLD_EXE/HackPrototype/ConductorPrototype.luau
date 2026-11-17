@@ -259,7 +259,7 @@ local function damageIntegrity(amount: number)
 end
 
 -- Called by HackService after a boss hack succeeded. Returns a short description for feedback.
-function ConductorPrototype.ApplyHack(hackId: string, from: Vector3?, aim: Vector3?): (boolean, string)
+function ConductorPrototype.ApplyHack(hackId: string, from: Vector3?, aim: Vector3?, attacker: Player?): (boolean, string)
 	if not boss then
 		return false, "no_boss"
 	end
@@ -318,7 +318,9 @@ function ConductorPrototype.ApplyHack(hackId: string, from: Vector3?, aim: Vecto
 			then away * T("FlingTarget", "BossAimedForward") + Vector3.new(0, T("FlingTarget", "BossAimedUp"), 0)
 			else away * T("FlingTarget", "BossForward") + Vector3.new(0, T("FlingTarget", "BossUp"), 0)
 		local ok, why
-		if aimed and T("FlingTarget", "AimedStyle") >= 1 then
+		if attacker and T("FlingTarget", "AimedStyle") >= 2 then
+			ok, why = HackEffects.GrabBoss(attacker, b, hum, r) -- gravity-gun hold; the attacker throws it
+		elseif aimed and T("FlingTarget", "AimedStyle") >= 1 then
 			ok, why = HackEffects.RagdollGlide(b, hum, r, away, T("FlingTarget", "BossGlideSpeed"), T("FlingTarget", "BossGlideSeconds"))
 		else
 			ok, why = HackEffects.RagdollLaunch(b, hum, r, v, 1.3)
@@ -335,7 +337,9 @@ function ConductorPrototype.ApplyHack(hackId: string, from: Vector3?, aim: Vecto
 		note("RAGDOLLED by fling")
 		task.spawn(function()
 			local t0 = os.clock()
-			while HackEffects.IsRagdolled(b) and os.clock() - t0 < 8 do
+			-- covers a gravity-gun hold (up to HoldSeconds) plus the thrown flight and recovery
+			local cap = HackCatalog.Tune("FlingTarget", "HoldSeconds") + HackCatalog.Tune("FlingTarget", "MaxRagdollSeconds") + 3
+			while HackEffects.IsRagdolled(b) and os.clock() - t0 < cap do
 				task.wait(0.1)
 			end
 			task.wait(0.3)

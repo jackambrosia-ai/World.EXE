@@ -421,3 +421,54 @@ Directive: "WORLD.EXE — Hacking, cyberware & boss gameplay prototype". Same is
 - the LAUNCH pad in play (it uses the unchanged rev 8 code path);
 - a real player as the glide target (client physics ownership is handed to the server as for the launch);
 - a human feel test.
+
+## 16. Revision 10 — FLING as a gravity-gun grab (2026-11-16)
+**Owner:**
+- "i kind of want the fling to feel almost like the gravity gun from g-mod";
+- "there's too small of a window to choose a direction, it just looks like you execute the hack and the player gets exploded into the air".
+
+**Owner choices (multiple choice):**
+- **Hold spot:** the held target follows the cursor.
+- **Throw:** left-click throws it the way you're dragging; a faster drag throws harder.
+- **Hold time:** up to 3 s, then an auto-throw.
+
+**Built (`FlingTarget.AimedStyle = 2`, the new default; station pads GRAB / slide GLIDE / slide LAUNCH):**
+- **When it lands:** players/NPCs are grabbed as soon as the incoming warning resolves as a hit (it still went up at cast start, with MinWarning 0.5 s); the boss is grabbed on challenge success. The target goes limp (`ragdollBegin`).
+- **The hold:** an `AlignPosition` (MaxVelocity 70, Responsiveness 18) pulls the target to a server-validated hold point:
+  - the attacker's cursor ground point,
+  - clamped to `HoldLeash` 32 studs from the attacker,
+  - `HoldHeight` 7 studs above the ground under it (×1.3 for the boss).
+- **Client during the hold:**
+  - sends `{op = "hold", pos, dir}` about 20 times a second (own 0.04 s throttle, no reply, outside the input rate limit);
+  - when the cursor is in the sky, uses a point along the cursor direction at leash distance;
+  - shows an orange beam from the wrist device to the glowing (Highlight) limp target, plus a throw arrow;
+  - shows the hint "DRAG TO AIM · CLICK TO THROW".
+- **The throw:**
+  - **Left-click** (or R2) sends `{op = "throw", dir, power}`. The direction is the last 0.2 s of mouse drag (screen → camera-relative ground direction); the power comes from drag speed (300 → 1800 px/s maps to 0 → 1).
+  - **Server velocity:** `dir × (ThrowSpeed 65 + power × ThrowBonus 35) + up ThrowUp 22` (boss ×0.6), then the normal land-and-recover ragdoll and a short throw trail. No blast.
+  - **No drag at click:** thrown straight away from the attacker.
+  - **Auto-throw** after `HoldSeconds` (3) uses the last dragged direction.
+- **Attacker dies or leaves:** the target is dropped.
+- **Boss:** its post-fling re-home now waits for the whole hold (it used to give up after 8 s and re-anchor the boss mid-hold).
+
+**Results (solo Studio):**
+
+| Case | Result |
+|---|---|
+| Dummy, real mouse | Held 5–7 studs up beside the cursor (capture `m8_grab_held_left.jpg`: limp glowing dummy, curved beam from the wrist). Real left-click while dragging right → thrown (1.00, −0.03), 42 studs, peak +1 |
+| Hold point | Followed the cursor (hold messages logged on the server, about 20 per second) |
+| Boss, scripted hold points | Swept x 462 → 426 at y ≈ 9.5, thrown on command, re-homed afterwards |
+| Default 3 s hold, no input | Auto-thrown after 2.93 s |
+| Power (old 70/50 tuning, with tumble) | Still click ≈ 42 studs; auto (0.4) ≈ 81; full drag ≈ 119. Trimmed afterwards to 65/35; the new values were not re-measured |
+
+- **Fixes found while testing:**
+  - a cursor in the sky sent no hold point;
+  - drag power read 0 with burst input (now measured over the time the samples span);
+  - the throw click is caught by both the action binding and `InputBegan`.
+- **Saved place:** 59/59 scripts; hash FDA6D9BD…. Protected files: 9/9 unchanged.
+
+**Not tested:**
+- you playing at real speed;
+- a real player being held (server takes physics ownership, same as the ragdoll);
+- touch and gamepad (no hold steering; the target is auto-thrown away after 3 s; R2 throws);
+- the trimmed throw values.

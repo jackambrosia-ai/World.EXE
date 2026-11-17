@@ -312,8 +312,9 @@ local options = {
 	{ "DummyReaction", "perfect", "Dummies: PERFECT shield", Color3.fromRGB(163, 172, 198) },
 	{ "DummyReaction", "dodge", "Dummies: WALK AWAY (no longer dodges)", Color3.fromRGB(163, 172, 198) },
 	{ "ResetBoss", true, "Reset the Conductor", Color3.fromRGB(214, 38, 170) },
-	{ "FlingStyle", 1, "Slide-fling: GLIDE", Color3.fromRGB(255, 70, 40) },
-	{ "FlingStyle", 0, "Slide-fling: LAUNCH", Color3.fromRGB(255, 70, 40) },
+	{ "FlingStyle", 2, "Fling: GRAB (gravity gun)", Color3.fromRGB(255, 70, 40) },
+	{ "FlingStyle", 1, "Fling: slide GLIDE", Color3.fromRGB(255, 70, 40) },
+	{ "FlingStyle", 0, "Fling: slide LAUNCH", Color3.fromRGB(255, 70, 40) },
 }
 for i, o in options do
 	local col = (i - 1) % 7

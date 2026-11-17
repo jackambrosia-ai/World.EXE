@@ -119,7 +119,18 @@ HackCatalog.Tuning = table.freeze({
 		-- Slide-throw style (owner 2026-11-16: the low-arc launch still "feels like an explosion"):
 		-- 1 = GLIDE (banana-peel style: drops flat, glides along the ground in the slid direction,
 		-- slowing smoothly; distance ≈ GlideSpeed × GlideSeconds / 2.6), 0 = the rev 8 low-arc launch.
-		AimedStyle = 1,
+		AimedStyle = 2, -- 2 = GRAB (gravity-gun hold, owner 2026-11-16, default), 1 = glide, 0 = launch
+		-- GRAB: held HoldHeight up, pulled toward the attacker's cursor (within HoldLeash), thrown on
+		-- left-click the way the mouse is dragged (ThrowSpeed + power × ThrowBonus), auto-thrown after HoldSeconds.
+		HoldSeconds = 3,
+		HoldHeight = 7,
+		HoldLeash = 32,
+		HoldResponsiveness = 18,
+		HoldMaxSpeed = 70,
+		ThrowSpeed = 65,
+		ThrowBonus = 35,
+		ThrowUp = 22,
+		BossThrowScale = 0.6,
 		GlideSpeed = 85,
 		GlideSeconds = 1.8,
 		GlideRestSeconds = 0.6, -- stays down this long after the glide stops, then gets up

@@ -64,6 +64,7 @@ local buckets: { [Player]: { tokens: number, t: number } } = {}
 -- the client sends (the direction its mouse slid) fires the throw at once. No slide in time: thrown
 -- straight away from the attacker. The boss works the same, without the warning.
 local flicks: { [Player]: { fire: (aim: Vector3?) -> () } } = {}
+local holdT: { [Player]: number } = {}
 local AIM_MIN_INTERVAL = 0.08 -- seconds between accepted aim updates (they bypass the input bucket)
 local AIM_MAX_AGE = 3 -- the client re-sends every 1 s while aiming
 local aims: { [Player]: { dir: Vector3, t: number } } = {}
@@ -263,7 +264,15 @@ local function apply(player: Player, hackId: string, targetId: string?, dir: Vec
 		end
 		if target.Kind == "boss" then
 			local myRoot = character:FindFirstChild("HumanoidRootPart") :: BasePart
-			if hackId == "FLING_TARGET" then
+			if hackId == "FLING_TARGET" and HackCatalog.Tune("FlingTarget", "AimedStyle") >= 2 then
+				ok, text = Conductor.ApplyHack(hackId, myRoot.Position, nil, player) -- grab the boss
+				reason = if ok then "applied" else text :: string
+				if ok then
+					text = "Grabbed — drag to aim, click to throw."
+				else
+					text = nil
+				end
+			elseif hackId == "FLING_TARGET" then
 				-- flick window: the first mouse slide throws the boss at once in that direction
 				local window = HackCatalog.Tune("FlingTarget", "FlickWindow")
 				aims[player] = nil
@@ -337,7 +346,13 @@ local function endSession(player: Player, result: string)
 	sessions[player] = nil
 	send(player, { op = "challenge_end", token = s.token, result = result })
 	logEvent(string.format("%s challenge %s %s -> %s (misses %d)", player.Name, s.challenge.Kind, s.hackId, result, s.challenge.Misses))
-	if result == "success" and s.armed then
+	if result == "success" and s.armed and HackCatalog.Tune("FlingTarget", "AimedStyle") >= 2 then
+		-- GRAB mode: the hack lands now (MinWarning still applies); the attacker then holds and throws
+		s.armed.Resolve(nil)
+		setReady(player, s.hackId, cooldownOf(s.hackId))
+		HackDevice.SetState(player.Character, "hacking")
+		reply(player, s.hackId, true, "incoming", "Grabbing — drag to aim, click to throw.")
+	elseif result == "success" and s.armed then
 		-- FLING on a player/NPC: the warning is already up; open the flick window
 		local h = s.armed
 		local window = HackCatalog.Tune("FlingTarget", "FlickWindow")
@@ -451,6 +466,9 @@ local function begin(player: Player, p: { [string]: any })
 	if hackId == "FLING_TARGET" and targetKind ~= "boss" and targetObj then
 		-- warning goes up now, while the attacker casts; resolved by the slide after the cast
 		local okA, whyA, h = HackIncoming.Start(player, hackId, targetObj, function(t, from, aim)
+			if HackCatalog.Tune("FlingTarget", "AimedStyle") >= 2 then
+				return HackEffects.Grab(player, t) -- gravity-gun hold; the attacker throws it
+			end
 			return HackEffects.FlingTarget(t, from, aim)
 		end, { manual = true })
 		if not okA then
@@ -529,7 +547,7 @@ local function stationText(player: Player?): string
 		string.format("Reaction window: %.1f s", HackCatalog.Tune("Incoming", "ReactionWindow")),
 		string.format("Perfect deflect: %s", if HackCatalog.Tune("Incoming", "PerfectWindow") > 0 then "ON" else "OFF"),
 		"Dummy reaction: " .. string.upper(tostring(w("HackProto_DummyReaction", "none"))),
-		"Slide-fling: " .. (if HackCatalog.Tune("FlingTarget", "AimedStyle") >= 1 then "GLIDE" else "LAUNCH"),
+		"Fling: " .. (({ [0] = "slide LAUNCH", [1] = "slide GLIDE", [2] = "GRAB (gravity gun)" }) :: any)[math.clamp(math.floor(HackCatalog.Tune("FlingTarget", "AimedStyle")), 0, 2)],
 		"Boots: per player (step on a boots console)",
 	}
 	return table.concat(lines, "\n")
@@ -691,6 +709,7 @@ local function hookPlayer(player: Player)
 		local hum = character:WaitForChild("Humanoid", 10) :: Humanoid?
 		if hum then
 			hum.Died:Connect(function()
+				HackEffects.GrabDrop(player)
 				HackService.CancelFor(player, "died")
 				HackEffects.CleanupPlayer(player)
 			end)
@@ -759,6 +778,19 @@ function HackService.Start()
 			setAim(player, p.dir)
 			return
 		end
+		-- gravity-gun hold point / throw (own throttle, no reply, outside the input rate bucket)
+		if typeof(p) == "table" and p.op == "hold" then
+			local t = os.clock()
+			if t - (holdT[player] or 0) >= 0.04 then
+				holdT[player] = t
+				HackEffects.GrabHold(player, p.pos, p.dir)
+			end
+			return
+		end
+		if typeof(p) == "table" and p.op == "throw" then
+			HackEffects.GrabThrow(player, p.dir, p.power)
+			return
+		end
 		if not rateOk(player) then
 			return reply(player, nil, false, "rate_limited")
 		end
@@ -793,6 +825,8 @@ function HackService.Start()
 		buckets[pl] = nil
 		aims[pl] = nil
 		flicks[pl] = nil
+		holdT[pl] = nil
+		HackEffects.GrabDrop(pl)
 	end)
 	-- Session clock: drain, appends, missed signals, deadlines.
 	local acc = 0

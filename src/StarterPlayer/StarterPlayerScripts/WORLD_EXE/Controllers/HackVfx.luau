@@ -410,6 +410,90 @@ function HackVfx.Glide(model: Model, seconds: number)
 	end)
 end
 
+-- Grab beam (gravity-gun hold, seen by everyone): a wavy energy beam from the attacker's wrist to the
+-- held target, plus a soft glow on the target. Returns a cleanup function.
+function HackVfx.GrabBeam(attacker: Model?, target: Model): () -> ()
+	local made: { Instance } = {}
+	local tBody = (target:FindFirstChild("UpperTorso") or target:FindFirstChild("Torso") or target:FindFirstChild("HumanoidRootPart")) :: BasePart?
+	local wd = attacker and attacker:FindFirstChild("WristDevice")
+	local aPart = attacker and ((wd and wd:FindFirstChildWhichIsA("BasePart", true)) or attacker:FindFirstChild("LeftHand") or attacker:FindFirstChild("Left Arm") or attacker:FindFirstChild("HumanoidRootPart")) :: BasePart?
+	if tBody and aPart then
+		local a0 = Instance.new("Attachment")
+		a0.Parent = aPart
+		local a1 = Instance.new("Attachment")
+		a1.Parent = tBody
+		for i = 1, 2 do
+			local beam = Instance.new("Beam")
+			beam.Attachment0 = a0
+			beam.Attachment1 = a1
+			beam.Color = ColorSequence.new(if i == 1 then Color3.fromRGB(255, 120, 40) else Color3.fromRGB(255, 220, 140))
+			beam.LightEmission = 1
+			beam.Width0, beam.Width1 = (if i == 1 then 0.5 else 0.18), (if i == 1 then 1.2 else 0.35)
+			beam.Transparency = NumberSequence.new(if i == 1 then 0.45 else 0.1)
+			beam.FaceCamera = true
+			beam.Segments = 20
+			beam.CurveSize0, beam.CurveSize1 = 3, -3
+			beam.Parent = aPart
+			table.insert(made, beam)
+		end
+		table.insert(made, a0)
+		table.insert(made, a1)
+	end
+	if tBody and not UITheme.reducedEffects() then
+		local glow = Instance.new("Highlight")
+		glow.FillColor = Color3.fromRGB(255, 120, 40)
+		glow.FillTransparency = 0.75
+		glow.OutlineColor = Color3.fromRGB(255, 200, 120)
+		glow.OutlineTransparency = 0.2
+		glow.Adornee = target
+		glow.Parent = root()
+		table.insert(made, glow)
+	end
+	local t0 = os.clock()
+	local conn = RunService.RenderStepped:Connect(function()
+		-- the beam wobbles a little while held
+		local w = math.sin((os.clock() - t0) * 9) * 2.5
+		for _, inst in made do
+			if inst:IsA("Beam") then
+				inst.CurveSize0, inst.CurveSize1 = 3 + w, -3 - w
+			end
+		end
+	end)
+	return function()
+		conn:Disconnect()
+		for _, inst in made do
+			inst:Destroy()
+		end
+	end
+end
+
+-- Throw streak: a short trail on the thrown body (no blast).
+function HackVfx.ThrowTrail(model: Model)
+	local body = (model:FindFirstChild("UpperTorso") or model:FindFirstChild("Torso") or model:FindFirstChild("HumanoidRootPart")) :: BasePart?
+	if not body then
+		return
+	end
+	local a0 = Instance.new("Attachment")
+	a0.Position = Vector3.new(0, 0.8, 0)
+	a0.Parent = body
+	local a1 = Instance.new("Attachment")
+	a1.Position = Vector3.new(0, -0.8, 0)
+	a1.Parent = body
+	local tr = Instance.new("Trail")
+	tr.Attachment0 = a0
+	tr.Attachment1 = a1
+	tr.Lifetime = 0.35
+	tr.Color = ColorSequence.new(Color3.fromRGB(255, 160, 80))
+	tr.Transparency = NumberSequence.new(0.3, 1)
+	tr.LightEmission = 0.8
+	tr.Parent = body
+	task.delay(1.0, function()
+		tr:Destroy()
+		a0:Destroy()
+		a1:Destroy()
+	end)
+end
+
 -- Deflection burst on the defender (seen by everyone); perfect = bigger, whiter, longer.
 function HackVfx.Deflect(target: Model, perfect: boolean)
 	local tRoot = target:FindFirstChild("HumanoidRootPart") :: BasePart?

@@ -393,6 +393,216 @@ local ragdollGlide = function(model: Model, hum: Humanoid, root: BasePart, playe
 	return true, nil
 end
 
+---------------------------------------------------------------------------------------------------
+-- FLING GRAB (owner 2026-11-16: "almost like the gravity gun"; the throw must not happen before the
+-- attacker chooses). When FLING lands, the target goes limp and is HELD: lifted HoldHeight studs and
+-- pulled smoothly (AlignPosition) toward the point the attacker's cursor points at, within HoldLeash
+-- of the attacker. The attacker LEFT-CLICKS to throw it the way they are dragging the mouse (a
+-- faster drag throws harder); no drag = straight away from the attacker. After HoldSeconds it is
+-- thrown automatically in the last dragged direction. Server-authoritative: the client only sends
+-- a hold point and a throw direction; both are validated and clamped here.
+type Grab = {
+	attacker: Player,
+	model: Model,
+	root: BasePart,
+	st: RagdollState,
+	att: Attachment,
+	ap: AlignPosition,
+	boss: boolean,
+	lastDir: Vector3?,
+	lastPoint: Vector3,
+	done: boolean,
+}
+local grabs: { [Player]: Grab } = {}
+
+local function landRecovery(model: Model, root: BasePart, st: RagdollState, maxSeconds: number)
+	local tune = HackCatalog.Tune
+	local minLimp = tune("FlingTarget", "RagdollSeconds")
+	local minAir = tune("FlingTarget", "MinAirSeconds")
+	local landDelay = tune("FlingTarget", "LandRecoverDelay")
+	local torso = (model:FindFirstChild("UpperTorso") or model:FindFirstChild("Torso") or root) :: BasePart
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { model }
+	params.RespectCanCollide = true
+	local t0 = os.clock()
+	task.spawn(function()
+		local landedAt: number? = nil
+		while not st.done do
+			local el = os.clock() - t0
+			if el >= maxSeconds then
+				break
+			end
+			if not landedAt and el >= minAir and torso.Parent then
+				local vy = torso.AssemblyLinearVelocity.Y
+				if vy > -4 and workspace:Raycast(torso.Position, Vector3.new(0, -4.5, 0), params) then
+					landedAt = os.clock()
+					model:SetAttribute("HackLandedAt", now())
+				end
+			end
+			if landedAt and os.clock() - landedAt >= landDelay and el >= minLimp then
+				break
+			end
+			task.wait(0.05)
+		end
+		recover(model)
+	end)
+end
+
+local function groundY(at: Vector3, ignore: { Instance }): number
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = ignore
+	params.RespectCanCollide = true
+	local hit = workspace:Raycast(at + Vector3.new(0, 20, 0), Vector3.new(0, -80, 0), params)
+	return if hit then hit.Position.Y else at.Y - 3
+end
+
+local function grabThrow(g: Grab, dir: Vector3?, power: number, useLast: boolean?)
+	if g.done then
+		return
+	end
+	g.done = true
+	if grabs[g.attacker] == g then
+		grabs[g.attacker] = nil
+	end
+	g.ap:Destroy()
+	g.att:Destroy()
+	local root = g.root
+	local tune = HackCatalog.Tune
+	local aRoot = g.attacker.Character and g.attacker.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local d = (dir and horizontal(dir)) or (if useLast then g.lastDir else nil) or (aRoot and horizontal(root.Position - aRoot.Position)) or horizontal(root.CFrame.LookVector) or Vector3.zAxis
+	local p = math.clamp(power, 0, 1)
+	local scale = if g.boss then tune("FlingTarget", "BossThrowScale") else 1
+	local speed = (tune("FlingTarget", "ThrowSpeed") + p * tune("FlingTarget", "ThrowBonus")) * scale
+	local v = (d :: Vector3) * speed + Vector3.new(0, tune("FlingTarget", "ThrowUp") * scale, 0)
+	local spinAxis = Vector3.yAxis:Cross(d :: Vector3)
+	for _, part in g.model:GetDescendants() do
+		if part:IsA("BasePart") and not part.Anchored then
+			part.AssemblyLinearVelocity = v
+			part.AssemblyAngularVelocity = spinAxis * 3
+		end
+	end
+	broadcast({ op = "grab_end", attacker = g.attacker.Character, target = g.model, thrown = true })
+	broadcast({ op = "vfx", kind = "throw", model = g.model })
+	g.model:SetAttribute(A.RagdollUntil, now() + tune("FlingTarget", "MaxRagdollSeconds"))
+	landRecovery(g.model, root, g.st, tune("FlingTarget", "MaxRagdollSeconds"))
+end
+
+-- Starts a grab. attacker controls it; player = the target's Player (nil for NPCs / the boss).
+local function grabStart(attacker: Player, model: Model, hum: Humanoid, root: BasePart, player: Player?, boss: boolean): (boolean, string?)
+	if grabs[attacker] then
+		return false, "already_holding"
+	end
+	local s, why = ragdollBegin(model, hum, root, player)
+	if not s then
+		return false, why
+	end
+	local st = s :: RagdollState
+	local tune = HackCatalog.Tune
+	local att = Instance.new("Attachment")
+	att.Name = "HackGrabAttachment"
+	att.Parent = root
+	local ap = Instance.new("AlignPosition")
+	ap.Name = "HackGrabHold"
+	ap.Mode = Enum.PositionAlignmentMode.OneAttachment
+	ap.Attachment0 = att
+	ap.MaxForce = root.AssemblyMass * 6000
+	ap.MaxVelocity = tune("FlingTarget", "HoldMaxSpeed")
+	ap.Responsiveness = tune("FlingTarget", "HoldResponsiveness")
+	local start = root.Position + Vector3.new(0, tune("FlingTarget", "HoldHeight"), 0)
+	ap.Position = start
+	ap.Parent = root
+	local g: Grab = { attacker = attacker, model = model, root = root, st = st, att = att, ap = ap, boss = boss, lastDir = nil, lastPoint = start, done = false }
+	grabs[attacker] = g
+	local holdFor = tune("FlingTarget", "HoldSeconds")
+	model:SetAttribute(A.RagdollUntil, now() + holdFor + tune("FlingTarget", "MaxRagdollSeconds"))
+	broadcast({ op = "grab", attacker = attacker.Character, target = model, untilT = now() + holdFor })
+	send(attacker, { op = "grab_control", target = model, boss = boss, untilT = now() + holdFor })
+	task.delay(holdFor, function()
+		grabThrow(g, nil, 0.4, true) -- auto-throw in the last dragged direction
+	end)
+	-- target died / removed while held: release cleanly
+	task.spawn(function()
+		while not g.done do
+			if not model.Parent or hum.Health <= 0 or st.done then
+				g.done = true
+				if grabs[attacker] == g then
+					grabs[attacker] = nil
+				end
+				if ap.Parent then
+					ap:Destroy()
+				end
+				if att.Parent then
+					att:Destroy()
+				end
+				broadcast({ op = "grab_end", attacker = attacker.Character, target = model, thrown = false })
+				break
+			end
+			task.wait(0.1)
+		end
+	end)
+	return true, nil
+end
+
+-- Hold point from the attacker's cursor (validated): clamped to HoldLeash from the attacker,
+-- lifted HoldHeight above the ground under it. Also records the drag direction.
+function HackEffects.GrabHold(attacker: Player, pos: any, dir: any)
+	local g = grabs[attacker]
+	if not g or g.done or typeof(pos) ~= "Vector3" or pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then
+		return
+	end
+	local aRoot = attacker.Character and attacker.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not aRoot then
+		return
+	end
+	local tune = HackCatalog.Tune
+	local leash = tune("FlingTarget", "HoldLeash")
+	local off = Vector3.new(pos.X - aRoot.Position.X, 0, pos.Z - aRoot.Position.Z)
+	if off.Magnitude > leash then
+		off = off.Unit * leash
+	end
+	local flatPos = aRoot.Position + off
+	local y = groundY(flatPos, { g.model, attacker.Character :: Instance }) + tune("FlingTarget", "HoldHeight") * (if g.boss then 1.3 else 1)
+	local point = Vector3.new(flatPos.X, y, flatPos.Z)
+	g.ap.Position = point
+	g.lastPoint = point
+	if typeof(dir) == "Vector3" then
+		local h = horizontal(dir)
+		if h then
+			g.lastDir = h
+		end
+	end
+end
+
+function HackEffects.GrabThrow(attacker: Player, dir: any, power: any)
+	local g = grabs[attacker]
+	if not g then
+		return
+	end
+	grabThrow(g, if typeof(dir) == "Vector3" then dir else nil, if typeof(power) == "number" and power == power then power else 0)
+end
+
+-- Attacker died / left: drop what they hold (no throw).
+function HackEffects.GrabDrop(attacker: Player)
+	local g = grabs[attacker]
+	if g then
+		grabThrow(g, nil, 0)
+	end
+end
+
+function HackEffects.IsHolding(attacker: Player): boolean
+	return grabs[attacker] ~= nil
+end
+
+function HackEffects.Grab(attacker: Player, target: HackTargets.Target): (boolean, string?)
+	return grabStart(attacker, target.Model, target.Humanoid, target.Root, target.Player, false)
+end
+
+function HackEffects.GrabBoss(attacker: Player, model: Model, hum: Humanoid, root: BasePart): (boolean, string?)
+	return grabStart(attacker, model, hum, root, nil, true)
+end
+
 -- Exposed for the boss module (it unanchors the boss first and re-homes it after recovery).
 function HackEffects.RagdollLaunch(model: Model, hum: Humanoid, root: BasePart, v: Vector3, vfxScale: number): (boolean, string?)
 	return ragdollLaunch(model, hum, root, nil, v, vfxScale)
