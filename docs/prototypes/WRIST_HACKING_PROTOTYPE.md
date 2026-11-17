@@ -911,3 +911,10 @@ Owner: a YouTube short (`youtube.com/shorts/dnXIFzKC2DY`) and "make the super da
 **Testing note:** the Studio MCP resets camera changes made from an execute call, so captures pin the camera from a RenderStep binding instead.
 
 **Saved place:** SHA-256 `c7bf4e297222e35d879d25f2b91392dc480f6cb2d53431dbd598364f82e634e6`, 64/64. Protected files 9/9 OK.
+
+### 21.14 Rev 15f — super-speed colours: a mix of all (owner, 2026-11-16)
+Asked whether to keep cyan → violet or switch to the reference's green, the owner answered "mix of all".
+- **Change:** the afterimage chain cycles **cyan → neon green → violet → cyan**, 1.5 cycles per 1 s burst, so neighbouring copies differ and every colour shows. The local screen tint follows the current colour.
+- The Workspace attribute `WORLD_EXE_SuperTint` still forces a single colour.
+- **Capture:** `mix_burst/b_10.jpg` shows green, violet and cyan copies in one chain, with the tinted screen.
+- **Saved place:** SHA-256 `78a95098d57d3d73ef22e96205280551c3610fbb78e9293510f2449d8fe7ca51`, 64/64. Protected files 9/9 OK.

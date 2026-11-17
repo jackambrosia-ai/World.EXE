@@ -34,6 +34,8 @@ local C = UITheme.Color
 local Q_ACTION = "WORLD_EXE_MoveQ"
 local CYAN = Color3.fromRGB(110, 225, 255)
 local VIOLET = Color3.fromRGB(150, 110, 255)
+local NEON_GREEN = Color3.fromRGB(110, 255, 150)
+local SUPER_STOPS = { CYAN, NEON_GREEN, VIOLET } -- super-speed afterimage / screen tint cycle (owner: "mix of all")
 
 local MovementController = {}
 
@@ -80,8 +82,8 @@ end
 -- Rev 15e (owner reference 2026-11-16: YouTube short dnXIFzKC2DY, a Roblox "time-slow dash" showcase;
 -- streamed in the in-app browser, not downloaded, no checksum): super-speed afterimages are FULL-DETAIL
 -- copies of the character (hair, face, clothes, accessories, wrist device) packed densely along the path,
--- tinted and fading, plus a screen colour grade for the user. Original WORLD.EXE look: the chain shifts
--- cyan -> violet over the burst. Workspace attribute WORLD_EXE_SuperTint (Color3) overrides the tint.
+-- tinted and fading, plus a screen colour grade for the user. Colours: the chain cycles
+-- cyan -> green -> violet (owner "mix of all"). Workspace attribute WORLD_EXE_SuperTint (Color3) overrides the tint.
 -- Pooled: each character gets CLONE_POOL copies once (built on its first super-speed), then reused.
 local CLONE_POOL = 16
 local CLONE_LIFE = 0.65
@@ -244,7 +246,12 @@ local function superTint(progress: number): Color3
 	if typeof(o) == "Color3" then
 		return o
 	end
-	return CYAN:Lerp(VIOLET, math.clamp(progress, 0, 1))
+	-- owner 2026-11-16 ("mix of all"): the chain cycles cyan -> green -> violet -> cyan, 1.5 cycles per
+	-- burst, so neighbouring copies differ and every colour shows; the screen grade follows it
+	local stops = SUPER_STOPS
+	local x = (math.clamp(progress, 0, 1) * 1.5 % 1) * #stops
+	local i = math.floor(x)
+	return stops[i + 1]:Lerp(stops[(i + 1) % #stops + 1], x - i)
 end
 
 local function spawnDust(at: Vector3, big: boolean)
