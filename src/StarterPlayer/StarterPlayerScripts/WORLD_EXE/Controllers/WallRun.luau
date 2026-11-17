@@ -15,8 +15,20 @@
 --   descent; stops climbing at the top edge), kept close to the wall, body tilted away from it, the run animation playing.
 --   The wall normal is re-read every frame, so gently curved walls are followed.
 -- Corners (Rev 15j, owner): NO corner wrapping; the run ends at a corner or the wall's end.
--- Ends: Space = wall jump (out + up + along; also within EdgeJumpGrace after the run ends at the wall's end); landing; the wall ends; letting go of the movement keys
+-- Ends: Space = wall jump (out + up + along; also within EdgeJumpGrace after the run ends at the wall's end); landing; the wall ends; letting go of the movement keys;
+--   (Rev 15m Flow) pushing away from the wall
 --   Seconds elapsed; dash / super-speed / FLING SELF taking over (MoveState). Never ragdolls.
+-- Rev 15m "Flow" (owner Rev 15l play-test: wall-running "needs work"; HackTune_WallRun_Flow = 1, 0 = the
+--   exact Rev 15l behaviour for comparison). Same rules as above; only the feel changes:
+--   * entry blends from the arrival velocity over EntryBlendSeconds (no yank) and keeps entry momentum
+--     (capped at MaxEntrySpeed, settling toward Speed at SpeedSettle);
+--   * input while attached: holding back along the wall brakes toward MinCruise, pushing away from the wall
+--     for PeelSeconds peels off (no wall jump), forward / toward the wall keeps cruising;
+--   * the body leans into the run (ForwardLeanDegrees) as well as away from the wall; the run animation
+--     rate follows the speed;
+--   * leaving at a wall end / corner / time limit / peel keeps the momentum for ExitCarrySeconds (Roblox air
+--     control would otherwise cancel it at once);
+--   * a fresh Space press during a grounded DASH next to a wall hands the dash over to a wall run.
 -- Physics stays on this (owning) client like all character movement, so others see it replicate.
 
 local Players = game:GetService("Players")
@@ -63,13 +75,17 @@ function WallRun.Start(deps: Deps)
 		startPos: Vector3,
 		corners: number,
 		lift: number, -- initial climb speed (a little less when latching from the air)
+		v0: Vector3, -- Rev 15m: arrival velocity (into-wall part removed), blended out over EntryBlendSeconds
+		base: number, -- Rev 15m: cruise target along the wall
+		peelT: number, -- Rev 15m: how long the stick has pushed away from the wall
+		flow: boolean,
 	}
 	local run: Run? = nil
 	local lastEnd = -10
 	-- wall-jump carry: Roblox air control (holding a direction) cancels the jump-out push in ~0.25 s
 	-- (measured 40 -> 0 studs/s), so the jump keeps its horizontal velocity for up to JumpCarrySeconds,
 	-- or until the next wall run / landing / anything else takes the velocity.
-	local carry: { lv: LinearVelocity, att: Attachment, untilT: number, hum: Humanoid }? = nil
+	local carry: { lv: LinearVelocity, att: Attachment, untilT: number, t0: number, hum: Humanoid }? = nil
 	local function endCarry()
 		local cr = carry
 		if cr then
@@ -105,10 +121,9 @@ function WallRun.Start(deps: Deps)
 	-- wall); a wall jump keeps it armed so you can hold Space through a wall-to-wall chain.
 	local heldArmed = true
 
-	local function wallJump(hrp: BasePart, hum: Humanoid, n: Vector3, t: Vector3, speed: number)
-		local flatV = n * tune("JumpOut") + t * (speed * 0.75)
-		hrp.AssemblyLinearVelocity = flatV + Vector3.new(0, tune("JumpUp"), 0)
-		hum:ChangeState(Enum.HumanoidStateType.Jumping)
+	-- horizontal carry after leaving the wall (wall jump, Rev 15m: also a flowing exit); owner "walljump"
+	local function startCarry(hrp: BasePart, hum: Humanoid, flatV: Vector3, seconds: number)
+		endCarry()
 		MoveState.Release("wallrun")
 		if MoveState.Claim("walljump") then
 			local att = Instance.new("Attachment")
@@ -125,8 +140,15 @@ function WallRun.Start(deps: Deps)
 			lv.MaxForce = hrp.AssemblyMass * 3000
 			lv.PlaneVelocity = Vector2.new(flatV.X, flatV.Z)
 			lv.Parent = hrp
-			carry = { lv = lv, att = att, untilT = os.clock() + tune("JumpCarrySeconds"), hum = hum }
+			carry = { lv = lv, att = att, untilT = os.clock() + seconds, t0 = os.clock(), hum = hum }
 		end
+	end
+
+	local function wallJump(hrp: BasePart, hum: Humanoid, n: Vector3, t: Vector3, speed: number)
+		local flatV = n * tune("JumpOut") + t * (speed * 0.75)
+		hrp.AssemblyLinearVelocity = flatV + Vector3.new(0, tune("JumpUp"), 0)
+		hum:ChangeState(Enum.HumanoidStateType.Jumping)
+		startCarry(hrp, hum, flatV, tune("JumpCarrySeconds"))
 		heldArmed = true
 		lastEnd = os.clock()
 		if deps.onEnd then
@@ -160,7 +182,12 @@ function WallRun.Start(deps: Deps)
 				edge = { n = r.n, t = r.t, speed = r.speed, hrp = r.hrp, hum = r.hum, untilT = os.clock() + tune("EdgeJumpGrace") }
 			end
 			-- keep the momentum along the wall, drop the wall-stick component
-			r.hrp.AssemblyLinearVelocity = r.t * r.speed * 0.9 + Vector3.new(0, math.min(v.Y, 6), 0) + r.n * 4
+			local out = if how == "peel" then tune("PeelOut") else 4
+			local flatV = r.t * r.speed * 0.9 + r.n * out
+			r.hrp.AssemblyLinearVelocity = flatV + Vector3.new(0, math.min(v.Y, 6), 0)
+			if r.flow and (how == "wall_end" or how == "corner" or how == "wall_ahead" or how == "timeout" or how == "peel") and r.hum.Health > 0 then
+				startCarry(r.hrp, r.hum, flatV, tune("ExitCarrySeconds")) -- Rev 15m: no momentum cut at the exit
+			end
 		end
 		MoveState.Release("wallrun")
 		local c = r.hrp.Parent
@@ -177,13 +204,23 @@ function WallRun.Start(deps: Deps)
 
 	local function orientation(r: Run): CFrame
 		local lean = math.rad(tune("LeanDegrees"))
-		local up = (Vector3.yAxis * math.cos(lean) + r.n * math.sin(lean)).Unit
-		return CFrame.lookAt(Vector3.zero, r.t, up)
+		if not r.flow then
+			local up = (Vector3.yAxis * math.cos(lean) + r.n * math.sin(lean)).Unit
+			return CFrame.lookAt(Vector3.zero, r.t, up)
+		end
+		-- Rev 15m: lean away from the wall AND into the run (a runner, not a sliding block)
+		local fwd = math.rad(tune("ForwardLeanDegrees"))
+		local up = (Vector3.yAxis + r.n * math.tan(lean) + r.t * math.tan(fwd)).Unit
+		local look = (r.t - up * r.t:Dot(up)).Unit
+		return CFrame.fromMatrix(Vector3.zero, look:Cross(up), up, -look)
 	end
 
 	local function tryStart(c: Model, hrp: BasePart, hum: Humanoid)
 		local owner = MoveState.Owner()
-		if (owner ~= nil and owner ~= "walljump") or os.clock() - lastEnd < tune("ReattachDelay") then
+		local flow = tune("Flow") >= 0.5
+		-- Rev 15m: a grounded dash, or a FLING SELF flight (beside a wall), can hand over to a wall run
+		local fromDash = flow and (owner == "dash" or owner == "flingSelf")
+		if (owner ~= nil and owner ~= "walljump" and not fromDash) or os.clock() - lastEnd < tune("ReattachDelay") then
 			return
 		end
 		if hum:GetState() == Enum.HumanoidStateType.Physics then
@@ -218,10 +255,20 @@ function WallRun.Start(deps: Deps)
 						return
 					end
 					endCarry() -- a wall jump landing on the next wall continues as a wall run
-					if not MoveState.Claim("wallrun") then
+					if not MoveState.Claim("wallrun", fromDash) then
 						return
 					end
 					local speed = math.max(Vector3.new(v.X, 0, v.Z).Magnitude, tune("Speed"))
+					if flow then
+						-- keep the momentum ALONG the wall (not the part going into it), within MaxEntrySpeed
+						speed = math.clamp(math.abs(v:Dot(t)), tune("Speed"), math.max(tune("Speed"), tune("MaxEntrySpeed")))
+					end
+					local v0 = v - n * math.min(0, v:Dot(n))
+					-- the Space press also starts a Humanoid jump AFTER this sample: never blend the climb down from
+					-- below the climb speed (measured: vy 36 -> 9 -> 30 dip without this)
+					if grounded then
+						v0 = Vector3.new(v0.X, math.max(v0.Y, tune("ClimbSpeed")), v0.Z) -- mid-air entries blend from the real fall
+					end
 					local att = Instance.new("Attachment")
 					att.Name = "WallRunAttachment"
 					att.Parent = hrp
@@ -232,7 +279,7 @@ function WallRun.Start(deps: Deps)
 					lv.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
 					lv.ForceLimitMode = Enum.ForceLimitMode.Magnitude
 					lv.MaxForce = hrp.AssemblyMass * 4000
-					lv.VectorVelocity = t * speed + Vector3.new(0, tune("ClimbSpeed"), 0)
+					lv.VectorVelocity = if flow then v0 else t * speed + Vector3.new(0, tune("ClimbSpeed"), 0)
 					lv.Parent = hrp
 					local ao = Instance.new("AlignOrientation")
 					ao.Name = "WallRunLean"
@@ -254,11 +301,11 @@ function WallRun.Start(deps: Deps)
 							track = tr
 							tr.Priority = Enum.AnimationPriority.Action
 							tr:Play(0.1)
-							tr:AdjustSpeed(1.5)
+							tr:AdjustSpeed(if flow then tune("AnimRate") * speed / tune("Speed") else 1.5)
 						end
 					end
 					local r: Run = { n = n, t = t, speed = speed, t0 = os.clock(), lift = tune("ClimbSpeed") * (if grounded then 1 else tune("AirClimbScale")), att = att, lv = lv, ao = ao, track = track, hum = hum, hrp = hrp,
-						autoRotate = hum.AutoRotate, lastStep = 0, startPos = hrp.Position, corners = 0 }
+						autoRotate = hum.AutoRotate, lastStep = 0, startPos = hrp.Position, corners = 0, v0 = v0, base = tune("Speed"), peelT = 0, flow = flow }
 					hum.AutoRotate = false
 					ao.CFrame = orientation(r)
 					run = r
@@ -272,7 +319,7 @@ function WallRun.Start(deps: Deps)
 		end
 	end
 
-	local function step(r: Run, c: Model)
+	local function step(r: Run, c: Model, dt: number)
 		local el = os.clock() - r.t0
 		if MoveState.Owner() ~= "wallrun" then
 			finish("taken")
@@ -296,6 +343,28 @@ function WallRun.Start(deps: Deps)
 		if md.Magnitude < 0.2 then
 			finish("released")
 			return
+		end
+		if r.flow then
+			-- Rev 15m directional control: away from the wall = peel off; back along it = brake; else cruise
+			if md:Dot(r.n) > tune("PeelDot") then
+				r.peelT += dt
+				if r.peelT >= tune("PeelSeconds") then
+					finish("peel")
+					return
+				end
+			else
+				r.peelT = 0
+			end
+			local braking = md:Dot(r.t) < -0.3
+			local target = if braking then tune("MinCruise") else r.base
+			if r.speed > target then
+				r.speed = math.max(target, r.speed - (if braking then tune("BackBrake") else tune("SpeedSettle")) * dt)
+			else
+				r.speed = math.min(target, r.speed + tune("SpeedSettle") * dt)
+			end
+			if r.track then
+				r.track:AdjustSpeed(tune("AnimRate") * math.max(0.6, r.speed / tune("Speed")))
+			end
 		end
 
 		params.FilterDescendantsInstances = { c, table.unpack(deps.ignore) }
@@ -345,7 +414,13 @@ function WallRun.Start(deps: Deps)
 		end
 		local stick = if h.Distance > 1.6 then tune("Stick") else 0
 		hit = h
-		r.lv.VectorVelocity = r.t * r.speed + Vector3.new(0, vy, 0) - r.n * stick
+		local want = r.t * r.speed + Vector3.new(0, vy, 0) - r.n * stick
+		local blend = tune("EntryBlendSeconds")
+		if r.flow and el < blend then
+			local a = math.clamp(el / blend, 0, 1)
+			want = r.v0:Lerp(want, a * a * (3 - 2 * a)) -- Rev 15m: no velocity yank on latching
+		end
+		r.lv.VectorVelocity = want
 		r.ao.CFrame = orientation(r)
 		if deps.onStep and os.clock() - r.lastStep > 0.09 then
 			r.lastStep = os.clock()
@@ -384,7 +459,7 @@ function WallRun.Start(deps: Deps)
 		end
 	end)
 
-	RunService.Heartbeat:Connect(function()
+	RunService.Heartbeat:Connect(function(dt)
 		local c = player.Character
 		local hrp = c and c:FindFirstChild("HumanoidRootPart") :: BasePart?
 		local hum = c and c:FindFirstChildOfClass("Humanoid")
@@ -395,11 +470,11 @@ function WallRun.Start(deps: Deps)
 			return
 		end
 		local cr = carry
-		if cr and (os.clock() > cr.untilT or MoveState.Owner() ~= "walljump" or (cr.hum.FloorMaterial ~= Enum.Material.Air and os.clock() > cr.untilT - tune("JumpCarrySeconds") + 0.15)) then
+		if cr and (os.clock() > cr.untilT or MoveState.Owner() ~= "walljump" or (cr.hum.FloorMaterial ~= Enum.Material.Air and os.clock() > cr.t0 + 0.15)) then
 			endCarry()
 		end
 		if run then
-			step(run :: Run, c)
+			step(run :: Run, c, dt)
 		else
 			-- Rev 15k: Space already held when reaching a wall (side-on) starts the run as well
 			local held = hum.Jump or UserInputService:IsKeyDown(Enum.KeyCode.Space)

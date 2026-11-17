@@ -1,16 +1,18 @@
 --!strict
--- MovementController (wrist-hacking prototype, client) — Rev 15 (owner-authorized), updated through Rev 15k.
+-- MovementController (wrist-hacking prototype, client) — Rev 15 (owner-authorized), updated through Rev 15m.
 -- Executes what MovementService decides (the server owns timing, the skill check, charges and cooldowns;
 -- this client owns its character's physics), and draws the speed feedback.
 --
--- Controls (Rev 15j/15k owner design): Q = grounded dash + a skill check (a marker sweeps a bar; Q inside
--- the narrow random zone fills one of two diamond containers); Q while the dash is cooling (6 s) spends a
--- diamond on ~1 s steerable super-speed.
+-- Controls (current, Rev 15j-15m owner design): Q = grounded dash + a skill check (a marker sweeps a bar;
+-- Q inside the random zone fills one of two diamond containers); Q while the dash is cooling (6 s) spends a
+-- diamond on ~1 s steerable super-speed; Q DURING a super-speed chains the next one (Rev 15l, diamond left,
+-- >= 0.25 s apart). The sweep is drawn on the server's clock (Rev 15m). The old Q-Q timing window is gone.
 -- Reference mapping (private, SHA-256-verified owner videos; original WORLD.EXE interpretations):
 --   MOV-03 fast baseline run  -> Humanoid.WalkSpeed raised server-side; subtle foot streaks, sparse foot
 --                                dust and a +3 degree FOV only when actually running fast (wall-run: WallRun).
 --   MOV-04 grounded dash      -> Q: horizontal-only burst in the WASD (camera-relative) direction, dust puffs.
---   MOV-02 / MOV-05 super-speed -> steerable ~1 s burst, full-detail clone afterimages (cyan/green/violet),
+--   MOV-02 / MOV-05 super-speed -> steerable ~1 s burst, lightweight R6 silhouette afterimages (Rev 15m;
+--                                cyan/green/violet),
 --                                screen tint, wind loop, drain gauge.
 --   MOV-01 abrupt activation, fading afterimages, quick return to normal -> instant start cue and an eased
 --                                return to the run speed at the end.
@@ -81,166 +83,125 @@ local function poolPart(name: string): Part
 	return p
 end
 
--- Rev 15e (owner reference 2026-11-16: YouTube short dnXIFzKC2DY, a Roblox "time-slow dash" showcase;
--- streamed in the in-app browser, not downloaded, no checksum): super-speed afterimages are FULL-DETAIL
--- copies of the character (hair, face, clothes, accessories, wrist device) packed densely along the path,
--- tinted and fading, plus a screen colour grade for the user. Colours: the chain cycles
--- cyan -> green -> violet (owner "mix of all"). Workspace attribute WORLD_EXE_SuperTint (Color3) overrides the tint.
--- Pooled: each character gets CLONE_POOL copies once (built on its first super-speed), then reused.
-local CLONE_POOL = 16
-local CLONE_LIFE = 0.65
-local CLONE_EVERY = 0.042
-type ClonePair = { c: BasePart, live: BasePart, base: number }
-type Clone = { model: Model, pairs: { ClonePair }, decals: { { d: Decal, base: number } }, hl: Highlight, born: number }
-type Chain = { clones: { Clone }, nextI: number }
-local chains: { [Model]: Chain } = {}
-local activeClones: { Clone } = {}
-local stats = { ghosts = 0, dust = 0 }
+-- Rev 15m (owner decision): super-speed afterimages are LIGHTWEIGHT R6 SILHOUETTES, not copies of the
+-- avatar. Each ghost is 6 plain anchored Neon parts (head, torso, two arms, two legs) sized from the
+-- runner's own R6 limbs and posed from their CFrames at the moment it is dropped, so the chain reads as the
+-- runner's recent positions while the real character (clothes, hair, wrist device) stays distinct.
+-- No Humanoid, no clothing / accessories / decals / wrist device, no animation, no collision or queries.
+-- Colours: the chain cycles cyan -> green -> violet (owner "mix of all"); Workspace attribute
+-- WORLD_EXE_SuperTint (Color3) overrides. Pooled per character (built once, moved with BulkMoveTo).
+-- History: Rev 15e-15l used full-detail clones of the avatar (16 x ~100 instances per character incl. a
+-- Humanoid each, a one-time 25.9 ms build hitch; measured in Studio 2026-11-17).
+local GHOST_POOL = 14
+local GHOST_LIFE = 0.55
+local GHOST_EVERY = 0.045
+local GHOST_ALPHA = 0.42 -- starting transparency (slightly see-through), fading smoothly to 1
+local R6_LIMBS = { "Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg" }
+local R15_FALLBACK = { Head = "Head", Torso = "UpperTorso", ["Left Arm"] = "LeftUpperArm", ["Right Arm"] = "RightUpperArm", ["Left Leg"] = "LeftUpperLeg", ["Right Leg"] = "RightUpperLeg" }
+type Ghost = { parts: { BasePart }, born: number }
+type GhostSet = { ghosts: { Ghost }, nextI: number, sources: { BasePart? } }
+local ghostSets: { [Model]: GhostSet } = {}
+local activeGhosts: { Ghost } = {}
+local stats = { ghosts = 0, dust = 0, fxMs = 0, fxFrames = 0, fxMax = 0 } -- fx*: afterimage CPU cost per frame (Studio perf evidence)
 local DUST_POOL = 24
 local dustParts: { Part } = {}
 local dustNext = 1
 
-local function stripForClone(d: Instance): boolean
-	return d:IsA("LuaSourceContainer") or d:IsA("Sound") or d:IsA("Trail") or d:IsA("ParticleEmitter") or d:IsA("Beam")
-		or d:IsA("Highlight") or d:IsA("ForceField") or d:IsA("BillboardGui") or d:IsA("Constraint") or d:IsA("JointInstance")
-		or d:IsA("WeldConstraint") or d:IsA("NoCollisionConstraint") or d:IsA("AnimationController") or d:IsA("Animator")
+local function limbSource(live: Model, name: string): BasePart?
+	local p = live:FindFirstChild(name) or live:FindFirstChild(R15_FALLBACK[name] or "")
+	return if p and p:IsA("BasePart") then p else nil
 end
 
-local function buildChain(live: Model): Chain?
-	local was = live.Archivable
-	live.Archivable = true
-	local ok, made = pcall(function()
-		return live:Clone()
-	end)
-	live.Archivable = was
-	if not ok or not made then
-		return nil
+local function buildGhosts(live: Model): GhostSet
+	local sources: { BasePart? } = {}
+	for i, name in R6_LIMBS do
+		sources[i] = limbSource(live, name)
 	end
-	local template = made :: Model
-	for _, d in template:GetDescendants() do
-		if stripForClone(d) then
-			d:Destroy()
-		end
-	end
-	local hum = template:FindFirstChildOfClass("Humanoid")
-	if hum then
-		hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-		hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
-		hum.EvaluateStateMachine = false
-		hum.RequiresNeck = false
-	end
-	for _, p in template:GetDescendants() do
-		if p:IsA("BasePart") then
-			p.Anchored = true
-			p.CanCollide = false
-			p.CanQuery = false
-			p.CanTouch = false
-			p.CastShadow = false
-			p.Transparency = 1
-			p.CollisionGroup = "WORLD_EXE_Afterimage" -- collides with nothing (the clone Humanoid re-enables CanCollide)
-			p.Massless = true
-		elseif p:IsA("Decal") then
-			p.Transparency = 1
-		end
-	end
-	template.Name = "SuperAfterimage"
-	local chain: Chain = { clones = {}, nextI = 1 }
-	for i = 1, CLONE_POOL do
-		local m = if i == 1 then template else template:Clone()
-		local pairsList: { ClonePair } = {}
-		local decals = {}
-		for _, lp in live:GetDescendants() do
-			if lp:IsA("BasePart") and lp.Name ~= "HumanoidRootPart" then
-				local names = {}
-				local cur: Instance? = lp
-				while cur and cur ~= live do
-					table.insert(names, 1, cur.Name)
-					cur = cur.Parent
-				end
-				local cp: Instance? = m
-				for _, n in names do
-					cp = if cp then cp:FindFirstChild(n) else nil
-				end
-				if cp and cp:IsA("BasePart") then
-					table.insert(pairsList, { c = cp, live = lp, base = lp.Transparency })
-					for _, dc in cp:GetChildren() do
-						if dc:IsA("Decal") then
-							local liveDecal = lp:FindFirstChild(dc.Name)
-							table.insert(decals, { d = dc, base = if liveDecal and liveDecal:IsA("Decal") then liveDecal.Transparency else 0 })
-						end
-					end
-				end
+	local set: GhostSet = { ghosts = {}, nextI = 1, sources = sources }
+	for _ = 1, GHOST_POOL do
+		local parts = {}
+		for i, name in R6_LIMBS do
+			local src = sources[i]
+			local gp = Instance.new("Part")
+			gp.Name = "Ghost" .. name:gsub(" ", "")
+			gp.Anchored = true
+			gp.CanCollide = false
+			gp.CanQuery = false
+			gp.CanTouch = false
+			gp.CastShadow = false
+			gp.Massless = true
+			gp.CollisionGroup = "WORLD_EXE_Afterimage"
+			gp.Material = Enum.Material.Neon
+			gp.Transparency = 1
+			if name == "Head" then
+				gp.Shape = Enum.PartType.Ball
+				gp.Size = Vector3.new(1.25, 1.25, 1.25)
+			else
+				gp.Size = if src then src.Size else Vector3.new(1, 2, 1)
 			end
+			gp.Parent = fxFolder
+			parts[i] = gp
 		end
-		local hl = Instance.new("Highlight")
-		hl.DepthMode = Enum.HighlightDepthMode.Occluded
-		hl.FillTransparency = 1
-		hl.OutlineTransparency = 1
-		hl.Enabled = false
-		hl.Adornee = m
-		hl.Parent = m
-		m.Parent = fxFolder
-		table.insert(chain.clones, { model = m, pairs = pairsList, decals = decals, hl = hl, born = -1 })
+		table.insert(set.ghosts, { parts = parts, born = -1 })
 	end
-	chains[live] = chain
+	ghostSets[live] = set
 	live.AncestryChanged:Connect(function(_, parent)
 		if not parent then
-			for _, cl in chain.clones do
-				cl.model:Destroy()
+			for _, g in set.ghosts do
+				for _, gp in g.parts do
+					gp:Destroy()
+				end
 			end
-			chains[live] = nil
+			ghostSets[live] = nil
 		end
 	end)
-	return chain
+	return set
 end
 
+local moveParts: { BasePart } = {}
+local moveCFrames: { CFrame } = {}
 local function spawnAfterimage(live: Model, tint: Color3)
-	local chain = chains[live] or buildChain(live)
-	if not chain then
+	local set = ghostSets[live] or buildGhosts(live)
+	local root = live:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root then
 		return
 	end
-	local cl = chain.clones[chain.nextI]
-	chain.nextI = chain.nextI % #chain.clones + 1
-	for _, pr in cl.pairs do
-		if pr.live.Parent then
-			pr.c.CFrame = pr.live.CFrame
-			pr.base = pr.live.Transparency
-		end
+	local g = set.ghosts[set.nextI]
+	set.nextI = set.nextI % #set.ghosts + 1
+	table.clear(moveParts)
+	table.clear(moveCFrames)
+	for i, gp in g.parts do
+		local src = set.sources[i]
+		local cf = if src and src.Parent then src.CFrame else root.CFrame * CFrame.new(0, (i == 1 and 1.5 or 0), 0)
+		table.insert(moveParts, gp)
+		table.insert(moveCFrames, cf)
+		gp.Color = tint
+		gp.Transparency = GHOST_ALPHA
 	end
-	cl.born = os.clock()
-	cl.hl.FillColor = tint
-	cl.hl.OutlineColor = tint
-	cl.hl.Enabled = true
-	if not table.find(activeClones, cl) then
-		table.insert(activeClones, cl)
+	workspace:BulkMoveTo(moveParts, moveCFrames, Enum.BulkMoveMode.FireCFrameChanged)
+	g.born = os.clock()
+	if not table.find(activeGhosts, g) then
+		table.insert(activeGhosts, g)
 	end
 	stats.ghosts += 1
 end
 
--- holds briefly, then fades (quadratic), tint fades with it
+-- smooth fade from slightly see-through to gone
 local function updateAfterimages(now: number)
-	for i = #activeClones, 1, -1 do
-		local cl = activeClones[i]
-		local f = (now - cl.born) / CLONE_LIFE
-		if f >= 1 or not cl.model.Parent then
-			for _, pr in cl.pairs do
-				pr.c.Transparency = 1
+	for i = #activeGhosts, 1, -1 do
+		local g = activeGhosts[i]
+		local f = (now - g.born) / GHOST_LIFE
+		if f >= 1 or not g.parts[1].Parent then
+			for _, gp in g.parts do
+				gp.Transparency = 1
 			end
-			for _, dc in cl.decals do
-				dc.d.Transparency = 1
-			end
-			cl.hl.Enabled = false
-			table.remove(activeClones, i)
+			table.remove(activeGhosts, i)
 		else
-			local a = 0.04 + 0.96 * f * f * f -- nearly solid copies that hold, then fade fast
-			for _, pr in cl.pairs do
-				pr.c.Transparency = pr.base + (1 - pr.base) * a
+			local e = f * f * (3 - 2 * f)
+			local a = GHOST_ALPHA + (1 - GHOST_ALPHA) * e
+			for _, gp in g.parts do
+				gp.Transparency = a
 			end
-			for _, dc in cl.decals do
-				dc.d.Transparency = dc.base + (1 - dc.base) * a
-			end
-			cl.hl.FillTransparency = 0.25 + 0.75 * f -- strong tint (reference: vivid tinted copies)
-			cl.hl.OutlineTransparency = 0.35 + 0.65 * f
 		end
 	end
 end
@@ -487,6 +448,10 @@ function MovementController.Start()
 				stop(kind)
 				return
 			end
+			if MoveState.Owner() ~= kind then
+				stop(kind) -- Rev 15m: another state took the velocity (a dash handed over to a wall run)
+				return
+			end
 			local el = os.clock() - t0
 			if turn then -- super-speed: full steering toward the held direction
 				local want = flat(hum.MoveDirection)
@@ -534,6 +499,13 @@ function MovementController.Start()
 			local ck = data.check
 			if typeof(ck) == "table" then
 				checkStart = dashAt + (tonumber(ck.delay) or 0.1)
+				local startAt = tonumber(ck.startAt)
+				if startAt then
+					-- Rev 15m: draw the sweep on the SERVER's clock (the judge's). Starting it when this event
+					-- arrived drew the marker ~83 ms behind the judgement (measured in Studio): presses that
+					-- looked inside the zone were judged late. The server still judges; only the drawing moved.
+					checkStart = dashAt + (startAt - workspace:GetServerTimeNow())
+				end
 				checkSweep = tonumber(ck.sweep) or 0.75
 				zoneA = tonumber(ck.zoneA) or 0.3
 				zoneB = tonumber(ck.zoneB) or 0.4
@@ -666,7 +638,9 @@ function MovementController.Start()
 			dashFill.Size = UDim2.fromScale(1 - math.clamp((dashReadyAt - st) / math.max(0.1, dashCd), 0, 1), 1)
 		end
 		gui:SetAttribute("MoveOwner", MoveState.Owner())
+		local fxT0 = os.clock()
 		updateAfterimages(now)
+		local fxMs = (os.clock() - fxT0) * 1000
 		-- screen grade while I am in super-speed (local only; Reduced Effects: none)
 		gradeK += ((if superOn and not reduced then 1 else 0) - gradeK) * math.clamp(dt * (if superOn then 14 else 5), 0, 1)
 		grade.Enabled = gradeK > 0.01
@@ -714,10 +688,12 @@ function MovementController.Start()
 						tr.Lifetime = if isSuper then 0.28 elseif isDash then 0.2 else 0.12
 					end
 					if not reduced then
-						if isSuper and now - f.lastGhost >= CLONE_EVERY then
+						if isSuper and now - f.lastGhost >= GHOST_EVERY then
 							f.lastGhost = now
 							local remaining = math.clamp(((su :: number) - st) / math.max(0.1, tune("SuperSeconds")), 0, 1)
+							local sT0 = os.clock()
 							spawnAfterimage(c, superTint(1 - remaining))
+							fxMs += (os.clock() - sT0) * 1000
 						end
 						local dustEvery = if isSuper then 0.08 elseif grounded and hs > 24 then 0.33 else math.huge
 						if grounded and now - f.lastDust >= dustEvery then
@@ -728,7 +704,13 @@ function MovementController.Start()
 				end
 			end
 		end
+		if #activeGhosts > 0 then
+			stats.fxMs += fxMs
+			stats.fxFrames += 1
+			stats.fxMax = math.max(stats.fxMax, fxMs)
+		end
 		gui:SetAttribute("FxCounts", string.format("ghosts %d dust %d", stats.ghosts, stats.dust))
+		gui:SetAttribute("FxCost", string.format("%.3f %d %.3f %d", stats.fxMs, stats.fxFrames, stats.fxMax, #activeGhosts))
 	end)
 end
 

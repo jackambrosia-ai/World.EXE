@@ -2,9 +2,49 @@
 
 Status: **isolated prototype, draft PR, not for merge.** The owner approved the milestone on 2026-11-16. This is **not** an adopted gameplay design. Every number is provisional.
 
+## 0. Current state (Rev 15m, 2026-11-17) — read this first
+Sections 1–21 are the revision history and keep superseded designs for the record. **This section is the current behaviour.** Where an older section disagrees, this one wins.
+
+**Superseded (do not implement from the history):**
+- arrow-key challenge input → **number keys 1–4** (Signal Lock also 5), Rev 15;
+- Q-Q super-speed window (0.2–0.8 s), its 11 s cooldown and the 15g follow-up chain → **skill check + diamonds**, Rev 15j;
+- full-detail avatar clone afterimages → **R6 silhouettes**, Rev 15m;
+- the 1.0 s FLING SELF trail → **blue aura until landing**, Rev 15m.
+
+**Controls (keyboard; gamepad / touch bindings exist but are untested on hardware):**
+| Input | Action |
+|---|---|
+| **H** (gamepad L1, WRIST pill) | Open the wrist terminal |
+| **1–4** (keypad, D-pad) | Pick a quick hack; during a challenge, the challenge inputs (Signal Lock adds **5** / Y) |
+| Same key again, **Enter** or EXECUTE | Run the selected quick hack; **X** cycles the target; **T** typed commands |
+| **C** / R1 / SHIELD button | Shield against an incoming hack |
+| **Q** / gamepad X | Grounded **dash** (115 studs/s × 0.3 s ≈ 28 studs, 6 s cooldown) and a **skill check** |
+| **Q** inside the skill-check zone | +1 diamond (two containers, bottom middle). One attempt per dash |
+| **Q** while the dash cools | Spend a diamond on **super-speed** (1 s, 74 studs/s, steerable); no diamond = soft tick |
+| **Q** during super-speed | **Chain** the next super-speed (diamond left, ≥ 0.25 s after the last start) |
+| **Space** with a wall at your side (or held when you arrive) | **Wall-run**: up the wall, along it, then down; ends at wall ends / corners |
+| While wall-running | W / toward the wall = cruise; **S** (back along the wall) = brake; **away** from the wall = peel off; **Space** = wall jump (also ≤ 0.3 s after the run ends at a wall end) |
+| FLING SELF (hack) | Launch with loose limbs, steer with WASD, hold **Space** while falling to glide; blue aura until landing |
+
+**Key tuning (all `HackTune_<Group>_<Key>` overridable):**
+| Group | Values |
+|---|---|
+| Move | RunSpeed 28; DashSpeed 115; DashSeconds 0.3; DashCooldown 6; CheckDelay 0.1; CheckSweepSeconds 0.6; **CheckZoneSeconds 0.11** (Rev 15m, was 0.07); CheckZoneEarliest 0.2; CheckLatency 0.04; SuperChargesMax 2; SuperChainMinGap 0.25; SuperSeconds 1.0; SuperSpeed 74 |
+| WallRun | Speed 36; Seconds 4; ClimbSpeed 30 over ClimbSeconds 1; MaxSink 6; Reach 3.2; SideFacingMaxDot 0.5; JumpOut 40; JumpUp 50; EdgeJumpGrace 0.3; **Flow 1** (Rev 15m; 0 = Rev 15l feel) with EntryBlendSeconds 0.14, MaxEntrySpeed 52, SpeedSettle 18, BackBrake 40, MinCruise 16, PeelDot 0.6, PeelSeconds 0.12, PeelOut 16, ExitCarrySeconds 0.25, ForwardLeanDegrees 7, AnimRate 1.5 |
+| FlingSelf | Up 90; Forward 42; SteerSpeed 24; GlideFallSpeed 28; MaxFlightSeconds 4; **AuraMaxSeconds 10** (Rev 15m) |
+| Config | `ForceR6 = true` (prototype feature; see the deferred issue below) |
+
+**Tested (solo Studio, one client, Rev 15m session 2026-11-17):** see §21.21 for numbers — skill-check A/B/baseline, display-vs-judge timing, chaining regression, wall-run entry / climb / brake / peel / exit / wall jump / dash hand-over, R6 silhouettes + cost, FLING SELF aura in 9 flight cases, Reduced Effects, dash distance and cooldown, Q spam, FLING TARGET, R6 dressing, saved-file parity 65/65.
+
+**Not tested:** multiplayer / a second client (other players' view of silhouettes and the aura is server-relayed but unverified), real network latency, real touch / gamepad hardware, genuine shift-lock (Studio is Classic), keyboard number-key challenge input in this revision (code unchanged since Rev 15), owner feel of the Rev 15m wall-run and skill check.
+
+**Deferred engineering concerns (owner, 2026-11-17 — documented, NOT resolved):**
+1. **R6 isolation.** `Config.ForceR6` and `ForceR6.server.luau` are **not** gated to the prototype (`Workspace.WORLD_EXE_HackPrototype`). `Config.luau` is the one existing file this PR modifies. Syncing this tree into a production place would force R6 there. Must be gated or removed before any production integration.
+2. **Skill-check network fairness.** The server judges Q on its own clock. Rev 15m draws the sweep on the server clock, but the press still travels to the server: in solo Studio the judged time was a constant ~50 ms after the drawn marker (15 fps unfocused Studio; partly frame quantization). Only a 0.04 s late tolerance absorbs this. Fairness at real internet latency is **unverified**; no lag compensation was added.
+
 ## 1. Scope and isolation
-- **New code only**, active only when `Workspace.WORLD_EXE_HackPrototype == true`. Only the local prototype place sets it. In Place1 every new script returns immediately.
-- **No existing file is modified.** ArchitectController, HUDController, AbilityController, UITheme, UIUtil, the services and the patches are untouched.
+- **New code only**, active only when `Workspace.WORLD_EXE_HackPrototype == true`. Only the local prototype place sets it. In Place1 every new script returns immediately. **Exception (Rev 15c, deferred issue — see §0):** `ForceR6.server.luau` / `Config.ForceR6` are not gated.
+- **No existing file is modified**, except `Shared/Config.luau` (one `ForceR6` flag, Rev 15c). ArchitectController, HUDController, AbilityController, UITheme, UIUtil, the services and the patches are untouched.
 - **Separate from Architect patches:** own catalog (`HackCatalog`), own remotes (`HackRemotes/HackRequest`, `HackEvent`), own service and cooldowns. Hacks never read Architect turn state.
 
 ## 2. Files
@@ -51,7 +91,7 @@ Status: **isolated prototype, draft PR, not for merge.** The owner approved the 
 
 **Challenges** (all decided on the server; the client sends one direction per press)
 - **Self:** FLING SELF has none. SHIELD has 1 arrow (2.5 s).
-- **Player or NPC targets:** 3 ordered arrows chosen by the **hacker**, within 4.5 s, with up to 2 misses (no reset).
+- **Player or NPC targets:** 3 ordered arrows chosen by the **hacker**, within 4.5 s, with up to 2 misses (no reset). *(Superseded input: since Rev 15 the inputs are number keys 1–4, not arrows — see §0.)*
 - **Boss**, one variant at a time (boss attribute, switched at the arena consoles):
   - **Resistance Battle:** +0.2 per correct arrow; drain 0.16/s (0.22 while the boss charges, 0.06 while it is vulnerable); needs 6 arrows **and** a full bar; misses cost 0.08.
   - **Input Chase:** starts with 3 arrows; the boss appends one every 0.9 s (0.7 charging, 1.3 vulnerable); success needs an empty queue **and** at least 7 cleared; fails if the queue exceeds 6.
@@ -1095,3 +1135,84 @@ Owner: "super dashes should be able to be used in quick succession".
 **Tuning:** `HackTune_Move_SuperChainMinGap`.
 
 **Saved place:** SHA-256 `b93b40064f4a8c67c429d41c0eee552ce17f2db487061eac3f7ed7ae2e7acd1e`, 65/65. Protected files 9/9 OK.
+
+### 21.21 Rev 15m — feel refinement, R6 silhouette afterimages, FLING SELF aura until landing (owner-authorized, 2026-11-17)
+**Owner play-test of Rev 15l (authoritative):** skill check **too hard**; super-speed chaining **good**; wall-running **needs work**. Plus two new owner decisions: afterimages become simple coloured R6 silhouettes, and FLING SELF's blue effect must last the whole airborne journey.
+
+**Baseline:** game `c1d74f6`; pre-Rev-15m place backup `place/backup_pre_rev15m/` SHA-256 `b93b4006…acd1e` (identical to the Rev 15l save). MOV-01..04 re-hashed: all MATCH the register (no re-download or re-extraction; existing private MOV-03 frames re-read).
+
+#### Skill check
+**Defect found and fixed (display alignment).** The client started drawing the sweep when the dash message *arrived*; the server judges from its own clock. Measured in solo Studio: every press was judged **82–83 ms later** than the marker showed. One press drawn *inside* the zone was judged MISS, and one drawn *before* it was judged HIT. Now the server sends `check.startAt` and the client draws on `GetServerTimeNow`. Re-measured: a constant **~50 ms** remains (the press's trip to the server; Studio unfocused at 15 fps, so largely frame quantization). The 0.04 s late tolerance covers most of it. **Not** lag compensation: the server still judges, and real-network fairness stays deferred (§0).
+
+**A/B (zone pinned for repeatable key timing; emulated keys; display position read at each press):**
+| Config | Zone / sweep | Share of bar | Server-judged hits | Misses |
+|---|---|---|---|---|
+| Rev 15l baseline (after the alignment fix) | 0.07 s / 0.6 s | 12 % | rel 0.482, 0.533, 0.567 | 0.450 (early), 0.633 (late) |
+| **A (chosen)** | **0.11 s / 0.6 s** | **18 %** | 0.466, 0.484, 0.533, 0.584 | 0.401, 0.617 |
+| B | 0.15 s / 0.7 s | 21 % (slower marker) | 0.516, 0.568, 0.650 | 0.449, 0.700 |
+
+**Provisional choice: A.** Combined with the alignment fix it is clearly easier than what the owner played, but still a timing skill; B pushes toward trivial. B stays one attribute away (`HackTune_Move_CheckZoneSeconds=0.15`, `_CheckSweepSeconds=0.7`). Preserved and re-checked: random zone (starts 0.205 / 0.268 / 0.356 / 0.379 / 0.428 seen), one attempt per dash, 2-diamond cap, 6 s dash cooldown (next dash 6.23 s / 6.4 s later), "no charge" tick ("Q no charge (dash cooling 4.38 s)"), Q spam (3 extra presses during a super → "Q ignored (super running; charges 0)"). Observation, unchanged design: a spam press right after a hit spends that diamond on super-speed at once (Q while the dash cools = super).
+
+#### Super-speed chaining (regression — unchanged code)
+Server log, Rev 15m: `SUPER (charges left 1)` → `SUPER (chained)` 0.75 s later `(charges left 0)` → `Q ignored (super running; charges 0)`: same as Rev 15l. Client trace (commanded / measured): 28 → 74 ramp, **74 through the hand-over**, eased return to 28 (~1.7 s total). When the chain press lands inside the first burst's final 0.32 s ease-out, the hand-over carries 71 and returns to 74 within 3 frames (≤ 3 studs/s; the Rev 15l code path, which the Rev 15l test simply did not hit). Not changed (owner: preserve chaining exactly).
+
+#### Wall-running "Flow" (`HackTune_WallRun_Flow`: 1 = Rev 15m, 0 = exact Rev 15l)
+Rules unchanged (side-on Space / held Space, climb then descent, ends at wall ends and corners, wall jump, edge grace, no corner wrapping, no auto-adhesion). Changes are feel only:
+
+| Aspect | Rev 15l (Flow 0, measured) | Rev 15m (Flow 1, measured) |
+|---|---|---|
+| Entry | along-wall 28 → 36 **in one frame** (+ climb 36) | 28 → 29 → 30 → 31 → 33 → 34 → 35 over ~0.14 s; vertical continues from the jump (36 → 30), no dip |
+| Mid-air entry (held Space) | — | max per-frame change **3.7 studs/s** (vy 41 → 23 eased into the climb) |
+| Entry momentum | always 36 | along-wall momentum kept up to 52, settles to 36 (dash hand-over: 94 → 52 over ~0.14 s) |
+| Control while attached | only "let go" ends it | S = brake 36 → 16 in ~0.45 s; toward the wall = cruise (16 → 25 back up); away = **peel** off (out 16 + along 33) |
+| Body | lean away 8° only | lean away 8° **and into the run 7°**; run animation rate follows speed |
+| Exit at wall end | 31 → 28 at once (air control) | carries 32–33 for 0.25 s, then normal air control |
+| Climb / distance | 15.2 studs, wall_end after 1.65 s | 15.1 studs, wall_end after 1.66 s (same rules) |
+| Wall jump | — | velocity out 40 / up 51 on the same frame; caught the second wall with held Space, ran to its end |
+| Dash → wall run | blocked until the dash ended | Space during a dash next to a wall hands over |
+| FLING SELF → wall run | blocked until FLING control ended | Space mid-flight beside a wall hands over (aura continues, see below) |
+
+Camera: default Roblox camera, untouched (no roll; the lean is the character only). Whether Flow *feels* right is the owner's call: compare with `HackTune_WallRun_Flow = 0`. One entry defect was found and fixed during the session: the first Flow build dipped the climb (vy 36 → 9 → 30) because it blended from a velocity sampled before the jump impulse.
+
+#### Super-speed afterimages: lightweight R6 silhouettes
+Each ghost = 6 anchored Neon parts (head ball, torso, 2 arms, 2 legs) sized from the runner's R6 limbs and posed from their CFrames when dropped (moved with `BulkMoveTo`). No Humanoid, clothing, hair, accessories, face decal, wrist device, animation, collision or queries (`WORLD_EXE_Afterimage` group). Start transparency 0.42 with a smoothstep fade over 0.55 s, one every 0.045 s, pool of 14 per character. Cyan → green → violet cycle and the screen grade are unchanged.
+
+| Measure (solo Studio, same instrumentation) | Rev 15l clones | Rev 15m silhouettes |
+|---|---|---|
+| Instances per character pool | **1,671** (16 clone models × 25 parts + decals, accessories, 16 Humanoids, 16 Highlights) | **84 parts** (14 × 6), folder total 108 |
+| Humanoids in afterimages | 16 | **0** |
+| Pool build (first super-speed) | **25.9 ms** one-frame hitch | ≤ 6.0 ms (session max, includes the build) |
+| Steady afterimage CPU (spawn + fade) | ~6 ms per second of super-speed | ~4 ms per second of super-speed |
+| Max visible ghosts | 16 | 12 |
+| Lifetime / interval | 0.65 s / 0.042 s | 0.55 s / 0.045 s |
+
+Caveat: Studio frame rate differed between the two runs (15 fps unfocused vs ~60 fps), so per-frame numbers are not comparable; per-second and instance counts are. Solo client only: **multiplayer cost is not measured**. Reduced Effects: 0 visible ghost parts and no screen grade during super-speed (verified).
+
+#### FLING SELF: blue aura for the whole flight
+Cause: Rev 15b used the 1.0 s throw trail, and the landing / end message was tied to the movement controller, which can end in the air (wall hit, time limit). **Baseline measured:** high launch + glide (2.2 s airtime) → blue gone **1.25 s before landing**; even a short glide lost it 0.15 s early.
+
+Now: launch shock (unchanged) + an aura (cyan torso trail, crackling sparks, soft light, faint flickering body glow) whose lifetime is the **visual flight**. The owner client ends the flight only on real ground contact (not while wall-running), death / ragdoll ("cancel") or `AuraMaxSeconds` (10 s), and sends exactly **one** `fling_self_end`. The server relays `self_fling_end` to everyone (aura off) and plays the landing impact only for `landed`. Each client also removes the aura on death / removal / 10 s. Reduced Effects keeps the trail only (verified). FLING SELF still never ragdolls; loose limbs unchanged.
+
+| # | Case | Airtime | Aura gaps while airborne | Aura off vs landing | Landing impacts |
+|---|---|---|---|---|---|
+| 1 | Normal arc | 0.88 s | 0 frames | +0.05 s | 1 |
+| 2 | High launch (Up 140) | 1.50 s | 0 | +0.05 s | 1 |
+| 3 | Extended glide (Up 140, Space held) | 2.25 s | 0 | +0.05 s | 1 |
+| 4 | Mid-air steering (A, then S) | 1.08 s | 0 | +0.05 s | 1 |
+| 5 | FLING SELF → wall-run (Up 60, Space beside the wall) | 1.92 s | 0 | +0.05 s | 1 |
+| 6 | Q + Space mid-air (no wall) | 1.15 s | 0 | +0.05 s | 1 |
+| 7 | Landing on the 24-stud block top (y 27) | 0.75 s | 0 | +0.05 s | 1 |
+| 8 | Launched into a wall (control ended "blocked" at 0.38 s) | 0.63 s | 0 | +0.03 s | 1 |
+| 9 | Death mid-flight | — | aura removed at death | "cancel", no impact | 0; nothing left after respawn |
+
+(+0.05 s = the server relay. Case 5 at Up 140 correctly did not latch: the runner was above the wall's usable height.)
+
+**Captures (private, not committed):** `C:\WORLD.EXE-Art\HackProto\evidence\rev15m\` — `selffling_before*` (Rev 15l: blue gone during the descent), `selffling_after*` and `selffling_wallrun*` (aura in every airborne frame, gone at the landing-impact frame), `ghosts_after*` (R6 silhouettes). Selected sheets are in the vault note (evidence 49–51).
+
+#### Other regression checks
+FLING TARGET on Dummy-A: challenge success, thrown ~46 studs, one landing impact, back to Running. R6 avatar: rig R6, 6 clothing / accessory items, WalkSpeed 28. Dash 28.2 studs. Clean Play start, no errors. Number-key challenge input was **not** re-run by keyboard this revision (code unchanged since Rev 15).
+
+#### Documentation and comments
+§0 added (current controls, tuning, tested / untested, deferred concerns); superseded mechanics marked. Source comments updated in MovementController (controls, silhouettes), MoveState (current owners and hand-overs), MovementService (15l / 15m), WallRun (Flow), HackVfx / HackController / HackEffects (aura lifetime), ForceR6 (deferred isolation issue). Studio-only afterimage cost counters (`FxCost` GUI attribute) stay in MovementController.
+
+**Saved place:** SHA-256 `3b6afbf117d6a6cc6d6f4fc36f647298737d34f1b8d4e91b895cff03ad639781`, 65/65 scripts identical to `src/`. Protected files 9/9 OK.

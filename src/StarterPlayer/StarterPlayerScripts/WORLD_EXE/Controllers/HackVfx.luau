@@ -544,12 +544,149 @@ end
 
 
 
+-- Rev 15m (owner: "the blue effect MUST last until landing"): FLING SELF wears a blue/cyan energy aura for
+-- the WHOLE airborne journey: a cyan trail on the torso, crackling sparks and a soft light (+ a faint
+-- flickering body glow). Its lifetime is the VISUAL flight, not the movement controller: it ends only on
+-- HackVfx.SelfFlingEnd (the server relays the owner's real landing / cancel to everyone), when the
+-- character dies or is removed, or after AURA_MAX_SECONDS as a safety net. A new FLING SELF replaces it.
+-- Reduced Effects keeps only the trail. (Rev 15b-15l used the 1.0 s throw trail, which vanished
+-- mid-air on longer flights: measured 1.25 s before landing on a 2.2 s high launch.)
+local AURA_MAX_SECONDS = 10
+local CYAN_ENERGY = Color3.fromRGB(90, 215, 255)
+local auras: { [Model]: (landed: boolean) -> () } = {}
+
+function HackVfx.SelfFlingEnd(model: Model)
+	local stop = auras[model]
+	if stop then
+		stop(true)
+	end
+end
+
+function HackVfx.SelfFlingActive(model: Model): boolean
+	return auras[model] ~= nil
+end
+
+local function selfFlingAura(model: Model)
+	local prev = auras[model]
+	if prev then
+		prev(false)
+	end
+	local body = (model:FindFirstChild("UpperTorso") or model:FindFirstChild("Torso") or model:FindFirstChild("HumanoidRootPart")) :: BasePart?
+	if not body then
+		return
+	end
+	local hum = model:FindFirstChildOfClass("Humanoid")
+	local reduced = UITheme.reducedEffects()
+	local a0 = Instance.new("Attachment")
+	a0.Name = "SelfFlingAuraA"
+	a0.Position = Vector3.new(0, 0.9, 0)
+	a0.Parent = body
+	local a1 = Instance.new("Attachment")
+	a1.Name = "SelfFlingAuraB"
+	a1.Position = Vector3.new(0, -0.9, 0)
+	a1.Parent = body
+	local tr = Instance.new("Trail")
+	tr.Name = "SelfFlingAuraTrail"
+	tr.Attachment0 = a0
+	tr.Attachment1 = a1
+	tr.Lifetime = 0.42
+	tr.Color = ColorSequence.new(CYAN_ENERGY, Color3.fromRGB(150, 235, 255))
+	tr.Transparency = NumberSequence.new(0.2, 1)
+	tr.LightEmission = 0.9
+	tr.Parent = body
+	local fx: { Instance } = { a0, a1, tr }
+	local emitter: ParticleEmitter? = nil
+	local light: PointLight? = nil
+	local glow: Highlight? = nil
+	if not reduced then
+		local pe = Instance.new("ParticleEmitter")
+		pe.Name = "SelfFlingAuraSparks"
+		pe.Texture = SPARK_TEXTURE
+		pe.Color = ColorSequence.new(Color3.fromRGB(200, 245, 255), CYAN_ENERGY)
+		pe.LightEmission = 1
+		pe.Size = NumberSequence.new(0.45, 0)
+		pe.Transparency = NumberSequence.new(0.1, 1)
+		pe.Lifetime = NumberRange.new(0.15, 0.32)
+		pe.Rate = 26
+		pe.Speed = NumberRange.new(2, 6)
+		pe.SpreadAngle = Vector2.new(180, 180)
+		pe.Parent = body
+		emitter = pe
+		local pl = Instance.new("PointLight")
+		pl.Name = "SelfFlingAuraLight"
+		pl.Color = CYAN_ENERGY
+		pl.Range = 9
+		pl.Brightness = 1.4
+		pl.Parent = body
+		light = pl
+		local h = Instance.new("Highlight")
+		h.Name = "SelfFlingAuraGlow"
+		h.FillColor = CYAN_ENERGY
+		h.FillTransparency = 0.82
+		h.OutlineColor = Color3.fromRGB(200, 245, 255)
+		h.OutlineTransparency = 0.45
+		h.DepthMode = Enum.HighlightDepthMode.Occluded
+		h.Adornee = model
+		h.Parent = root()
+		glow = h
+		table.insert(fx, pe)
+		table.insert(fx, pl)
+		table.insert(fx, h)
+	end
+	model:SetAttribute("SelfFlingAura", true)
+	local t0 = os.clock()
+	local frame = 0
+	local conn: RBXScriptConnection? = nil
+	local stopped = false
+	local function stop(_landed: boolean)
+		if stopped then
+			return
+		end
+		stopped = true
+		if auras[model] == stop then
+			auras[model] = nil
+		end
+		if conn then
+			conn:Disconnect()
+		end
+		if model.Parent then
+			model:SetAttribute("SelfFlingAura", nil)
+		end
+		tr.Enabled = false
+		if emitter then
+			emitter.Enabled = false
+		end
+		if light then
+			TweenService:Create(light, TweenInfo.new(0.25), { Brightness = 0 }):Play()
+		end
+		if glow then
+			TweenService:Create(glow, TweenInfo.new(0.25), { FillTransparency = 1, OutlineTransparency = 1 }):Play()
+		end
+		task.delay(0.5, function()
+			for _, i in fx do
+				i:Destroy()
+			end
+		end)
+	end
+	auras[model] = stop
+	conn = RunService.Heartbeat:Connect(function()
+		if not model.Parent or not body.Parent or (hum and hum.Health <= 0) or os.clock() - t0 > AURA_MAX_SECONDS then
+			stop(false) -- death / reset / removal / safety net: never a stuck aura
+			return
+		end
+		frame += 1
+		if glow and frame % 3 == 0 then
+			glow.FillTransparency = 0.76 + math.random() * 0.14 -- faint electric flicker
+		end
+	end)
+end
+
 -- Rev 15b: FLING SELF launch, matched to the regular fling (owner: "resemble the regular fling more").
 -- A short electric shock on the body (cyan glow flicker, crackle, sparks crawling over the limbs, ~0.35 s)
--- then the same cyan throw trail; no crater, no orange starburst, no camera shake. Landing uses the
--- regular fling's LandImpact (sent by the server when the flight ends on the ground).
+-- then (Rev 15m) the airborne energy aura until landing; no crater, no orange starburst, no camera shake.
+-- Landing uses the regular fling's LandImpact (sent by the server when the owner reports a real landing).
 function HackVfx.SelfFling(model: Model)
-	HackVfx.ThrowTrail(model)
+	selfFlingAura(model)
 	local body = (model:FindFirstChild("UpperTorso") or model:FindFirstChild("Torso")) :: BasePart?
 	if not body then
 		return

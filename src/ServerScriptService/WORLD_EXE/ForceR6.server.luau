@@ -5,6 +5,9 @@
 -- on, the engine still applies each player's own clothing, body colours, face and accessories to it.
 -- If the place already has a StarterCharacter (a deliberate custom rig), it is left alone.
 -- Publishing note: also set Game Settings > Avatar > Avatar Type = R6 on the published experience.
+-- KNOWN ISSUE (deferred by the owner, 2026-11-17; NOT resolved): Config.ForceR6 and this script are not gated
+-- to the wrist-hacking prototype (Workspace.WORLD_EXE_HackPrototype). If this src/ tree is synced into a
+-- production place, R6 would be forced there too. Gate or remove it BEFORE any production integration.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")

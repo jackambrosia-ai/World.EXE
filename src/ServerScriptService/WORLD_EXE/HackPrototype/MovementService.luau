@@ -1,5 +1,7 @@
 --!strict
--- MovementService (wrist-hacking prototype, server) — Rev 15j, owner design 2026-11-16.
+-- MovementService (wrist-hacking prototype, server) — Rev 15j owner design 2026-11-16; Rev 15l chaining
+-- (Q during a super-speed starts the next one if a diamond is left); Rev 15m: the dash message carries the
+-- check's server start time (check.startAt) so the client draws the sweep on the judge's clock.
 -- Fast baseline run + Q:
 --   Q (dash ready)           -> grounded dash, and a SKILL CHECK starts: a marker sweeps across a bar in
 --                               CheckSweepSeconds; the target zone (CheckZoneSeconds wide) sits at a random
@@ -169,7 +171,7 @@ function MovementService.Q(player: Player, p: { [string]: any })
 		c:SetAttribute("WORLD_EXE_DashUntil", t + tune("DashSeconds"))
 	end
 	send(player, { op = "dash", seconds = tune("DashSeconds"), speed = tune("DashSpeed"), dashReady = s.dashReady, charges = s.charges,
-		check = { delay = tune("CheckDelay"), sweep = sweep, zoneA = zoneA, zoneB = zoneA + zone } })
+		check = { delay = tune("CheckDelay"), sweep = sweep, zoneA = zoneA, zoneB = zoneA + zone, startAt = (s.check :: Check).start } })
 	note(s, string.format("%.3f DASH; check zone %.3f-%.3f of %.2f s", t, zoneA, zoneA + zone, sweep))
 end
 

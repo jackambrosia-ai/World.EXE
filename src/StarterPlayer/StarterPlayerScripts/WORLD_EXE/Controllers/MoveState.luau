@@ -1,14 +1,14 @@
 --!strict
 -- MoveState (prototype, client): ONE owner of the local character's velocity at a time.
--- Rev 15 architecture for future movement states (owner: wall-running later, MOV-03):
 --   nil          = normal Humanoid running (fast baseline WalkSpeed); nothing overrides velocity
---   "dash"       = first-Q grounded dash (MovementController)
---   "super"      = second-Q steerable super-speed (MovementController)
+--   "dash"       = Q grounded dash (MovementController)
+--   "super"      = super-speed spent from a diamond while the dash cools; chained bursts keep it (MovementController)
 --   "flingSelf"  = FLING SELF carry + air control (HackController)
---   "wallrun"    = wall-running (WallRun, Rev 15g); "walljump" = the short carry after a wall jump
---   (future)     "wallrun" — would claim ownership here, read the wall normal, and release on exit;
---                nothing in this prototype assumes the character is always grounded or that velocity
---                is only horizontal (dash/super drive the horizontal plane only and leave Y to physics).
+--   "wallrun"    = wall-running (WallRun, Rev 15g-15m); "walljump" = the short horizontal carry after a wall
+--                  jump or (Rev 15m) a flowing wall-run exit
+-- Hand-overs (forced claims): FLING SELF overrides dash / super; a wall run (Rev 15m) may take over a dash or
+-- a FLING SELF flight. A system that loses ownership stops its own constraint (drive / carry / fling control);
+-- FLING SELF's blue aura is a visual-flight state and is NOT tied to ownership (HackController).
 -- Claim returns false when another state owns the velocity, so systems never fight each other.
 
 local MoveState = {}

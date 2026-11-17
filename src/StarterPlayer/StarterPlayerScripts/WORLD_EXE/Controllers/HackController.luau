@@ -1498,8 +1498,49 @@ function HackController.Start()
 		end
 		MoveState.Release("flingSelf")
 	end
+	-- Rev 15m (owner: FLING SELF's blue effect MUST last until landing): the VISUAL flight is separate from
+	-- the movement control above. Control can end in the air (blocked by a wall, the time limit, a wall run
+	-- taking over); the flight only ends when the character really touches the ground (not while
+	-- wall-running), dies / respawns, or after AuraMaxSeconds. Exactly one fling_self_end goes to the server,
+	-- which relays it to everyone (aura off) and plays the landing impact only for a real landing.
+	local visualConn: RBXScriptConnection? = nil
+	local visualOpen = false
+	local function finishVisualFlight(how: string, pos: Vector3?)
+		if visualConn then
+			visualConn:Disconnect()
+			visualConn = nil
+		end
+		if not visualOpen then
+			return -- never a second end / landing impact for the same flight
+		end
+		visualOpen = false
+		gui:SetAttribute("LastFlingVisual", how)
+		request:FireServer({ op = "fling_self_end", how = how, pos = pos })
+	end
+	local function watchVisualFlight(hrp: BasePart, hum: Humanoid)
+		if visualConn then
+			visualConn:Disconnect()
+		end
+		local t0 = os.clock()
+		local maxT = HackCatalog.Tune("FlingSelf", "AuraMaxSeconds")
+		visualConn = RunService.Heartbeat:Connect(function()
+			local c = hrp.Parent
+			if not c or hum.Health <= 0 then
+				finishVisualFlight("cancel")
+			elseif os.clock() - t0 > maxT then
+				finishVisualFlight("timeout")
+			elseif hum.FloorMaterial ~= Enum.Material.Air and c:GetAttribute("WORLD_EXE_WallRunning") ~= true then
+				finishVisualFlight("landed", hrp.Position)
+			end
+		end)
+	end
 	local function flingSelf(v: Vector3, steer: number, minAir: number, maxT: number, blockedFrac: number, ctl: { turn: number, brake: number, fallCap: number, glideCap: number })
 		endFling()
+		if visualConn then
+			visualConn:Disconnect()
+			visualConn = nil
+		end
+		visualOpen = true
 		local c = player.Character
 		local hrp = c and c:FindFirstChild("HumanoidRootPart") :: BasePart?
 		local hum = c and c:FindFirstChildOfClass("Humanoid")
@@ -1542,6 +1583,13 @@ function HackController.Start()
 		flingConn = RunService.Heartbeat:Connect(function(dt)
 			if not hrp.Parent or hum.Health <= 0 then
 				endFling()
+				finishVisualFlight("cancel")
+				return
+			end
+			if MoveState.Owner() ~= "flingSelf" then
+				-- Rev 15m: a wall run took the velocity mid-flight: control ends, the flight (and aura) goes on
+				endFling()
+				watchVisualFlight(hrp, hum)
 				return
 			end
 			local md = hum.MoveDirection
@@ -1588,8 +1636,12 @@ function HackController.Start()
 			if landed or elapsed > maxT or slowFor > 0.15 then
 				local p = hrp.Position
 				gui:SetAttribute("LastFling", string.format("rise %.1f  horiz %.1f  air %.2fs  end=%s", stats.apexY - stats.startY, Vector3.new(p.X - stats.start.X, 0, p.Z - stats.start.Z).Magnitude, elapsed, if landed then "landed" elseif slowFor > 0.15 then "blocked" else "timeout"))
-				request:FireServer({ op = "fling_self_end", how = if landed then "landed" elseif slowFor > 0.15 then "blocked" else "timeout", pos = hrp.Position }) -- Rev 15b: landing impact (client position: the server view lags a fast fall)
 				endFling()
+				if landed then
+					finishVisualFlight("landed", hrp.Position) -- landing impact at the client position (the server view lags a fast fall)
+				else
+					watchVisualFlight(hrp, hum) -- control ended in the air (blocked / time limit): still flying
+				end
 			end
 		end)
 	end
@@ -1661,11 +1713,16 @@ function HackController.Start()
 			local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 			if hum then
 				endFling(data.on == true)
+				if data.on == true then
+					finishVisualFlight("cancel") -- a real ragdoll took over
+				end
 				hum:ChangeState(if data.on then Enum.HumanoidStateType.Physics else Enum.HumanoidStateType.GettingUp)
 			end
 		elseif op == "vfx" then
 			if data.kind == "self_fling" and typeof(data.model) == "Instance" and data.model:IsA("Model") then
-				HackVfx.SelfFling(data.model) -- Rev 15b: regular-fling look (shock + cyan trail), no crater / camera shake
+				HackVfx.SelfFling(data.model) -- Rev 15b: regular-fling look (shock), Rev 15m: blue aura until landing
+			elseif data.kind == "self_fling_end" and typeof(data.model) == "Instance" and data.model:IsA("Model") then
+				HackVfx.SelfFlingEnd(data.model)
 			elseif data.kind == "launch" and typeof(data.pos) == "Vector3" then
 				HackVfx.Launch(if typeof(data.model) == "Instance" and data.model:IsA("Model") then data.model else nil, data.pos, tonumber(data.scale) or 1)
 			elseif data.kind == "glide" and typeof(data.model) == "Instance" and data.model:IsA("Model") then

@@ -92,7 +92,7 @@ HackCatalog.Tuning = table.freeze({
 		-- skill check after each dash (owner: "like the one that is already there, except it should be harder")
 		CheckDelay = 0.1, -- the marker starts sweeping this long after the dash
 		CheckSweepSeconds = 0.6, -- marker crosses the whole bar in this time (Rev 15k harder: was 0.75)
-		CheckZoneSeconds = 0.07, -- target zone width in time (Rev 15k owner "too forgiving": was 0.11; the first check had 0.6)
+		CheckZoneSeconds = 0.11, -- target zone width in time. Rev 15m (owner play-test "too hard"): 0.07 -> 0.11 (option A; B = 0.15 in a 0.7 s sweep, kept as a tuning alternative). History: 0.11 (15j), 0.07 (15k)
 		CheckZoneEarliest = 0.2, -- the zone starts at a random time between this and the sweep end - zone
 		CheckLatency = 0.04, -- server tolerance after the zone for network delay (Rev 15k: was 0.08; no early tolerance)
 		SuperChargesMax = 2, -- owner: two diamond containers
@@ -128,6 +128,19 @@ HackCatalog.Tuning = table.freeze({
 		EdgeJumpGrace = 0.3, -- Rev 15k: a jump press this soon after a run ends at the wall end / a corner still wall-jumps
 		LeanDegrees = 8, -- slight tilt away from the wall (MOV-03 runner is nearly upright)
 		ReattachDelay = 0.35, -- seconds before another wall run can start
+		-- Rev 15m "Flow" (owner play-test of 15l: wall-running "needs work"). Flow = 0 restores Rev 15l exactly.
+		Flow = 1,
+		EntryBlendSeconds = 0.14, -- blend from the arrival velocity into the wall run (no yank)
+		MaxEntrySpeed = 52, -- along-wall entry momentum kept up to this (a dash hand-over arrives faster) ...
+		SpeedSettle = 18, -- ... settling toward Speed at this rate (studs/s per s)
+		BackBrake = 40, -- holding back along the wall brakes at this rate ...
+		MinCruise = 16, -- ... down to this speed
+		PeelDot = 0.6, -- pushing away from the wall (input . normal above this) ...
+		PeelSeconds = 0.12, -- ... for this long peels off the wall (no wall jump)
+		PeelOut = 16, -- outward speed when peeling off
+		ExitCarrySeconds = 0.25, -- leaving at a wall end / corner / time limit / peel keeps the momentum this long
+		ForwardLeanDegrees = 7, -- lean into the run direction
+		AnimRate = 1.5, -- run animation rate at Speed (scales with the wall-run speed)
 	}),
 	FlingSelf = table.freeze({
 		Up = 90, -- initial vertical velocity (apex ~ Up^2 / (2 * 196.2) = 20.6 studs). Sweep 2026-11-16: A 78/48, B 90/42 (chosen), C 98/48
@@ -141,6 +154,7 @@ HackCatalog.Tuning = table.freeze({
 		MaxFlightSeconds = 4.0, -- the carry and fall control always end by this time (longer for gliding)
 		BlockedSpeedFraction = 0.3, -- carry ends early when the measured speed falls below this share (wall)
 		Cooldown = 3,
+		AuraMaxSeconds = 10, -- Rev 15m: the blue airborne aura lasts until the real landing; safety cap for odd flights
 		-- Owner rule (2026-11-16): FLING SELF never ragdolls you (only other players / bosses ragdoll).
 	}),
 	FlingTarget = table.freeze({

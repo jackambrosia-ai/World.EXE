@@ -97,14 +97,18 @@ function HackEffects.FlingSelf(player: Player, dirHint: any): (boolean, string?)
 	return true, nil
 end
 
--- Client report: FLING SELF flight ended (landed / blocked / timeout). A landing gets the regular fling's landing impact (thud + dust + cyan sparks).
+-- Client report: FLING SELF visual flight ended (Rev 15m: "landed" = really on the ground, "cancel" = died /
+-- ragdolled, "timeout" = AuraMaxSeconds). Everyone's airborne aura ends; a landing also gets the regular
+-- fling's landing impact (thud + dust + cyan sparks). One end per launch (no repeated impacts).
 function HackEffects.FlingSelfEnd(player: Player, how: any, clientPos: any)
 	local character = player.Character
 	local at = flingSelfAt[player]
-	if not character or not at or os.clock() - at > HackCatalog.Tune("FlingSelf", "MaxFlightSeconds") + 2 then
+	local window = math.max(HackCatalog.Tune("FlingSelf", "MaxFlightSeconds"), HackCatalog.Tune("FlingSelf", "AuraMaxSeconds")) + 2
+	if not character or not at or os.clock() - at > window then
 		return -- only right after a real FLING SELF (no free landing effects)
 	end
 	flingSelfAt[player] = nil
+	broadcast({ op = "vfx", kind = "self_fling_end", model = character })
 	local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
 	if how == "landed" and root then
 		-- the server's copy of a fast fall lags the owner by a few studs: use the client's landing point
