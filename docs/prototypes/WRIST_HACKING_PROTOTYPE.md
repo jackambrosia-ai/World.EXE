@@ -1080,3 +1080,18 @@ The zone is still at a random spot.
 - wall_end at +36.43, Space at +36.70 (0.27 s later) → wall jump from the end of the wall.
 
 **Saved place:** SHA-256 `b923d2541d6ff270788eacea34069b0525df16943640d174cc1f1ccad1c7c34b`, 65/65. Protected files 9/9 OK.
+
+### 21.20 Rev 15l — super-speed chaining (owner, 2026-11-16)
+Owner: "super dashes should be able to be used in quick succession".
+
+**Chaining:** pressing **Q during a super-speed** starts the next one at once if a diamond is left. The server allows it no sooner than `SuperChainMinGap` (0.25 s) after the last start, so one accidental double-tap does not spend both diamonds. With no diamond left, the press is ignored with the soft "no charge" tick. A chained burst plays a lighter start cue.
+
+**Smooth hand-over:** a chained burst carries on from the previous burst's commanded speed and heading, with no ramp-up. Before this fix the velocity read after the old constraint was removed made a visible dip (74 → ~43 for about 4 frames).
+
+**Verified:**
+- server log: two hits → charges 2; SUPER at +0.00 (charges left 1); SUPER (chained) at +0.63 (charges left 0);
+- client trace: speed ramps 28 → 74, stays at **74 through the hand-over**, then eases back to 28. That is about 1.6 s of continuous super-speed.
+
+**Tuning:** `HackTune_Move_SuperChainMinGap`.
+
+**Saved place:** SHA-256 `b93b40064f4a8c67c429d41c0eee552ce17f2db487061eac3f7ed7ae2e7acd1e`, 65/65. Protected files 9/9 OK.

@@ -415,7 +415,7 @@ function MovementController.Start()
 		return Enum.ContextActionResult.Sink
 	end, false, Enum.ContextActionPriority.High.Value, Enum.KeyCode.Q, Enum.KeyCode.ButtonX) -- above the main-game PHASE_DASH binding (prototype only), sunk
 
-	local active: { kind: string, conn: RBXScriptConnection, parts: { Instance } }? = nil
+	local active: { kind: string, conn: RBXScriptConnection, parts: { Instance }, sp: number, dir: Vector3 }? = nil
 	local function stop(kind: string?)
 		local a = active
 		if not a or (kind and a.kind ~= kind) then
@@ -443,6 +443,11 @@ function MovementController.Start()
 		if owner == "flingSelf" then
 			return -- FLING SELF owns the velocity right now
 		end
+		-- Rev 15l: a chained super carries on from the previous burst's COMMANDED speed and heading (reading the
+		-- velocity after the constraint is gone, or mid ease-out, made a visible dip at the hand-over)
+		local prev = active
+		local carrySp = if prev and turn and prev.kind == kind then prev.sp else 0
+		local carryDir = if prev and turn and prev.kind == kind then prev.dir else nil
 		stop() -- release our previous drive BEFORE claiming (a super -> super follow-up keeps ownership)
 		if not MoveState.Claim(kind, owner == "dash" or owner == "wallrun" or owner == "walljump" or owner == kind) then
 			return
@@ -450,7 +455,8 @@ function MovementController.Start()
 		-- Rev 15g smoother: start from the current motion (follow-up bursts and fast runs carry straight on)
 		local v0 = hrp.AssemblyLinearVelocity
 		local hs0 = Vector3.new(v0.X, 0, v0.Z).Magnitude
-		local dir = (if turn and hs0 > 20 then flat(v0) else nil) or flat(hum.MoveDirection) or flat(hrp.CFrame.LookVector) or Vector3.zAxis
+		hs0 = math.max(hs0, carrySp)
+		local dir = carryDir or (if turn and hs0 > 20 then flat(v0) else nil) or flat(hum.MoveDirection) or flat(hrp.CFrame.LookVector) or Vector3.zAxis
 		local att = Instance.new("Attachment")
 		att.Name = "MoveDriveAttachment"
 		att.Parent = hrp
@@ -468,7 +474,7 @@ function MovementController.Start()
 		local t0 = os.clock()
 		local run = tune("RunSpeed")
 		local startSpeed = math.max(hs0, run)
-		local accel = if turn then tune("SuperAccelSeconds") else 0
+		local accel = if turn and startSpeed < speed * 0.9 then tune("SuperAccelSeconds") else 0
 		local easeOut = if turn then tune("SuperEaseOutSeconds") else 0.15
 		local steerK = tune("SuperSteerSmoothing")
 		local function smooth(x: number): number
@@ -506,11 +512,15 @@ function MovementController.Start()
 				sp = run + (sp - run) * smooth(remaining / math.max(0.01, easeOut))
 			end
 			lv.PlaneVelocity = Vector2.new(dir.X, dir.Z) * sp
+			local a = active
+			if a and a.kind == kind then
+				a.sp, a.dir = sp, dir
+			end
 			if el >= seconds then
 				stop(kind)
 			end
 		end)
-		active = { kind = kind, conn = conn, parts = { att, lv } }
+		active = { kind = kind, conn = conn, parts = { att, lv }, sp = startSpeed, dir = dir :: Vector3 }
 	end
 
 	event.OnClientEvent:Connect(function(data: any)
@@ -553,8 +563,12 @@ function MovementController.Start()
 			dashAt = -1
 			checkStart = -1
 			drive("super", superLen, tonumber(data.speed) or 74, tonumber(data.turn) or 10)
-			sfx("rbxasset://sounds/action_jump.mp3", 0.85, 0.45)
-			sfx("rbxasset://sounds/volume_slider.ogg", 2.6, 0.5)
+			if data.chained then
+				sfx("rbxasset://sounds/volume_slider.ogg", 2.2, 0.45) -- chained burst: lighter cue, no thump
+			else
+				sfx("rbxasset://sounds/action_jump.mp3", 0.85, 0.45)
+				sfx("rbxasset://sounds/volume_slider.ogg", 2.6, 0.5)
+			end
 			if not wind then
 				local w = Instance.new("Sound")
 				w.SoundId = "rbxasset://sounds/action_falling.ogg"

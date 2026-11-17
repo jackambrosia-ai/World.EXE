@@ -25,6 +25,7 @@ type Check = { start: number, zoneA: number, zoneB: number, done: boolean }
 type State = {
 	dashReady: number,
 	superUntil: number,
+	superStart: number,
 	charges: number, -- stored super charges (diamonds)
 	check: Check?, -- the skill check of the last dash
 	lastN: number,
@@ -46,7 +47,7 @@ end
 local function stateOf(player: Player): State
 	local s = states[player]
 	if not s then
-		s = { dashReady = 0, superUntil = 0, charges = 0, check = nil, lastN = 0, log = {} }
+		s = { dashReady = 0, superUntil = 0, superStart = 0, charges = 0, check = nil, lastN = 0, log = {} }
 		states[player] = s
 	end
 	return s
@@ -88,6 +89,21 @@ local function checkOpen(s: State, t: number): boolean
 	return ck ~= nil and not ck.done and t <= ck.start + tune("CheckSweepSeconds") + tune("CheckLatency")
 end
 
+local function startSuper(player: Player, s: State, t: number, chained: boolean)
+	s.charges -= 1
+	local secs = tune("SuperSeconds")
+	s.superStart = t
+	s.superUntil = t + secs
+	publish(player, s)
+	local c = player.Character
+	if c then
+		c:SetAttribute("WORLD_EXE_SuperUntil", s.superUntil) -- every client draws the afterimages
+	end
+	send(player, { op = "super", seconds = secs, speed = tune("SuperSpeed"), turn = tune("SuperTurnRate"), charges = s.charges, chained = chained })
+	note(s, string.format("%.3f SUPER%s for %.2f s (charges left %d)", t, if chained then " (chained)" else "", secs, s.charges))
+	logEvent(string.format("%s super-speed (charges left %d)", player.Name, s.charges))
+end
+
 -- One Q press from the client. p = { op = "q", n = number }
 function MovementService.Q(player: Player, p: { [string]: any })
 	local s = stateOf(player)
@@ -102,7 +118,17 @@ function MovementService.Q(player: Player, p: { [string]: any })
 		return
 	end
 	if s.superUntil > t then
-		note(s, string.format("%.3f Q ignored (already super)", t))
+		-- Rev 15l (owner: "super dashes should be able to be used in quick succession"): a Q during a
+		-- super-speed starts the next one at once if a diamond is left (min SuperChainMinGap after the
+		-- last start, so one accidental double-tap does not spend both diamonds)
+		if s.charges > 0 and t - s.superStart >= tune("SuperChainMinGap") then
+			startSuper(player, s, t, true)
+			return
+		end
+		note(s, string.format("%.3f Q ignored (super running; charges %d)", t, s.charges))
+		if s.charges <= 0 then
+			send(player, { op = "move_fx", kind = "no_charge", readyAt = s.dashReady })
+		end
 		return
 	end
 	-- 1) skill check attempt (one per dash)
@@ -128,17 +154,7 @@ function MovementService.Q(player: Player, p: { [string]: any })
 			send(player, { op = "move_fx", kind = "no_charge", readyAt = s.dashReady })
 			return
 		end
-		s.charges -= 1
-		local secs = tune("SuperSeconds")
-		s.superUntil = t + secs
-		publish(player, s)
-		local c = player.Character
-		if c then
-			c:SetAttribute("WORLD_EXE_SuperUntil", s.superUntil) -- every client draws the afterimages
-		end
-		send(player, { op = "super", seconds = secs, speed = tune("SuperSpeed"), turn = tune("SuperTurnRate"), charges = s.charges })
-		note(s, string.format("%.3f SUPER for %.2f s (charges left %d)", t, secs, s.charges))
-		logEvent(string.format("%s super-speed (charges left %d)", player.Name, s.charges))
+		startSuper(player, s, t, false)
 		return
 	end
 	-- 3) dash + a new skill check
