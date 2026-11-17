@@ -106,10 +106,12 @@ HackCatalog.Tuning = table.freeze({
 	-- Rev 15g (owner 2026-11-16: "the wall run still needs to be implemented"; reference MOV-03). Client
 	-- movement (Controllers/WallRun): airborne + moving fast + wall at your side -> run along it; Space jumps off.
 	WallRun = table.freeze({
-		MinSpeed = 18, -- horizontal studs/s needed to latch on
+		MinSpeed = 8, -- horizontal studs/s needed (just "moving": the start is a deliberate Space press; hugging a wall slows you)
 		Speed = 36, -- along-wall speed (or your current speed if faster)
 		Seconds = 4.0, -- max wall-run time (MOV-03: ~4 s along building faces), then you drop off
-		StartUp = 9, -- short lift on latching (fades over 0.35 s), then LEVEL running (MOV-03: window height)
+		StartUp = 9, -- short lift on latching in the air (fades over 0.35 s), then LEVEL running (MOV-03: window height)
+		GroundStartUp = 22, -- lift when started from the ground (Space beside a wall) up to about window height
+		SideFacingMaxDot = 0.5, -- owner: the wall must be at the player's side: |look . wall normal| <= this
 		SinkSeconds = 0.6, -- the last part of the run sinks ...
 		Gravity = 14, -- ... at this rate (studs/s per s)
 		Reach = 3.2, -- side ray length from the root to find a wall

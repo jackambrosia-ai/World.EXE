@@ -967,3 +967,27 @@ Owner: "the dash cooldown should be half of what it currently is, the wall run s
 - how others see wall-running (two-client);
 - gamepad and touch;
 - wall-running on map geometry other than the lane.
+
+### 21.16 Rev 15h — wall-run starts only on Space with the wall at your side (owner, 2026-11-16)
+Owner: "the wall run should only be activated when the spacebar is pressed … and when the side of the player is facing the wall".
+
+**Start rule:**
+- Wall-running no longer starts automatically. It starts **only** on a fresh Space press (gamepad A or the touch jump button also count).
+- Only when the wall is at the character's **left or right**: the character's facing is checked, |look · wall normal| ≤ `SideFacingMaxDot` 0.5.
+- It works from the ground (lift `GroundStartUp` 22 to about window height) or in the air.
+- `MinSpeed` is now 8 (just "moving"), because hugging a wall slows the runner.
+- A held jump button repeats JumpRequest, so only a request after a 0.2 s gap counts as a new press.
+
+**During a run:** Space wall-jumps. To latch onto the next wall you press Space again with that wall at your side.
+
+**Verified (solo):**
+
+| Case | Result |
+|---|---|
+| Running alongside the wall, no Space (1.1 s) | no wall run |
+| Space with the wall at the side | starts from the ground, lifted to y ≈ 8 in 0.3 s |
+| Space mid-run | wall jump |
+| Fresh Space near the opposite wall | latched, second run |
+| Facing the wall head-on + Space | normal jump, no wall run |
+
+**Saved place:** SHA-256 `7adda4b8dd176d4f85dae688de7fa276300ffd94ac7b0cb9141be0354e895316`, 65/65. Protected files 9/9 OK.

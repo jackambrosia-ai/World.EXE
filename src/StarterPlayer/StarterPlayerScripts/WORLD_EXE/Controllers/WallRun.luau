@@ -4,7 +4,9 @@
 -- height, then drops off. Original WORLD.EXE interpretation; uses the MoveState "wallrun" owner that Rev 15
 -- reserved for it.
 --
--- Start (all must hold): airborne; moving (WASD / stick) at >= MinSpeed horizontally; a near-vertical,
+-- Start (owner 2026-11-16): ONLY on a fresh Space / jump press, AND the wall must be at the player's SIDE
+--   (character left / right: |look . normal| <= SideFacingMaxDot). Also needed: moving (WASD / stick) at
+--   >= MinSpeed horizontally; from the ground (bigger lift) or in the air; a near-vertical,
 --   collidable, non-character wall within Reach on the LEFT or RIGHT side, tall enough (two rays); not
 --   just after the last wall run (ReattachDelay); nothing else owns the velocity (FLING SELF, a drive).
 -- While running: carried along the wall at max(current, Speed) with a short rise then a sinking arc
@@ -60,6 +62,7 @@ function WallRun.Start(deps: Deps)
 		lastStep: number,
 		startPos: Vector3,
 		corners: number,
+		lift: number, -- initial upward speed (bigger when started from the ground)
 	}
 	local run: Run? = nil
 	local lastEnd = -10
@@ -160,9 +163,10 @@ function WallRun.Start(deps: Deps)
 		if (owner ~= nil and owner ~= "walljump") or os.clock() - lastEnd < tune("ReattachDelay") then
 			return
 		end
-		if hum.FloorMaterial ~= Enum.Material.Air or hum:GetState() == Enum.HumanoidStateType.Physics then
+		if hum:GetState() == Enum.HumanoidStateType.Physics then
 			return
 		end
+		local grounded = hum.FloorMaterial ~= Enum.Material.Air
 		local md = hum.MoveDirection
 		local v = hrp.AssemblyLinearVelocity
 		local vdir = flat(v)
@@ -170,13 +174,18 @@ function WallRun.Start(deps: Deps)
 			return
 		end
 		params.FilterDescendantsInstances = { c, table.unpack(deps.ignore) }
-		local side = Vector3.new(-vdir.Z, 0, vdir.X)
+		-- owner 2026-11-16: only when the SIDE of the player faces the wall (character's left / right, not
+		-- the front or back)
+		local look = flat(hrp.CFrame.LookVector)
+		local side = flat(hrp.CFrame.RightVector)
+		if not look or not side then
+			return
+		end
 		local reach = tune("Reach")
-		-- side rays, plus forward-diagonal rays so a wall jump across a gap (arriving at an angle) latches on
-		for _, d in { side, -side, (vdir + side).Unit, (vdir - side).Unit } do
+		for _, d in { side, -side } do
 			local hit = wallHit(hrp.Position, d, reach)
-			if hit and math.abs(vdir:Dot(hit.Normal)) > 0.9 then
-				hit = nil -- head-on into a wall: not a wall run
+			if hit and math.abs(look:Dot(hit.Normal)) > tune("SideFacingMaxDot") then
+				hit = nil -- the wall is in front of / behind the player, not at their side
 			end
 			if hit and wallHit(hrp.Position + Vector3.new(0, 1.8, 0), d, reach + 0.5) then
 				local n = flat(hit.Normal)
@@ -200,7 +209,7 @@ function WallRun.Start(deps: Deps)
 					lv.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
 					lv.ForceLimitMode = Enum.ForceLimitMode.Magnitude
 					lv.MaxForce = hrp.AssemblyMass * 4000
-					lv.VectorVelocity = t * speed + Vector3.new(0, tune("StartUp"), 0)
+					lv.VectorVelocity = t * speed + Vector3.new(0, if grounded then tune("GroundStartUp") else tune("StartUp"), 0)
 					lv.Parent = hrp
 					local ao = Instance.new("AlignOrientation")
 					ao.Name = "WallRunLean"
@@ -225,7 +234,7 @@ function WallRun.Start(deps: Deps)
 							tr:AdjustSpeed(1.5)
 						end
 					end
-					local r: Run = { n = n, t = t, speed = speed, t0 = os.clock(), att = att, lv = lv, ao = ao, track = track, hum = hum, hrp = hrp,
+					local r: Run = { n = n, t = t, speed = speed, t0 = os.clock(), lift = if grounded then tune("GroundStartUp") else tune("StartUp"), att = att, lv = lv, ao = ao, track = track, hum = hum, hrp = hrp,
 						autoRotate = hum.AutoRotate, lastStep = 0, startPos = hrp.Position, corners = 0 }
 					hum.AutoRotate = false
 					ao.CFrame = orientation(r)
@@ -254,7 +263,7 @@ function WallRun.Start(deps: Deps)
 			finish("timeout")
 			return
 		end
-		if el > 0.15 and r.hum.FloorMaterial ~= Enum.Material.Air then
+		if el > 0.35 and r.hum.FloorMaterial ~= Enum.Material.Air then
 			finish("landed")
 			return
 		end
@@ -306,7 +315,7 @@ function WallRun.Start(deps: Deps)
 		-- in the last SinkSeconds before the time limit
 		local lift = math.clamp(1 - el / 0.35, 0, 1)
 		local sinkStart = tune("Seconds") - tune("SinkSeconds")
-		local vy = tune("StartUp") * lift - (if el > sinkStart then tune("Gravity") * (el - sinkStart) else 0)
+		local vy = r.lift * lift - (if el > sinkStart then tune("Gravity") * (el - sinkStart) else 0)
 		local stick = if h.Distance > 1.6 then tune("Stick") else 0
 		hit = h
 		r.lv.VectorVelocity = r.t * r.speed + Vector3.new(0, vy, 0) - r.n * stick
@@ -317,10 +326,28 @@ function WallRun.Start(deps: Deps)
 		end
 	end
 
+	-- Space (keyboard), A (gamepad) or the touch jump button: one fresh press = one action. JumpRequest
+	-- repeats while the button is held, so only a request after a 0.2 s gap counts as a new press.
+	local lastReq = 0
 	UserInputService.JumpRequest:Connect(function()
+		local now = os.clock()
+		local fresh = now - lastReq > 0.2
+		lastReq = now
+		if not fresh then
+			return
+		end
 		local r = run
-		if r and os.clock() - r.t0 > 0.08 then
-			finish("jump")
+		if r then
+			if now - r.t0 > 0.08 then
+				finish("jump")
+			end
+			return
+		end
+		local c = player.Character
+		local hrp = c and c:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local hum = c and c:FindFirstChildOfClass("Humanoid")
+		if c and hrp and hum and hum.Health > 0 then
+			tryStart(c, hrp, hum) -- owner: wall run starts ONLY on a Space press with the wall at your side
 		end
 	end)
 
@@ -340,8 +367,6 @@ function WallRun.Start(deps: Deps)
 		end
 		if run then
 			step(run :: Run, c)
-		else
-			tryStart(c, hrp, hum)
 		end
 	end)
 

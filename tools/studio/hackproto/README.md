@@ -40,7 +40,7 @@ This is an **isolated prototype** for the owner-approved milestone of 2026-11-16
   - Run speed is 28.
   - **Q** / **X** (gamepad) does a grounded dash (~25 studs). Its cooldown is a quarter of the super-speed cooldown (2.75 s), shown as a thin cyan bar under the gauge.
   - After the Q-Q activation, super-speed can be used **2 more times**, one Q each (during a burst or within 2.5 s after it). The 11 s cooldown starts when the chain ends.
-- **Wall-running:** jump along a wall while moving fast to run on it (up to 4 s, around corners). **Space** wall-jumps off. Test lane: `hp_21_wallrun_lane.luau` (two walls plus a block, west of the launch area).
+- **Wall-running:** while moving, press **Space** with a wall at your **side** (left or right, not in front) to run on it (up to 4 s, around corners). **Space** again wall-jumps off; press Space at the next wall (side-on) to catch it. Test lane: `hp_21_wallrun_lane.luau` (two walls plus a block, west of the launch area).
   - A *separate* second **Q** between 0.2 and 0.8 s after the dash starts 1 s of steerable super-speed (11 s cooldown). Pressing earlier voids the window, so spamming Q never triggers it.
   - A small gauge under the screen centre shows the window, the drain and the cooldown.
 - **FLING aiming with shift-lock / first person:** hold **W / A / D / S** (up / left / right / behind) and click. Otherwise, slide the mouse; with no input the throw goes up.
