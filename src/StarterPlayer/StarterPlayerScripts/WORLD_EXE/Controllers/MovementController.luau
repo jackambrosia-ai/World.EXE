@@ -33,6 +33,7 @@ local UITheme = require(script.Parent:WaitForChild("UITheme"))
 local UIUtil = require(script.Parent:WaitForChild("UIUtil"))
 local MoveState = require(script.Parent:WaitForChild("MoveState"))
 local WallRun = require(script.Parent:WaitForChild("WallRun"))
+local SquareCheck = require(script.Parent:WaitForChild("SquareCheck"))
 local C = UITheme.Color
 
 local Q_ACTION = "WORLD_EXE_MoveQ"
@@ -339,6 +340,12 @@ function MovementController.Start()
 	-- skill check of the last dash (client display; the server judges)
 	local checkStart, checkSweep, zoneA, zoneB = -1, 0.75, 0, 0
 	local checkResult, checkResultAt = "", -1
+	-- Rev 15n (owner, UI-01 "match it to the video"): the check is drawn as a shrinking nested square around
+	-- the character (SquareCheck). HackTune_Move_CheckStyle = 0 shows the Rev 15j-15m bar instead.
+	local squares = SquareCheck.new(root)
+	local function useSquares(): boolean
+		return tune("CheckStyle") >= 0.5
+	end
 	local superEnd = -1 -- os.clock()
 	-- Rev 15g: wall-running (its own module; feedback hooks here)
 	WallRun.Start({
@@ -510,6 +517,11 @@ function MovementController.Start()
 				zoneA = tonumber(ck.zoneA) or 0.3
 				zoneB = tonumber(ck.zoneB) or 0.4
 				checkResult = ""
+				if useSquares() then
+					squares:Start(checkStart, checkSweep, zoneA, zoneB)
+				else
+					squares:Cancel()
+				end
 			end
 			charges = tonumber(data.charges) or charges
 			renderCharges()
@@ -567,11 +579,13 @@ function MovementController.Start()
 				local before = charges
 				charges = tonumber(data.charges) or charges
 				checkResult, checkResultAt = "hit", os.clock()
+				squares:Result("hit")
 				sfx("rbxasset://sounds/volume_slider.ogg", 2.4, 0.6)
 				sfx("rbxasset://sounds/volume_slider.ogg", 3.1, 0.5)
 				renderCharges(if charges > before then charges else nil)
 			elseif data.kind == "check_miss" then
 				checkResult, checkResultAt = "miss", os.clock()
+				squares:Result("miss")
 				sfx("rbxasset://sounds/volume_slider.ogg", 0.55, 0.45)
 			elseif data.kind == "no_charge" then
 				sfx("rbxasset://sounds/volume_slider.ogg", 0.6, 0.25) -- soft tick: no diamond to spend
@@ -597,6 +611,7 @@ function MovementController.Start()
 
 	player.CharacterAdded:Connect(function()
 		stop()
+		squares:Cancel()
 		MoveState.Release("dash")
 		MoveState.Release("super")
 		dashAt = -1
@@ -610,7 +625,8 @@ function MovementController.Start()
 		-- gauge
 		local superOn = superEnd > now
 		-- skill check: shown from the dash until the sweep ends (plus a short result flash)
-		local checkOn = checkStart > 0 and now <= checkStart + checkSweep + 0.35 and (checkResult == "" or now - checkResultAt < 0.35)
+		local checkOn = not useSquares() and checkStart > 0 and now <= checkStart + checkSweep + 0.35 and (checkResult == "" or now - checkResultAt < 0.35)
+		squares:Update(now, reduced, tune("CheckLatency"))
 		gauge.Visible = superOn or checkOn
 		if superOn then
 			windowSeg.Size = UDim2.fromScale(0, 1)

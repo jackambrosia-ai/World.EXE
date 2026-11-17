@@ -2,14 +2,15 @@
 
 Status: **isolated prototype, draft PR, not for merge.** The owner approved the milestone on 2026-11-16. This is **not** an adopted gameplay design. Every number is provisional.
 
-## 0. Current state (Rev 15m, 2026-11-17) — read this first
+## 0. Current state (Rev 15n, 2026-11-17) — read this first
 Sections 1–21 are the revision history and keep superseded designs for the record. **This section is the current behaviour.** Where an older section disagrees, this one wins.
 
 **Superseded (do not implement from the history):**
 - arrow-key challenge input → **number keys 1–4** (Signal Lock also 5), Rev 15;
 - Q-Q super-speed window (0.2–0.8 s), its 11 s cooldown and the 15g follow-up chain → **skill check + diamonds**, Rev 15j;
 - full-detail avatar clone afterimages → **R6 silhouettes**, Rev 15m;
-- the 1.0 s FLING SELF trail → **blue aura until landing**, Rev 15m.
+- the 1.0 s FLING SELF trail → **blue aura until landing**, Rev 15m;
+- the horizontal skill-check bar → **shrinking nested square** around your character (UI-01), Rev 15n (bar kept behind `HackTune_Move_CheckStyle = 0`).
 
 **Controls (keyboard; gamepad / touch bindings exist but are untested on hardware):**
 | Input | Action |
@@ -19,7 +20,7 @@ Sections 1–21 are the revision history and keep superseded designs for the rec
 | Same key again, **Enter** or EXECUTE | Run the selected quick hack; **X** cycles the target; **T** typed commands |
 | **C** / R1 / SHIELD button | Shield against an incoming hack |
 | **Q** / gamepad X | Grounded **dash** (115 studs/s × 0.3 s ≈ 28 studs, 6 s cooldown) and a **skill check** |
-| **Q** inside the skill-check zone | +1 diamond (two containers, bottom middle). One attempt per dash |
+| **Q** when the shrinking outer square is on the inner square's border (Rev 15n look, UI-01) | +1 diamond (two containers, bottom middle). One attempt per dash; pink = hit, grey = miss |
 | **Q** while the dash cools | Spend a diamond on **super-speed** (1 s, 74 studs/s, steerable); no diamond = soft tick |
 | **Q** during super-speed | **Chain** the next super-speed (diamond left, ≥ 0.25 s after the last start) |
 | **Space** with a wall at your side (or held when you arrive) | **Wall-run**: up the wall, along it, then down; ends at wall ends / corners |
@@ -29,7 +30,7 @@ Sections 1–21 are the revision history and keep superseded designs for the rec
 **Key tuning (all `HackTune_<Group>_<Key>` overridable):**
 | Group | Values |
 |---|---|
-| Move | RunSpeed 28; DashSpeed 115; DashSeconds 0.3; DashCooldown 6; CheckDelay 0.1; CheckSweepSeconds 0.6; **CheckZoneSeconds 0.11** (Rev 15m, was 0.07); CheckZoneEarliest 0.2; CheckLatency 0.04; SuperChargesMax 2; SuperChainMinGap 0.25; SuperSeconds 1.0; SuperSpeed 74 |
+| Move | RunSpeed 28; DashSpeed 115; DashSeconds 0.3; DashCooldown 6; CheckDelay 0.1; CheckSweepSeconds 0.6; **CheckZoneSeconds 0.11** (Rev 15m, was 0.07); CheckZoneEarliest 0.2; CheckLatency 0.04; **CheckStyle 1** (Rev 15n); SuperChargesMax 2; SuperChainMinGap 0.25; SuperSeconds 1.0; SuperSpeed 74 |
 | WallRun | Speed 36; Seconds 4; ClimbSpeed 30 over ClimbSeconds 1; MaxSink 6; Reach 3.2; SideFacingMaxDot 0.5; JumpOut 40; JumpUp 50; EdgeJumpGrace 0.3; **Flow 1** (Rev 15m; 0 = Rev 15l feel) with EntryBlendSeconds 0.14, MaxEntrySpeed 52, SpeedSettle 18, BackBrake 40, MinCruise 16, PeelDot 0.6, PeelSeconds 0.12, PeelOut 16, ExitCarrySeconds 0.25, ForwardLeanDegrees 7, AnimRate 1.5 |
 | FlingSelf | Up 90; Forward 42; SteerSpeed 24; GlideFallSpeed 28; MaxFlightSeconds 4; **AuraMaxSeconds 10** (Rev 15m) |
 | Config | `ForceR6 = true` (prototype feature; see the deferred issue below) |
@@ -1216,3 +1217,54 @@ FLING TARGET on Dummy-A: challenge success, thrown ~46 studs, one landing impact
 §0 added (current controls, tuning, tested / untested, deferred concerns); superseded mechanics marked. Source comments updated in MovementController (controls, silhouettes), MoveState (current owners and hand-overs), MovementService (15l / 15m), WallRun (Flow), HackVfx / HackController / HackEffects (aura lifetime), ForceR6 (deferred isolation issue). Studio-only afterimage cost counters (`FxCost` GUI attribute) stay in MovementController.
 
 **Saved place:** SHA-256 `3b6afbf117d6a6cc6d6f4fc36f647298737d34f1b8d4e91b895cff03ad639781`, 65/65 scripts identical to `src/`. Protected files 9/9 OK.
+
+### 21.22 Rev 15n — skill check redrawn as UI-01's shrinking nested square (owner, 2026-11-17)
+Owner: "they meet, and the inner square flips to pink (the hit). match it to the video, we'll tune from there". **Presentation only.** These are unchanged (code untouched):
+- timing: 0.6 s sweep, 0.11 s zone at a random time, 0.04 s late tolerance;
+- server judgment; one attempt per dash;
+- the two diamonds, super-speed and chaining.
+
+**Reference:** UI-01, owner video `Roblox-2026-11-17T07_36_42.555Z.mp4`, SHA-256 `40970525…f5514` **MATCH**. Frames 0769–0782 (25.6–26.1 s) were inspected frame by frame; the same pattern appears at ≈15, 18.5 and 22.5 s. The vault note `03-Gameplay/Skill-Check-UI-Reference-2026-11-17.md` holds the full intake (the first reading, "bottom bar", was wrong and is corrected there).
+
+**How UI-01 shaped the result:**
+| UI-01 (observed) | WORLD.EXE Rev 15n |
+|---|---|
+| Small square fixed on the target's body | Fixed inner square (3 studs, 0.35-stud border) framing **your own** torso (the dash has no target) |
+| Large thin square appears around it | Thin outer square (0.12-stud line) appears at 8 studs |
+| Outer square shrinks onto the inner one | Outer square closes onto the inner square's outer edge **exactly when the server's zone opens**, crosses its border during the 0.11 s zone and reaches the inner edge as the zone closes, then keeps shrinking. "Outer line on the border" == "inside the zone" |
+| Colours warm while closing: pale gold → yellow → orange → red, soft glow | Same ramp, both squares; faint glow (none under Reduced Effects) |
+| On meeting, the inner square flips pink / magenta, lingers, fades | **Hit:** inner square flips pink with a small pop, outer vanishes, pink holds 0.14 s then fades 0.25 s |
+| (no miss shown) | **Miss / no press:** both turn grey and fade 0.25 s (our own neutral choice) |
+| World-space, centred on the target | Camera-facing `BillboardGui` (sized in studs, always on top) on your HumanoidRootPart; first person falls back to the screen centre |
+
+**Not copied:** the source game, its name / UI text, fonts, the crescent slash payoff, any asset. Native Frames only; the colours are generic hues.
+
+**Fit to the zone:** the source inner square is fixed and its closing pace varies. Ours keeps the inner square fixed, and the outer square's speed is set per dash so that it sits on the border exactly during the random zone. It moves slower while crossing the border (0.7 studs in 0.11 s) than while approaching. That speed change is the first thing to tune if it reads oddly.
+
+**Verified (solo Studio, emulated keys, zone pinned for repeatable timing):**
+| Drawn at the press | Server |
+|---|---|
+| outer square outside the border | MISS (0.350, 0.400) |
+| outer square on the border | HIT (0.516, 0.534) |
+| outer square past the border | MISS (0.617) |
+| outer square just outside (0.009 of the box) | HIT (0.483): the known ~50 ms press-travel residual (§21.21) |
+
+Other checks:
+- chaining after the change: `SUPER` → `SUPER (chained)` 0.72 s later;
+- defaults restored (random zone, 6 s cooldown);
+- squares clear themselves after an unanswered check;
+- clean console.
+
+**Switch:** `HackTune_Move_CheckStyle` = 1 (squares, default) / 0 (the Rev 15j–15m bar, kept for comparison).
+
+**Captures (private):** `C:\WORLD.EXE-Art\HackProto\evidence\rev15n\`.
+- `ui01_before_after.jpg`: bar vs squares (appear, closing, on the border, hit, miss).
+- `ui01_reference_vs_ours_PRIVATE.jpg`: UI-01 frames 0769 / 0773 / 0777 / 0779 next to ours. Third-party footage, never committed.
+
+**Not tested:**
+- your play-test feel;
+- first-person and shift-lock views (the fallback is coded, not exercised);
+- touch / mobile size and readability;
+- multiplayer (the squares are local-only by design: only you see your check).
+
+**Saved place:** SHA-256 `f7465a80c59b81fbfde368c946302bec9f088c9608911de3aa55133f120dacbb`, **66/66** scripts (new `Controllers/SquareCheck.luau`). Protected files 9/9 OK.

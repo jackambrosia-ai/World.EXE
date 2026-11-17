@@ -25,7 +25,7 @@ This is an **isolated prototype** for the owner-approved milestone of 2026-11-16
    ```bash
    node tools/studio/hackproto/hp_40_verify_saved.js <place.rbxlx>
    ```
-   The latest save (Rev 15m, 2026-11-17) reported 65/65; place SHA-256 3B6AFBF1….
+   The latest save (Rev 15n, 2026-11-17) reported 66/66; place SHA-256 F7465A80….
 
 ## Playing it
 - Press Play (solo). You spawn at the launch area.
@@ -39,7 +39,7 @@ This is an **isolated prototype** for the owner-approved milestone of 2026-11-16
 - **Movement (Rev 15):**
   - Run speed is 28.
   - **Q** / **X** (gamepad) does a grounded dash (~28 studs). The dash has a 6 s cooldown, shown as a thin cyan bar under the gauge.
-  - **Skill check (Rev 15j, eased in Rev 15m):** each dash starts a timing bar under the screen centre. A marker sweeps across in 0.6 s (drawn on the server's clock). Press **Q** while it is inside the cyan zone (0.11 s, at a random spot) to fill one of the **two diamond containers** above the bar. One attempt per dash.
+  - **Skill check (Rev 15j; eased in Rev 15m; Rev 15n look = owner reference UI-01):** each dash shows a thin outer square closing onto a fixed inner square around your character (0.6 s, drawn on the server's clock), warming gold → orange → red. Press **Q** while the outer square is on the inner square's border (the 0.11 s zone, at a random time) to fill one of the **two diamond containers**: the inner square flips pink. A miss greys out. One attempt per dash. `HackTune_Move_CheckStyle = 0` shows the older bar.
   - **Super-speed:** press **Q** while the dash is cooling, after the skill check, to spend a filled diamond on 1 s of steerable super-speed (coloured R6 silhouette afterimages). With no diamond you hear a soft tick.
   - **Chaining (Rev 15l):** press **Q** again during a super-speed to start the next one at once, if a diamond is left (at least 0.25 s after the last start).
 - **Wall-running:** while moving, press **Space** with a wall at your **side** (left or right, not in front), or arrive at the wall already holding Space (also straight out of a dash or a FLING SELF flight). You run up and along it (up to 4 s). It stops at corners and wall ends. While attached: keep moving forward to cruise, hold **back** to brake, push **away** from the wall to peel off. **Space** again wall-jumps off, also within 0.3 s after the run ends at a wall end; press Space at the next wall (side-on) to catch it. `HackTune_WallRun_Flow = 0` restores the Rev 15l feel for comparison. Test lane: `hp_21_wallrun_lane.luau` (two walls plus a block, west of the launch area).
@@ -61,7 +61,7 @@ Format: `HackTune_<Group>_<Key>`, overriding `HackCatalog.Tuning`. Examples:
 - **Movement (Rev 15):** `HackTune_Move_RunSpeed`, `_DashSpeed`, `_DashSeconds`, `_SuperSeconds`, `_SuperSpeed`, `_SuperTurnRate`, `_FovRun`, `_FovSuper`
 - **Wall-run (Rev 15g–15m):** `HackTune_WallRun_MinSpeed`, `_Speed`, `_Seconds`, `_ClimbSpeed`, `_AirClimbScale`, `_ClimbSeconds`, `_MaxSink`, `_Gravity`, `_Reach`, `_Stick`, `_JumpOut`, `_JumpUp`, `_JumpCarrySeconds`, `_EdgeJumpGrace`, `_LeanDegrees`, `_ReattachDelay`; Rev 15m Flow: `_Flow` (1/0), `_EntryBlendSeconds`, `_MaxEntrySpeed`, `_SpeedSettle`, `_BackBrake`, `_MinCruise`, `_PeelDot`, `_PeelSeconds`, `_PeelOut`, `_ExitCarrySeconds`, `_ForwardLeanDegrees`, `_AnimRate`
 - **FLING SELF aura (Rev 15m):** `HackTune_FlingSelf_AuraMaxSeconds` (safety cap, default 10)
-- **Skill check and super-speed (Rev 15j):** `HackTune_Move_DashCooldown`, `_CheckDelay`, `_CheckSweepSeconds`, `_CheckZoneSeconds`, `_CheckZoneEarliest`, `_CheckLatency`, `_SuperChargesMax`, `_SuperAccelSeconds`, `_SuperEaseOutSeconds`, `_SuperSteerSmoothing`, `_SuperChainMinGap`
+- **Skill check and super-speed (Rev 15j):** `HackTune_Move_DashCooldown`, `_CheckDelay`, `_CheckSweepSeconds`, `_CheckZoneSeconds`, `_CheckZoneEarliest`, `_CheckLatency`, `_CheckStyle` (1 squares / 0 bar), `_SuperChargesMax`, `_SuperAccelSeconds`, `_SuperEaseOutSeconds`, `_SuperSteerSmoothing`, `_SuperChainMinGap`
 - **FLING post-throw (Rev 15):** `HackTune_FlingTarget_PostThrowSeconds` (default 3.0; tested 2.5 / 3.0 / 3.5), `_PostThrowCap`, `_SettleSpeed`
 
 ## Studio-only test controls

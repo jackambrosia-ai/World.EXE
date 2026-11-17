@@ -95,6 +95,7 @@ HackCatalog.Tuning = table.freeze({
 		CheckZoneSeconds = 0.11, -- target zone width in time. Rev 15m (owner play-test "too hard"): 0.07 -> 0.11 (option A; B = 0.15 in a 0.7 s sweep, kept as a tuning alternative). History: 0.11 (15j), 0.07 (15k)
 		CheckZoneEarliest = 0.2, -- the zone starts at a random time between this and the sweep end - zone
 		CheckLatency = 0.04, -- server tolerance after the zone for network delay (Rev 15k: was 0.08; no early tolerance)
+		CheckStyle = 1, -- Rev 15n (owner UI-01): 1 = shrinking nested square around the character, 0 = the Rev 15j-15m bar
 		SuperChargesMax = 2, -- owner: two diamond containers
 		SuperChainMinGap = 0.25, -- Rev 15l: a Q during a super-speed chains the next one (if a diamond is left) after at least this long
 		SuperSeconds = 1.0, -- MOV-02: ≈1 s bursts
