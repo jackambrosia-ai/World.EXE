@@ -586,3 +586,5 @@ Directive: "WORLD.EXE — Hacking, cyberware & boss gameplay prototype". Same is
 - **Saved place:** 59/59 scripts; hash 9CCF3C2A…. Protected files: 9/9 unchanged.
 
 **Not tested:** how the crackle and zap sound to a person.
+
+**Owner feedback (2026-11-16):** "i'm impressed it looks good for now". Rev 14 (remote-shock grab) is accepted for now.
