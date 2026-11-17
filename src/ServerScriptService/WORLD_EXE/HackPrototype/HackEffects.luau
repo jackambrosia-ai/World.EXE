@@ -534,6 +534,69 @@ local function landRecovery(model: Model, root: BasePart, st: RagdollState, maxS
 	end)
 end
 
+-- Rev 15d (owner 2026-11-16): "the fling should look as if they're getting dragged by their torso in the
+-- direction they're flung". For DragSeconds from the throw (through the air AND the ground slide): the
+-- CHEST is pulled along the horizontal throw direction (LinearVelocity, line mode; gravity untouched; the pull
+-- eases off) and snapped to face it, pitched forward into the pull like a body yanked by the chest (measured:
+-- leaning BACK put the legs ahead of the torso). Every other body
+-- part is damped horizontally each frame, so head, arms, legs and hips TRAIL behind the torso. No spin.
+local function torsoDrag(model: Model, torso: BasePart, flatDir: Vector3, speed: number)
+	local tune = HackCatalog.Tune
+	local att = Instance.new("Attachment")
+	att.Name = "HackDragAttachment"
+	att.Parent = torso
+	local lv = Instance.new("LinearVelocity")
+	lv.Name = "HackDragPull"
+	lv.Attachment0 = att
+	lv.RelativeTo = Enum.ActuatorRelativeTo.World
+	lv.VelocityConstraintMode = Enum.VelocityConstraintMode.Line
+	lv.LineDirection = flatDir
+	lv.LineVelocity = speed
+	lv.MaxForce = 60000
+	lv.Parent = torso
+	local ao = Instance.new("AlignOrientation")
+	ao.Name = "HackDragFacing"
+	ao.Mode = Enum.OrientationAlignmentMode.OneAttachment
+	ao.Attachment0 = att
+	ao.CFrame = CFrame.lookAt(Vector3.zero, flatDir) * CFrame.Angles(-math.rad(tune("FlingTarget", "DragLeanDegrees")), 0, 0) -- upper body pitched INTO the pull: legs trail behind and below
+	ao.Responsiveness = 45
+	ao.MaxTorque = 40000
+	ao.Parent = torso
+	local trailers: { BasePart } = {}
+	for _, p in model:GetDescendants() do
+		if p:IsA("BasePart") and p ~= torso and not p.Anchored and not p:IsDescendantOf(torso) then
+			table.insert(trailers, p)
+		end
+	end
+	local damp = tune("FlingTarget", "DragTrailDamping")
+	local seconds = math.max(0.2, tune("FlingTarget", "DragSeconds"))
+	-- snap the chest into the pull direction at release (the side throw is only ~0.5 s airborne)
+	torso.CFrame = CFrame.new(torso.Position) * ao.CFrame -- moves its whole assembly (e.g. the root on R6)
+	local t0 = os.clock()
+	local conn: RBXScriptConnection? = nil
+	conn = RunService.Heartbeat:Connect(function(dt)
+		local el = os.clock() - t0
+		local phase = model:GetAttribute("HackFlingPhase")
+		if not torso.Parent or el > seconds or (phase ~= "launched" and phase ~= "down") then
+			if conn then
+				conn:Disconnect()
+			end
+			lv:Destroy()
+			ao:Destroy()
+			att:Destroy()
+			return
+		end
+		lv.LineVelocity = speed * (1 - 0.5 * el / seconds) -- eases to half, then the body slides on freely (keeps the throw distance)
+		local k = math.clamp(1 - damp * dt, 0, 1)
+		for _, p in trailers do
+			if p.Parent then
+				local v = p.AssemblyLinearVelocity
+				p.AssemblyLinearVelocity = Vector3.new(v.X * k, v.Y, v.Z * k)
+			end
+		end
+	end)
+end
+
 -- Rev 15: post-throw ragdoll for FLING TARGET, timed FROM THE THROW (owner-authorized).
 -- Phases (attribute HackFlingPhase): "launched" (airborne, limp) -> "down" (first ground contact:
 -- landing impact broadcast once) -> recovery. Recovery needs PostThrowSeconds elapsed AND the torso
@@ -658,12 +721,19 @@ local function grabThrow(g: Grab, mode: string?, power: number, useLast: boolean
 		v = d * speed + Vector3.new(0, tune("FlingTarget", "ThrowUp") * scale, 0)
 	end
 	g.model:SetAttribute("HackLastThrow", m)
-	local spinAxis = Vector3.yAxis:Cross(d)
+	-- Rev 15d: torso-led launch. The chest gets the full launch velocity; everything else starts slower
+	-- (DragTrailStart) so the torso yanks the limbs after it; no tumble spin.
+	local torso = (g.model:FindFirstChild("UpperTorso") or g.model:FindFirstChild("Torso") or root) :: BasePart
+	local trail = tune("FlingTarget", "DragTrailStart")
 	for _, part in g.model:GetDescendants() do
 		if part:IsA("BasePart") and not part.Anchored then
-			part.AssemblyLinearVelocity = v
-			part.AssemblyAngularVelocity = spinAxis * 3
+			part.AssemblyLinearVelocity = if part == torso then v else Vector3.new(v.X * trail, v.Y, v.Z * trail)
+			part.AssemblyAngularVelocity = Vector3.zero
 		end
+	end
+	local flatV = Vector3.new(v.X, 0, v.Z)
+	if flatV.Magnitude > 5 then
+		torsoDrag(g.model, torso, flatV.Unit, flatV.Magnitude)
 	end
 	broadcast({ op = "grab_end", attacker = g.attacker.Character, target = g.model, thrown = true })
 	broadcast({ op = "vfx", kind = "throw", model = g.model })

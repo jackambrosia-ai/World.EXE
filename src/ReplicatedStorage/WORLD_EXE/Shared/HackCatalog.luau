@@ -161,6 +161,11 @@ HackCatalog.Tuning = table.freeze({
 		PostThrowSeconds = 3.0, -- tested 2.5 / 3.0 / 3.5 (Workspace HackTune_FlingTarget_PostThrowSeconds)
 		PostThrowCap = 5.5,
 		SettleSpeed = 6,
+		-- Rev 15d (owner): thrown targets look dragged by the torso (chest pulled + facing the throw, limbs trail)
+		DragLeanDegrees = 50, -- upper body pitched forward into the pull (legs trail behind)
+		DragTrailStart = 0.3, -- limbs start at this share of the launch speed (torso yanks them)
+		DragTrailDamping = 7, -- per-second horizontal damping on non-torso parts while dragged
+		DragSeconds = 1.1, -- the chest pull lasts this long from the throw, through the air AND the ground slide, easing to half speed
 		GlideSpeed = 85,
 		GlideSeconds = 1.8,
 		GlideRestSeconds = 0.6, -- stays down this long after the glide stops, then gets up

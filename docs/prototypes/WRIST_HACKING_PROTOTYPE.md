@@ -845,3 +845,32 @@ Owner: "make the game force R6 for everyone".
 - other players' appearance on R6 (two-client);
 - avatars whose `GetHumanoidDescriptionFromUserId` fails: they keep a plain R6 body;
 - layered clothing on R6 (Roblox does not render it on R6).
+
+### 21.12 Rev 15d — thrown targets look dragged by the torso (owner, 2026-11-16)
+Owner: "the fling should look as if they're getting dragged by their torso in the direction they're flung too".
+- **Built (`torsoDrag`, FLING TARGET throws only):**
+  - At release the chest (UpperTorso / Torso) gets the full launch velocity. Every other part starts at 30% of the horizontal speed (`DragTrailStart`), and the tumble spin is gone.
+  - For `DragSeconds` (1.1 s), through the air **and** the ground slide, the chest is pulled along the horizontal throw direction (LinearVelocity, line mode; gravity untouched). The pull eases to half speed.
+  - The chest is snapped and held facing the pull, pitched 50° **into** it (`DragLeanDegrees`).
+  - Non-torso parts are damped horizontally (7/s), so the legs trail.
+- **First attempt:** the torso leaned **back**. The measurements showed the legs *ahead* of the torso (+0.6 studs), so the lean was flipped.
+- **Measured (Dummy-A, R6, side throw, power 0.5):**
+  - legs trail **1.8–1.9 studs** behind the torso from 0.12 s through the slide;
+  - head leads by 0.7–1.0;
+  - torso pitched into travel (up·travel ≈ 0.8);
+  - recovery 3.02–3.07 s, settled.
+- **Distances:**
+
+| Throw | Before | Now |
+|---|---|---|
+| side | 72–78 studs | 84 studs |
+| up (apex 27.5) | 51 studs forward | 34 studs forward |
+| back | 57 studs | 85 studs |
+
+- **Capture:** `drag_burst/b_29.jpg` (body horizontal, chest first, legs dragging, landing dust ring).
+- **Tuning:** `HackTune_FlingTarget_DragLeanDegrees`, `_DragTrailStart`, `_DragTrailDamping`, `_DragSeconds`.
+- **Saved place:** SHA-256 `13ee1c034c6e9fd49eca95f1cdfb698aa00fc7563aebaae90b0ac04c58607bdd`, 64/64. Protected files 9/9 OK.
+
+**Not tested:**
+- how the drag looks on a real player target over the network (the ragdoll is server-owned, so it should replicate like the existing ragdoll);
+- R15 targets.
