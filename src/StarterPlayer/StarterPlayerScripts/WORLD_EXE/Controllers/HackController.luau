@@ -1386,20 +1386,21 @@ function HackController.Start()
 		local dir: Vector3 = if mode == "up" then Vector3.yAxis elseif mode == "back" then toMe elseif mode == "right" then rightV else -rightV
 		local bright = holdDir ~= nil
 		for _, p in { aimShaft, aimHeadA, aimHeadB } do
-			p.Transparency = if bright then 0.15 else 0.7
+			p.Transparency = if bright then 0.25 else 0.7
+			p.Color = Color3.fromRGB(120, 230, 255) -- small electric-cyan hint (was a large orange-red arrow)
 		end
 		aimLand.Transparency = 1
-		local len = 9 + 10 * holdPower
+		local len = 3.5 + 3 * holdPower
 		local start = root.Position + dir * 2.5
 		local tip = root.Position + dir * len
 		local upRef = if mode == "up" then toMe else Vector3.yAxis -- lookAt needs a non-parallel up
-		aimShaft.Size = Vector3.new(0.6, 0.1, (tip - start).Magnitude)
+		aimShaft.Size = Vector3.new(0.25, 0.08, (tip - start).Magnitude)
 		aimShaft.CFrame = CFrame.lookAt((start + tip) / 2, tip, upRef)
-		local headLen = 3
+		local headLen = 1.2
 		for i, hp in { aimHeadA, aimHeadB } do
 			local side = if i == 1 then 1 else -1
 			local back = CFrame.lookAt(tip, tip + dir, upRef) * CFrame.Angles(0, math.rad(150 * side), 0)
-			hp.Size = Vector3.new(0.6, 0.1, headLen)
+			hp.Size = Vector3.new(0.25, 0.08, headLen)
 			hp.CFrame = back * CFrame.new(0, 0, -headLen / 2)
 		end
 		aimFolder.Parent = cam

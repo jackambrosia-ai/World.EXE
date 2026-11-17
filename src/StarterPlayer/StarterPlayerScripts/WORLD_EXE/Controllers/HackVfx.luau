@@ -410,13 +410,18 @@ function HackVfx.Glide(model: Model, seconds: number)
 	end)
 end
 
--- Grab beam (gravity-gun hold, seen by everyone): a wavy energy beam from the attacker's wrist to the
--- held target, plus a soft glow on the target. Returns a cleanup function.
+-- Shock link (owner 2026-11-16: "replicate the feel of hacking someone remotely ... as if they're
+-- actively being electrocuted"): seen by everyone while a target is held. A jittery electric arc
+-- (two thin cyan/white beams whose curve re-randomises every few frames) from the attacker's wrist
+-- to the target, small sparks crawling over the target's body, a flickering cyan glow, and a 3D
+-- electric crackle at the target (built-in click sound, rapid random high pitches; no uploads).
+-- Returns a cleanup function.
 function HackVfx.GrabBeam(attacker: Model?, target: Model): () -> ()
 	local made: { Instance } = {}
 	local tBody = (target:FindFirstChild("UpperTorso") or target:FindFirstChild("Torso") or target:FindFirstChild("HumanoidRootPart")) :: BasePart?
 	local wd = attacker and attacker:FindFirstChild("WristDevice")
 	local aPart = attacker and ((wd and wd:FindFirstChildWhichIsA("BasePart", true)) or attacker:FindFirstChild("LeftHand") or attacker:FindFirstChild("Left Arm") or attacker:FindFirstChild("HumanoidRootPart")) :: BasePart?
+	local beams: { Beam } = {}
 	if tBody and aPart then
 		local a0 = Instance.new("Attachment")
 		a0.Parent = aPart
@@ -426,40 +431,83 @@ function HackVfx.GrabBeam(attacker: Model?, target: Model): () -> ()
 			local beam = Instance.new("Beam")
 			beam.Attachment0 = a0
 			beam.Attachment1 = a1
-			beam.Color = ColorSequence.new(if i == 1 then Color3.fromRGB(255, 120, 40) else Color3.fromRGB(255, 220, 140))
+			beam.Color = ColorSequence.new(if i == 1 then Color3.fromRGB(80, 220, 255) else Color3.fromRGB(235, 250, 255))
 			beam.LightEmission = 1
-			beam.Width0, beam.Width1 = (if i == 1 then 0.5 else 0.18), (if i == 1 then 1.2 else 0.35)
-			beam.Transparency = NumberSequence.new(if i == 1 then 0.45 else 0.1)
+			beam.Width0, beam.Width1 = (if i == 1 then 0.35 else 0.12), (if i == 1 then 0.5 else 0.15)
+			beam.Transparency = NumberSequence.new(if i == 1 then 0.35 else 0.05)
 			beam.FaceCamera = true
-			beam.Segments = 20
-			beam.CurveSize0, beam.CurveSize1 = 3, -3
+			beam.Segments = 12
 			beam.Parent = aPart
 			table.insert(made, beam)
+			table.insert(beams, beam)
 		end
 		table.insert(made, a0)
 		table.insert(made, a1)
 	end
+	local glow: Highlight? = nil
 	if tBody and not UITheme.reducedEffects() then
-		local glow = Instance.new("Highlight")
-		glow.FillColor = Color3.fromRGB(255, 120, 40)
-		glow.FillTransparency = 0.75
-		glow.OutlineColor = Color3.fromRGB(255, 200, 120)
-		glow.OutlineTransparency = 0.2
-		glow.Adornee = target
-		glow.Parent = root()
-		table.insert(made, glow)
+		local h = Instance.new("Highlight")
+		h.FillColor = Color3.fromRGB(80, 220, 255)
+		h.FillTransparency = 0.7
+		h.OutlineColor = Color3.fromRGB(235, 250, 255)
+		h.OutlineTransparency = 0.15
+		h.Adornee = target
+		h.Parent = root()
+		table.insert(made, h)
+		glow = h
 	end
-	local t0 = os.clock()
+	-- crackle: a short click at a random high pitch every 50-110 ms, positioned at the target
+	local crackleOn = true
+	if tBody then
+		task.spawn(function()
+			while crackleOn and tBody.Parent do
+				local s = Instance.new("Sound")
+				s.SoundId = "rbxasset://sounds/volume_slider.ogg"
+				s.PlaybackSpeed = 2.4 + math.random() * 2.2
+				s.Volume = 0.35 + math.random() * 0.25
+				s.RollOffMaxDistance = 120
+				s.Parent = tBody
+				s:Play()
+				task.delay(0.4, function()
+					s:Destroy()
+				end)
+				task.wait(0.05 + math.random() * 0.06)
+			end
+		end)
+	end
+	local parts: { BasePart } = {}
+	for _, p in target:GetDescendants() do
+		if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
+			table.insert(parts, p)
+		end
+	end
+	local frame = 0
 	local conn = RunService.RenderStepped:Connect(function()
-		-- the beam wobbles a little while held
-		local w = math.sin((os.clock() - t0) * 9) * 2.5
-		for _, inst in made do
-			if inst:IsA("Beam") then
-				inst.CurveSize0, inst.CurveSize1 = 3 + w, -3 - w
+		frame += 1
+		-- jagged arc: re-randomise the curve every 2 frames
+		if frame % 2 == 0 then
+			for i, b in beams do
+				local k = if i == 1 then 5 else 3.5
+				b.CurveSize0 = (math.random() - 0.5) * 2 * k
+				b.CurveSize1 = (math.random() - 0.5) * 2 * k
+			end
+		end
+		if glow then
+			glow.FillTransparency = 0.55 + math.random() * 0.35
+		end
+		-- sparks crawling over the body (bounded: one every 3 frames, short-lived)
+		if frame % 3 == 0 and #parts > 0 and not UITheme.reducedEffects() then
+			local p = parts[math.random(1, #parts)]
+			if p.Parent then
+				local spark = vpart("ShockSpark", Vector3.new(0.12, 0.12, 0.9 + math.random()), p.CFrame * CFrame.new((math.random() - 0.5) * p.Size.X, (math.random() - 0.5) * p.Size.Y, (math.random() - 0.5) * p.Size.Z) * CFrame.Angles(math.random() * 6.28, math.random() * 6.28, 0), Color3.fromRGB(200, 245, 255), Enum.Material.Neon)
+				task.delay(0.08, function()
+					spark:Destroy()
+				end)
 			end
 		end
 	end)
 	return function()
+		crackleOn = false
 		conn:Disconnect()
 		for _, inst in made do
 			inst:Destroy()
@@ -483,7 +531,7 @@ function HackVfx.ThrowTrail(model: Model)
 	tr.Attachment0 = a0
 	tr.Attachment1 = a1
 	tr.Lifetime = 0.35
-	tr.Color = ColorSequence.new(Color3.fromRGB(255, 160, 80))
+	tr.Color = ColorSequence.new(Color3.fromRGB(120, 230, 255))
 	tr.Transparency = NumberSequence.new(0.3, 1)
 	tr.LightEmission = 0.8
 	tr.Parent = body

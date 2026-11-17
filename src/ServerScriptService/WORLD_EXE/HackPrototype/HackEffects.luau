@@ -408,6 +408,7 @@ type Grab = {
 	st: RagdollState,
 	att: Attachment,
 	ap: AlignPosition,
+	ao: AlignOrientation,
 	boss: boolean,
 	lastMode: string?,
 	lastPoint: Vector3,
@@ -473,6 +474,7 @@ local function grabThrow(g: Grab, mode: string?, power: number, useLast: boolean
 		grabs[g.attacker] = nil
 	end
 	g.ap:Destroy()
+	g.ao:Destroy()
 	g.att:Destroy()
 	local root = g.root
 	local tune = HackCatalog.Tune
@@ -536,10 +538,42 @@ local function grabStart(attacker: Player, model: Model, hum: Humanoid, root: Ba
 	ap.MaxForce = root.AssemblyMass * 6000
 	ap.MaxVelocity = tune("FlingTarget", "HoldMaxSpeed")
 	ap.Responsiveness = tune("FlingTarget", "HoldResponsiveness")
+	-- owner 2026-11-16: no levitation — the target is SHOCKED where it stands: held at its standing
+	-- height (HoldHeight 0), kept upright (AlignOrientation, yaw kept), limbs limp and convulsing
 	local start = root.Position + Vector3.new(0, tune("FlingTarget", "HoldHeight"), 0)
 	ap.Position = start
 	ap.Parent = root
-	local g: Grab = { attacker = attacker, model = model, root = root, st = st, att = att, ap = ap, boss = boss, lastMode = nil, lastPoint = start, anchor = start, done = false }
+	local yaw = horizontal(root.CFrame.LookVector) or Vector3.zAxis
+	local upright = CFrame.lookAt(Vector3.zero, yaw :: Vector3)
+	root.CFrame = CFrame.new(root.Position) * upright
+	local ao = Instance.new("AlignOrientation")
+	ao.Name = "HackGrabUpright"
+	ao.Mode = Enum.OrientationAlignmentMode.OneAttachment
+	ao.Attachment0 = att
+	ao.CFrame = upright
+	ao.MaxTorque = root.AssemblyMass * 30000
+	ao.Responsiveness = 30
+	ao.Parent = root
+	table.insert(st.made, ao)
+	local g: Grab = { attacker = attacker, model = model, root = root, st = st, att = att, ap = ap, ao = ao, boss = boss, lastMode = nil, lastPoint = start, anchor = start, done = false }
+	-- convulsions: limbs twitch with small random spins while the shock lasts
+	local limbs: { BasePart } = {}
+	for _, p in model:GetDescendants() do
+		if p:IsA("BasePart") and p ~= root and p.Parent and p.Parent.Name ~= "WristDevice" and not p.Anchored then
+			table.insert(limbs, p)
+		end
+	end
+	task.spawn(function()
+		local jitter = tune("FlingTarget", "ShockJitter")
+		while not g.done and root.Parent do
+			for _, p in limbs do
+				if p.Parent then
+					p.AssemblyAngularVelocity = Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5) * 2 * jitter
+				end
+			end
+			task.wait(0.07)
+		end
+	end)
 	grabs[attacker] = g
 	local holdFor = tune("FlingTarget", "HoldSeconds")
 	model:SetAttribute(A.RagdollUntil, now() + holdFor + tune("FlingTarget", "MaxRagdollSeconds"))

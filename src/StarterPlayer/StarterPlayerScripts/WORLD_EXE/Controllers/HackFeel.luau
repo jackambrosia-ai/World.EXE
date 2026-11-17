@@ -31,7 +31,8 @@ local CUES: { [string]: { { any } } } = {
 	tick = { { "click", 1.7, 0.55, 0 } },
 	wrong = { { "click", 0.55, 0.7, 0 }, { "click", 0.5, 0.6, 0.07 } },
 	sequence = { { "click", 1.3, 0.6, 0 }, { "click", 1.65, 0.6, 0.06 }, { "click", 2.1, 0.7, 0.12 } },
-	hit = { { "boom", 1.9, 0.45, 0 }, { "click", 2.4, 0.7, 0.02 } },
+	-- hack landed: an electric ZAP (fast high-pitched click burst), not an explosion (owner 2026-11-16)
+	hit = { { "click", 3.2, 0.6, 0 }, { "click", 4.1, 0.5, 0.025 }, { "click", 2.7, 0.55, 0.05 }, { "click", 3.8, 0.5, 0.075 }, { "click", 2.9, 0.5, 0.1 }, { "click", 4.4, 0.45, 0.13 } },
 	incoming = { { "click", 0.9, 0.8, 0 }, { "click", 0.9, 0.8, 0.16 }, { "click", 0.9, 0.8, 0.32 } },
 	deflect = { { "boom", 1.25, 0.6, 0 }, { "land", 1.7, 0.8, 0 }, { "click", 2.0, 0.6, 0.05 } },
 	perfect = { { "boom", 1.1, 0.7, 0 }, { "land", 1.5, 0.9, 0 }, { "click", 2.0, 0.7, 0.05 }, { "click", 2.5, 0.7, 0.11 }, { "click", 3.0, 0.7, 0.17 } },
@@ -49,7 +50,7 @@ local HAPTIC: { [string]: { number } } = { -- { motor small, motor large, second
 }
 
 local EDGE: { [string]: Color3 } = {
-	hit = C.Cyan, deflect = C.Green, perfect = C.Text, incoming = C.Coral, evaded = C.Ice, failed = C.Coral,
+	hit = Color3.fromRGB(120, 230, 255), deflect = C.Green, perfect = C.Text, incoming = C.Coral, evaded = C.Ice, failed = C.Coral,
 }
 
 local HackFeel = {}

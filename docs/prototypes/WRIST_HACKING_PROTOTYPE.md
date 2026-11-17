@@ -554,3 +554,35 @@ Directive: "WORLD.EXE — Hacking, cyberware & boss gameplay prototype". Same is
 - **Saved place:** 59/59 scripts; hash 33BFE866…. Protected files: 9/9 unchanged.
 
 **Rev 13a (owner, 2026-11-16):** "they shouldn't be visible, that was just for you to understand". The zone lines, labels and centre dot are now hidden. They remain only as a Studio debug aid: set the player attribute `WORLD_EXE_ShowThrowZones = true` to draw them. The classification is unchanged and was checked during a hold (overlay disabled; zone still classified as `up`). Saved place: 59/59 scripts; hash 31F6E2C5…. Protected files: 9/9 unchanged.
+
+## 20. Revision 14 — remote-hack shock instead of explosion and levitation (2026-11-16)
+**Owner:** "the explosion sfx is throwing me off as well as the player levitating upon executing, this should replicate the feel of hacking someone remotely. the enemy should be stunned as if they're actively being electrocuted or shocked. so ragdolled but still stood upwards."
+
+**Built:**
+- **Shocked in place:**
+  - `HoldHeight` 7 → 0 (no lift); `HoldWiggle` 4 → 0 (stays put);
+  - the root is set upright (yaw kept) and held there by an `AlignOrientation`;
+  - limbs stay ragdolled and convulse: every 0.07 s each limb gets a random spin (`ShockJitter` 9 rad/s).
+- **Sound:** the hit cue is now an electric zap (six rapid high-pitched clicks) instead of `impact_explosion`. While held, a 3D crackle (random high-pitch clicks every 50–110 ms) plays at the target. Built-in sounds only.
+- **Visuals:**
+  - a jittery cyan/white electric arc from the wrist (curves re-randomised every 2 frames), replacing the orange gravity beam;
+  - a flickering cyan glow;
+  - short neon sparks crawling over the body;
+  - a cyan throw trail.
+- **Throw hint:** the arrow on the held target is now a small thin cyan arrow; the old large orange-red arrow filled the screen when pointing at the camera.
+- **Unchanged:** click to throw (corner-diagonal zones), 2 s hold, server-enforced modes.
+
+**Results (solo Studio; hold stretched for tool latency):**
+
+| Check | Result |
+|---|---|
+| Height during the hold | root y 3.00–3.02 (standing height 3.00): no levitation |
+| Upright | minimum UpVector.Y 0.95 |
+| Horizontal drift | 0.00 studs |
+| Convulsions | arm spin up to 12.1 rad/s |
+| Auto-throw | 64.7 studs; the dummy then stood up (Running) with 0 leftover constraints |
+
+- **Captures:** burst `m12_shock_sheet.jpg` (taken before the arrow was shrunk).
+- **Saved place:** 59/59 scripts; hash 9CCF3C2A…. Protected files: 9/9 unchanged.
+
+**Not tested:** how the crackle and zap sound to a person.

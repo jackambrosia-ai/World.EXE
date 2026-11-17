@@ -123,9 +123,10 @@ HackCatalog.Tuning = table.freeze({
 		-- GRAB: held HoldHeight up, pulled toward the attacker's cursor (within HoldLeash), thrown on
 		-- left-click the way the mouse is dragged (ThrowSpeed + power × ThrowBonus), auto-thrown after HoldSeconds.
 		HoldSeconds = 2, -- owner 2026-11-16: "cut it's duration to 2 seconds"
-		HoldHeight = 7,
+		HoldHeight = 0, -- owner 2026-11-16: no levitation; shocked where it stands
 		HoldLeash = 32,
-		HoldWiggle = 4, -- owner 2026-11-16: held target only sways this far from its grab point before the click
+		HoldWiggle = 0, -- owner 2026-11-16: held target stays where it was shocked (was 4: sway toward the cursor)
+		ShockJitter = 9, -- rad/s of random limb twitching while held (electrocuted look)
 		HoldResponsiveness = 18,
 		HoldMaxSpeed = 70,
 		ThrowSpeed = 65,
