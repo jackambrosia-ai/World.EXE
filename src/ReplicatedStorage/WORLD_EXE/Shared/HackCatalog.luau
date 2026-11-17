@@ -109,11 +109,14 @@ HackCatalog.Tuning = table.freeze({
 		MinSpeed = 8, -- horizontal studs/s needed (just "moving": the start is a deliberate Space press; hugging a wall slows you)
 		Speed = 36, -- along-wall speed (or your current speed if faster)
 		Seconds = 4.0, -- max wall-run time (MOV-03: ~4 s along building faces), then you drop off
-		StartUp = 9, -- short lift on latching in the air (fades over 0.35 s), then LEVEL running (MOV-03: window height)
-		GroundStartUp = 22, -- lift when started from the ground (Space beside a wall) up to about window height
+		-- Rev 15i (owner: must move UPWARD, not glide): MOV-03 runs up the wall on latching, then comes down
+		ClimbSpeed = 30, -- upward speed when latching from the ground (eases to 0 over ClimbSeconds: ~15 studs up)
+		AirClimbScale = 0.75, -- latching mid-air climbs a little less
+		ClimbSeconds = 1.0,
+		MaxSink = 6, -- then a gentle descent, capped at this speed ...
+		TopClearance = 2.6, -- stop climbing when the wall ends this far above the root (top edge)
 		SideFacingMaxDot = 0.5, -- owner: the wall must be at the player's side: |look . wall normal| <= this
-		SinkSeconds = 0.6, -- the last part of the run sinks ...
-		Gravity = 14, -- ... at this rate (studs/s per s)
+		Gravity = 9, -- ... building up at this rate (studs/s per s)
 		Reach = 3.2, -- side ray length from the root to find a wall
 		Stick = 4, -- pull toward the wall when drifting off it
 		JumpOut = 40, -- wall jump: away from the wall

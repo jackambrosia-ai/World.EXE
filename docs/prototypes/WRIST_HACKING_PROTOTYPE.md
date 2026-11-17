@@ -991,3 +991,27 @@ Owner: "the wall run should only be activated when the spacebar is pressed … a
 | Facing the wall head-on + Space | normal jump, no wall run |
 
 **Saved place:** SHA-256 `7adda4b8dd176d4f85dae688de7fa276300ffd94ac7b0cb9141be0354e895316`, 65/65. Protected files 9/9 OK.
+
+### 21.17 Rev 15i — the wall-run climbs the wall, as in MOV-03 (owner, 2026-11-16)
+Owner: "make the wall running more true to the reference i sent, you shouldn't just glide across the wall without moving upward".
+
+**MOV-03 re-read frame by frame** (private frames f_0057–f_0193; detail sheets `refs/MOV-03_wall_detail_a/b.jpg`, not committed):
+- On latching (≈1.9–2.1 s) the runner **runs up the wall**, from the sidewalk to near the purple building's roofline.
+- They then travel along the face, gradually coming down past the window rows (≈2.4–3.2 s).
+- On the blue building they climb again from street level to the second window band (≈4.6–5.2 s), then drop to the grass.
+
+**Built (WallRun):**
+- The vertical speed is now a **climb** of `ClimbSpeed` 30 (×0.75 when latching mid-air), smoothly easing to 0 over `ClimbSeconds` 1.0 (≈15 studs up).
+- Then a **gentle descent** building at `Gravity` 9, capped at `MaxSink` 6 studs/s.
+- At a wall's top edge (no wall `TopClearance` 2.6 above the root) the climb stops instead of running off the top.
+- Replaces the Rev 15g "short lift then level" profile.
+- **Test lane:** walls and block raised from 16 to 24 studs (2–3 storeys), so there is room to climb.
+
+**Measured (Space start from the ground, 36 studs/s along the wall):**
+- y 3.6 → 18.7 in 0.9 s, along with 32 studs of travel;
+- then a steady descent of ≈6 studs/s, to y 8.0 by 3.1 s;
+- it wrapped the wall's end (2 corners), ending when W was released.
+
+**Saved place:** SHA-256 `9cdcda2b383313ba9f6b9de9bc57a6e53746837e7a32aedb04d564d751618c57`, 65/65. Protected files 9/9 OK.
+
+**Not tested:** how it feels to the owner; behaviour on real map buildings.

@@ -6,11 +6,12 @@
 --
 -- Start (owner 2026-11-16): ONLY on a fresh Space / jump press, AND the wall must be at the player's SIDE
 --   (character left / right: |look . normal| <= SideFacingMaxDot). Also needed: moving (WASD / stick) at
---   >= MinSpeed horizontally; from the ground (bigger lift) or in the air; a near-vertical,
+--   >= MinSpeed horizontally; from the ground or in the air; a near-vertical,
 --   collidable, non-character wall within Reach on the LEFT or RIGHT side, tall enough (two rays); not
 --   just after the last wall run (ReattachDelay); nothing else owns the velocity (FLING SELF, a drive).
 -- While running: carried along the wall at max(current, Speed) with a short rise then a sinking arc
---   (StartUp, Gravity), kept close to the wall, body tilted away from it, the run animation playing.
+--   (Rev 15i: runs UP the wall first - ClimbSpeed easing to 0 over ClimbSeconds - then a gentle capped
+--   descent; stops climbing at the top edge), kept close to the wall, body tilted away from it, the run animation playing.
 --   The wall normal is re-read every frame, so gently curved walls are followed.
 -- Corners (MOV-03 wraps around buildings): outside corners turn onto the side face, inside corners onto
 --   the wall ahead.
@@ -62,7 +63,7 @@ function WallRun.Start(deps: Deps)
 		lastStep: number,
 		startPos: Vector3,
 		corners: number,
-		lift: number, -- initial upward speed (bigger when started from the ground)
+		lift: number, -- initial climb speed (a little less when latching from the air)
 	}
 	local run: Run? = nil
 	local lastEnd = -10
@@ -209,7 +210,7 @@ function WallRun.Start(deps: Deps)
 					lv.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
 					lv.ForceLimitMode = Enum.ForceLimitMode.Magnitude
 					lv.MaxForce = hrp.AssemblyMass * 4000
-					lv.VectorVelocity = t * speed + Vector3.new(0, if grounded then tune("GroundStartUp") else tune("StartUp"), 0)
+					lv.VectorVelocity = t * speed + Vector3.new(0, tune("ClimbSpeed"), 0)
 					lv.Parent = hrp
 					local ao = Instance.new("AlignOrientation")
 					ao.Name = "WallRunLean"
@@ -234,7 +235,7 @@ function WallRun.Start(deps: Deps)
 							tr:AdjustSpeed(1.5)
 						end
 					end
-					local r: Run = { n = n, t = t, speed = speed, t0 = os.clock(), lift = if grounded then tune("GroundStartUp") else tune("StartUp"), att = att, lv = lv, ao = ao, track = track, hum = hum, hrp = hrp,
+					local r: Run = { n = n, t = t, speed = speed, t0 = os.clock(), lift = tune("ClimbSpeed") * (if grounded then 1 else tune("AirClimbScale")), att = att, lv = lv, ao = ao, track = track, hum = hum, hrp = hrp,
 						autoRotate = hum.AutoRotate, lastStep = 0, startPos = hrp.Position, corners = 0 }
 					hum.AutoRotate = false
 					ao.CFrame = orientation(r)
@@ -311,11 +312,22 @@ function WallRun.Start(deps: Deps)
 			r.n = n
 			r.t = flat(r.t - n * r.t:Dot(n)) or r.t -- follow gentle curves, keep the direction sign
 		end
-		-- MOV-03 holds a level height (window height) for ~4 s: a short lift, level running, then a sink
-		-- in the last SinkSeconds before the time limit
-		local lift = math.clamp(1 - el / 0.35, 0, 1)
-		local sinkStart = tune("Seconds") - tune("SinkSeconds")
-		local vy = r.lift * lift - (if el > sinkStart then tune("Gravity") * (el - sinkStart) else 0)
+		-- Rev 15i, owner: "you shouldn't just glide across the wall without moving upward". MOV-03 (re-read
+		-- frame by frame): on latching the runner RUNS UP the wall (sidewalk -> near the roofline in a
+		-- fraction of a second), then travels along the face gradually coming down past the window rows.
+		-- So: a strong climb easing to 0 over ClimbSeconds, then a gentle capped descent. Near the top of the
+		-- wall (the upper ray finds no wall) the climb stops at the edge instead of running off the top.
+		local climbT = tune("ClimbSeconds")
+		local vy
+		if el < climbT then
+			local k = 1 - el / climbT
+			vy = r.lift * k * k * (3 - 2 * k) -- smooth ease-out of the climb
+		else
+			vy = -math.min(tune("MaxSink"), tune("Gravity") * (el - climbT))
+		end
+		if vy > 0 and not wallHit(pos + Vector3.new(0, tune("TopClearance"), 0), -r.n, tune("Reach") + 1.5) then
+			vy = 0 -- at the top edge: hold height
+		end
 		local stick = if h.Distance > 1.6 then tune("Stick") else 0
 		hit = h
 		r.lv.VectorVelocity = r.t * r.speed + Vector3.new(0, vy, 0) - r.n * stick
