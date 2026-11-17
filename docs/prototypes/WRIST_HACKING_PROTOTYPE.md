@@ -552,3 +552,5 @@ Directive: "WORLD.EXE — Hacking, cyberware & boss gameplay prototype". Same is
   - (25 %, 85 %) → behind; (10 %, 50 %) → left; (50 %, 95 %) → behind.
 - **Capture:** `m11_corner_zones.jpg` shows the four corner lines, UP lit, and the held dummy with its up arrow. The LEFT label sat under the wrist panel, so the side labels were moved to 28 % / 72 % (after this capture).
 - **Saved place:** 59/59 scripts; hash 33BFE866…. Protected files: 9/9 unchanged.
+
+**Rev 13a (owner, 2026-11-16):** "they shouldn't be visible, that was just for you to understand". The zone lines, labels and centre dot are now hidden. They remain only as a Studio debug aid: set the player attribute `WORLD_EXE_ShowThrowZones = true` to draw them. The classification is unchanged and was checked during a hold (overlay disabled; zone still classified as `up`). Saved place: 59/59 scripts; hash 31F6E2C5…. Protected files: 9/9 unchanged.

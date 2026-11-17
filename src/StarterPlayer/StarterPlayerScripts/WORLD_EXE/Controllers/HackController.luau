@@ -1225,7 +1225,7 @@ function HackController.Start()
 
 	-- Throw zones (owner 2026-11-16): a point at the screen centre and four lines from it to the
 	-- screen CORNERS split the screen into four triangles — top = UP, left = LEFT, right = RIGHT,
-	-- bottom = BEHIND. While holding, the lines are drawn faintly and the active zone's label is lit.
+	-- bottom = BEHIND. The regions are NOT shown to players; the drawing below is a debug aid only.
 	-- Its own ScreenGui ignores the top-bar inset so the drawn centre is exactly the camera centre
 	-- (the same point the classification uses).
 	local zonesGui = Instance.new("ScreenGui")
@@ -1299,7 +1299,9 @@ function HackController.Start()
 		holdDir = nil
 		holdPower = 0
 		gui:SetAttribute("Holding", true)
-		zonesGui.Enabled = true
+		-- the zone lines/labels are a debug aid only (owner 2026-11-16: "they shouldn't be visible");
+		-- set the player attribute WORLD_EXE_ShowThrowZones = true in Studio to draw them
+		zonesGui.Enabled = player:GetAttribute("WORLD_EXE_ShowThrowZones") == true
 		layoutZoneLines()
 		updateReticle(nil)
 		ContextActionService:BindActionAtPriority(THROW_ACTION, function(_, st: Enum.UserInputState)
