@@ -38,6 +38,7 @@ local MoveState = require(script.Parent:WaitForChild("MoveState"))
 local LooseLimbs = require(script.Parent:WaitForChild("LooseLimbs"))
 local CyberChip = require(script.Parent:WaitForChild("CyberChip"))
 local HackVfx = require(script.Parent:WaitForChild("HackVfx"))
+local HackHologram = require(script.Parent:WaitForChild("HackHologram"))
 local ArrowGlyph = require(script.Parent:WaitForChild("ArrowGlyph"))
 local HackFeel = require(script.Parent:WaitForChild("HackFeel"))
 
@@ -1694,6 +1695,52 @@ function HackController.Start()
 			local sameToken = challenge ~= nil and challenge.token == data.token
 			if not sameToken then
 				setInfo("") -- a new challenge clears the previous attempt's result line
+				-- Rev 15u (owner, reference VFX-02): a digital hologram card on the enemy being hacked (only the
+				-- hacker sees it), from the start of the challenge until it resolves
+				local tid = if typeof(data.targetId) == "string" then data.targetId else nil
+				if tid then
+					local model: Model? = nil
+					local name = "UNKNOWN"
+					for _, cand in candidates do
+						if cand.id == tid then
+							model, name = cand.model, cand.name
+						end
+					end
+					if not model then
+						for _, m in CollectionService:GetTagged(HackCatalog.TargetTag) do
+							if m:IsA("Model") and m:GetAttribute(A.TargetId) == tid then
+								model, name = m, string.upper(m.Name)
+							end
+						end
+					end
+					if not model and string.sub(tid, 1, 7) == "player:" then
+						local other = Players:GetPlayerByUserId(tonumber(string.sub(tid, 8)) or 0)
+						if other and other.Character then
+							model, name = other.Character, string.upper(other.DisplayName)
+						end
+					end
+					local def = HackCatalog.Get(data.hackId)
+					if model then
+						HackHologram.Open(model, name, if def then def.DisplayName else tostring(data.hackId))
+					end
+				end
+			end
+			do
+				-- breach progress for the hologram, from whichever challenge this is
+				local sn = data.snap
+				if typeof(sn) == "table" then
+					local p: number? = nil
+					if typeof(sn.progress) == "number" then
+						p = sn.progress
+					elseif typeof(sn.need) == "number" and sn.need > 0 and (typeof(sn.cleared) == "number" or typeof(sn.locks) == "number") then
+						p = (sn.cleared or sn.locks) / sn.need
+					elseif typeof(sn.seq) == "table" and typeof(sn.index) == "number" and #sn.seq > 0 then
+						p = (sn.index - 1) / #sn.seq
+					end
+					if p then
+						HackHologram.Progress(p)
+					end
+				end
 			end
 			challenge = { token = data.token, hackId = data.hackId, snap = data.snap, recv = os.clock(), n = if sameToken and challenge then challenge.n else 0, targetId = if typeof(data.targetId) == "string" then data.targetId else nil }
 			showChallenge(true)
@@ -1703,6 +1750,7 @@ function HackController.Start()
 			if challenge and challenge.token == data.token then
 				challenge = nil
 			end
+			HackHologram.Close(if data.result == "success" then "success" else "fail")
 			lastSnap = nil
 			if data.result == "success" then
 				HackFeel.Cue("sequence")

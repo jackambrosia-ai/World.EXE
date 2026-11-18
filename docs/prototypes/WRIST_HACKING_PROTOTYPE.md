@@ -2,7 +2,7 @@
 
 Status: **isolated prototype, draft PR, not for merge.** The owner approved the milestone on 2026-11-16. This is **not** an adopted gameplay design. Every number is provisional.
 
-## 0. Current state (Rev 15t, 2026-11-17) — read this first
+## 0. Current state (Rev 15u, 2026-11-17) — read this first
 Sections 1–21 are the revision history and keep superseded designs for the record. **This section is the current behaviour.** Where an older section disagrees, this one wins.
 
 **Superseded (do not implement from the history):**
@@ -28,6 +28,7 @@ Sections 1–21 are the revision history and keep superseded designs for the rec
 | **Space** with a wall at your side (or held when you arrive) | **Wall-run**: up the wall, along it, then down; ends at wall ends / corners |
 | While wall-running | W / toward the wall = cruise; **S** (back along the wall) = brake; **away** from the wall = peel off; **Space** = wall jump (also ≤ 0.3 s after the run ends at a wall end) |
 | FLING SELF (hack) | Launch with loose limbs, steer with WASD, hold **Space** while falling to glide; blue aura until landing |
+| Any hack on a target (Rev 15u, VFX-02) | Only you see a **hologram card** beside the target until the hack resolves: live scanlined portrait, timer, breach bar, typed status lines, tether and brackets. Ends with ACCESS GRANTED or LINK LOST |
 
 **Key tuning (all `HackTune_<Group>_<Key>` overridable):**
 | Group | Values |
@@ -1486,3 +1487,27 @@ Captures (private): `C:\WORLD.EXE-Art\HackProto\evidence\rev15t\`. The reference
 **Cost note:** about 116 parts per held target and about 30 per flying player, updated per frame. Fine for the prototype; multiplayer cost is not measured.
 
 **Saved place:** SHA-256 `a13446e8a35a0372fa3d579e35e6773a7dd158a1ca754efe1beafb6208562371`, 66/66. Protected files 9/9 OK.
+
+### 21.29 Rev 15u — hack hologram from owner reference VFX-02 (owner, 2026-11-17)
+Owner: "implement the digital hologram looking thing so that it appears on enemies you're trying to hack", then "extract more frames so you can see how it actually looks and feels more clearly".
+
+**Reference:** VFX-02, the owner's local screen recording, SHA-256 `5818b26b…` verified (vault `03-Gameplay/Hack-Hologram-Reference-2026-11-17.md`). Every frame 60–247 was studied at 30 fps; the frames stay private (the recording shows other people's names).
+
+**New client module `HackHologram.luau`** (original text and layout; nothing copied), wired in `HackController`:
+- opens on a new challenge for the target (NPC, boss or player), only for the hacker;
+- the challenge snapshot drives the breach bar and the typed lines; `challenge_end` closes it.
+
+**The card:** translucent teal with a cyan frame and corner ticks; header with a blinking red dot and a glitch block; a live scanlined ViewportFrame portrait of the target with a moving scan band and a bouncing level meter; a status row (target, mm:ss timer, payload, bar); a message box that types ~1 character per frame; a tether beam and corner brackets on the target.
+
+**Feel, matched frame by frame to the reference:**
+| Phase | Reference | Ours |
+|---|---|---|
+| Open (~4 frames) | broken line → portrait tears open, message box offset and narrow → card jolts sideways, status appears → header pops in | same order, one 30 fps step each; typing starts 2 frames later |
+| Live | meter bounces, header glitch flickers, rare portrait tear, the message box blinks dim before a new line | same |
+| Close (~6 frames) | header → status → portrait squashes into a torn band, tether drops → message box last | same, 1.2 s after the result |
+
+Result: success = green bar, ACCESS GRANTED, "Target compromised."; fail / cancel = coral, LINK LOST, "Uplink terminated.". Card offset (-8.5, 4.6) studs camera-relative; -7 overlapped the FLING INCOMING banner.
+
+**Verified (solo Studio):** staged open logged per frame (line → 69 px portrait with a 130 px message box → full size with a −9 px jolt and status → header); success and fail paths; close sequence; after close no GUI, anchor or attachment left; no console errors. Captures (private): `C:\WORLD.EXE-Art\HackProto\evidence\rev15u\`.
+
+**Saved place:** SHA-256 `6556d4bd17d58a4122a6268457c591a4c5cc55d037c50eca93fbd0d33cdd7003`, 67/67. Protected files 9/9 OK.
