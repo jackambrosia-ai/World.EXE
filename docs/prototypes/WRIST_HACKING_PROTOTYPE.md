@@ -2,7 +2,7 @@
 
 Status: **isolated prototype, draft PR, not for merge.** The owner approved the milestone on 2026-11-16. This is **not** an adopted gameplay design. Every number is provisional.
 
-## 0. Current state (Rev 15s, 2026-11-17) — read this first
+## 0. Current state (Rev 15t, 2026-11-17) — read this first
 Sections 1–21 are the revision history and keep superseded designs for the record. **This section is the current behaviour.** Where an older section disagrees, this one wins.
 
 **Superseded (do not implement from the history):**
@@ -1453,3 +1453,36 @@ The end-of-wall jump grace was not separately re-run (code unchanged since Rev 1
 - recorded audio.
 
 Deferred, unchanged: R6 isolation; skill-check network fairness.
+
+### 21.28 Rev 15t — lightning look from owner reference VFX-01 (owner, 2026-11-17)
+Owner: "make the lightning effect look like this and save this reference to vault". The link is a TikTok VFX showcase.
+
+**Reference:**
+- registered as **VFX-01** in the vault (`03-Gameplay/Lightning-VFX-Reference-2026-11-17.md`): 9.05 s, 1280×720, **stream, no SHA**, not downloaded, no frames stored;
+- inspected in the in-app browser at ≈0.45, 1.0, 1.3, 4.5 and 7.6 s;
+- the reference is its **middle, blue lightning** effect: curling, hooked strands with a white-hot centre and a deep blue glow around a blinding core, re-drawn every few frames, pulsing size, stray sparks.
+
+**Scope (owner choice "all electric effects"):** a shared lightning generator in `HackVfx` (native Neon parts; no textures, flipbooks or uploads):
+- **Bolt:** chained segments, each a thin white core + a saturated blue round sheath + a wide faint round halo. The place has no Bloom, so the halo fakes the glow.
+- **Cluster:** 2–5 curling arcs swept around a centre, re-randomised every 2–3 frames. The shapes are kept as offsets, so they ride with a moving body with no lag at flight speed. Plus a pulsing size, a white core flash with a soft halo, a PointLight, and an occasional stray spark.
+
+**Applied to:**
+| Effect | Before | Now |
+|---|---|---|
+| FLING TARGET link | Two curved cyan Beams | Jagged 8-segment bolt from the wrist to the target + a flickering branch, re-drawn every 2 frames |
+| FLING TARGET held body | Small spark sticks | Lightning cluster (4 arcs, radius 2.7, core flash, light); highlight and crackle sounds kept |
+| FLING SELF launch | Spark sticks for 0.35 s | Dense burst (5 arcs, radius 2.6, bright core) fading over 0.45 s |
+| FLING SELF flight aura | Trail, sparks, glow (cyan) | Plus a lighter riding cluster (2 arcs) for the whole flight; aura colour moved from cyan to the reference's deeper electric blue; trail white-hot → blue |
+
+Reduced Effects: the main link bolt only; no clusters.
+
+**Verified (solo Studio):**
+- held target shows the bolt, branch and cluster;
+- launch burst and flight arcs follow the body and end at landing;
+- cleanup: **116** lightning parts during a hold → **0** after the throw; **0** after a FLING SELF landing.
+
+Captures (private): `C:\WORLD.EXE-Art\HackProto\evidence\rev15t\`. The reference frames are not stored (stream).
+
+**Cost note:** about 116 parts per held target and about 30 per flying player, updated per frame. Fine for the prototype; multiplayer cost is not measured.
+
+**Saved place:** SHA-256 `a13446e8a35a0372fa3d579e35e6773a7dd158a1ca754efe1beafb6208562371`, 66/66. Protected files 9/9 OK.

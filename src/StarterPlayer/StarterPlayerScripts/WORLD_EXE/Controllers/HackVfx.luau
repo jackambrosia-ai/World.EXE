@@ -416,38 +416,250 @@ end
 -- to the target, small sparks crawling over the target's body, a flickering cyan glow, and a 3D
 -- electric crackle at the target (built-in click sound, rapid random high pitches; no uploads).
 -- Returns a cleanup function.
+-------------------------------------------------------------------------------------------------
+-- VFX-01 lightning (owner reference 2026-11-17, TikTok stream, no SHA): "make the lightning effect look like
+-- this", applied to ALL electric effects (owner choice). Observed look: curling, hooked electric strands
+-- with a thin WHITE-HOT centre inside a deep saturated BLUE glow, wrapped around a blinding white-blue core,
+-- re-drawn every few frames (crackle), the cluster swelling / shrinking, a few stray sparks thrown out.
+-- Original build from native Neon parts (no textures / flipbooks / uploads): each bolt is a chain of
+-- segments, each segment = white core part inside a wider translucent blue sheath part.
+local BOLT_CORE = Color3.fromRGB(236, 248, 255)
+local BOLT_GLOW = Color3.fromRGB(30, 105, 255)
+local BOLT_HALO = Color3.fromRGB(50, 120, 255)
+-- the place has no Bloom, so each segment fakes it: white core, saturated blue sheath, wide faint halo
+type Bolt = { cores: { Part }, sheaths: { Part }, halos: { Part }, coreW: number, glowW: number }
+
+local function newBolt(segs: number, coreW: number, glowW: number): Bolt
+	local b: Bolt = { cores = {}, sheaths = {}, halos = {}, coreW = coreW, glowW = glowW }
+	for _ = 1, segs do
+		local core = vpart("BoltCore", Vector3.new(coreW, coreW, 1), CFrame.new(0, -1e4, 0), BOLT_CORE, Enum.Material.Neon)
+		local sheath = vpart("BoltGlow", Vector3.new(1, glowW, glowW), CFrame.new(0, -1e4, 0), BOLT_GLOW, Enum.Material.Neon, Enum.PartType.Cylinder)
+		sheath.Transparency = 0.4
+		local halo = vpart("BoltHalo", Vector3.new(1, glowW * 2.6, glowW * 2.6), CFrame.new(0, -1e4, 0), BOLT_HALO, Enum.Material.Neon, Enum.PartType.Cylinder)
+		halo.Transparency = 0.84
+		table.insert(b.cores, core)
+		table.insert(b.sheaths, sheath)
+		table.insert(b.halos, halo)
+	end
+	return b
+end
+
+-- lay the bolt along pts (#pts - 1 segments used; the rest hidden); fade 0 = full, 1 = gone
+local function drawBolt(b: Bolt, pts: { Vector3 }, fade: number)
+	for i, core in b.cores do
+		local sheath = b.sheaths[i]
+		local p0, p1 = pts[i], pts[i + 1]
+		if p0 and p1 and fade < 1 then
+			local len = math.max(0.05, (p1 - p0).Magnitude)
+			local cf = CFrame.lookAt((p0 + p1) / 2, p1)
+			core.Size = Vector3.new(b.coreW, b.coreW, len)
+			core.CFrame = cf
+			core.Transparency = fade
+			local tube = cf * CFrame.Angles(0, math.rad(90), 0) -- cylinder axis (X) along the segment
+			sheath.Size = Vector3.new(len + b.glowW * 0.6, b.glowW, b.glowW)
+			sheath.CFrame = tube
+			sheath.Transparency = 0.4 + 0.6 * fade
+			local halo = b.halos[i]
+			halo.Size = Vector3.new(len + b.glowW * 1.5, b.glowW * 2.6, b.glowW * 2.6)
+			halo.CFrame = tube
+			halo.Transparency = 0.84 + 0.16 * fade
+		else
+			core.Transparency = 1
+			sheath.Transparency = 1
+			b.halos[i].Transparency = 1
+		end
+	end
+end
+
+local function destroyBolt(b: Bolt)
+	for i, core in b.cores do
+		core:Destroy()
+		b.sheaths[i]:Destroy()
+		b.halos[i]:Destroy()
+	end
+end
+
+local function randUnit(): Vector3
+	local v = Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5)
+	return if v.Magnitude > 0.01 then v.Unit else Vector3.yAxis
+end
+
+-- a curling, hooked strand swept around `center` (part of a jittered great circle)
+local function curlPath(center: Vector3, radius: number, segs: number): { Vector3 }
+	local axis = randUnit()
+	local start = axis:Cross(randUnit())
+	start = if start.Magnitude > 0.01 then start.Unit else Vector3.xAxis
+	local sweep = math.rad(70 + math.random() * 100) * (if math.random() < 0.5 then -1 else 1)
+	local r0 = radius * (0.6 + math.random() * 0.4)
+	local pts = {}
+	for i = 0, segs do
+		local dir = CFrame.fromAxisAngle(axis, sweep * i / segs) * start
+		local rr = r0 * (1 + (math.random() - 0.5) * 0.35)
+		table.insert(pts, center + dir * rr + randUnit() * radius * 0.12)
+	end
+	return pts
+end
+
+-- a jagged bolt from a to b (ends fixed, middle points kicked sideways)
+local function jagPath(a: Vector3, b: Vector3, segs: number, amp: number): { Vector3 }
+	local d = b - a
+	local side1 = d:Cross(Vector3.yAxis)
+	side1 = if side1.Magnitude > 0.01 then side1.Unit else Vector3.xAxis
+	local side2 = d.Unit:Cross(side1).Unit
+	local pts = { a }
+	for i = 1, segs - 1 do
+		local k = math.sin(math.pi * i / segs) -- bigger kicks mid-bolt
+		table.insert(pts, a + d * (i / segs) + (side1 * (math.random() - 0.5) + side2 * (math.random() - 0.5)) * 2 * amp * k)
+	end
+	table.insert(pts, b)
+	return pts
+end
+
+-- A crackling lightning cluster around `part` until the returned stop() (or `seconds`). opts:
+-- arcs, segs, radius, every (frames between re-draws), light (PointLight brightness), core (core ball size)
+local function lightningCluster(part: BasePart, opts: { arcs: number, segs: number, radius: number, every: number, light: number, core: number, seconds: number? }): () -> ()
+	local bolts: { Bolt } = {}
+	for _ = 1, opts.arcs do
+		table.insert(bolts, newBolt(opts.segs, 0.07, 0.3))
+	end
+	local spark = newBolt(2, 0.05, 0.2)
+	local coreBall: Part? = nil
+	local coreHalo: Part? = nil
+	if opts.core > 0 then
+		local cb = vpart("BoltCoreFlash", Vector3.new(opts.core, opts.core, opts.core), part.CFrame, Color3.fromRGB(225, 240, 255), Enum.Material.Neon, Enum.PartType.Ball)
+		cb.Transparency = 0.25
+		coreBall = cb
+		local ch = vpart("BoltCoreHalo", Vector3.new(opts.core * 2.4, opts.core * 2.4, opts.core * 2.4), part.CFrame, BOLT_HALO, Enum.Material.Neon, Enum.PartType.Ball)
+		ch.Transparency = 0.8
+		coreHalo = ch
+	end
+	local light: PointLight? = nil
+	if opts.light > 0 then
+		local pl = Instance.new("PointLight")
+		pl.Color = Color3.fromRGB(90, 160, 255)
+		pl.Range = 11
+		pl.Brightness = opts.light
+		pl.Parent = part
+		light = pl
+	end
+	local t0 = os.clock()
+	local frame = 0
+	local stopped = false
+	local conn: RBXScriptConnection? = nil
+	local boltOffsets: { [number]: { Vector3 }? } = {}
+	local sparkOffsets: { Vector3 }? = nil
+	local function stop()
+		if stopped then
+			return
+		end
+		stopped = true
+		if conn then
+			conn:Disconnect()
+		end
+		for _, b in bolts do
+			destroyBolt(b)
+		end
+		destroyBolt(spark)
+		if coreBall then
+			coreBall:Destroy()
+		end
+		if coreHalo then
+			coreHalo:Destroy()
+		end
+		if light then
+			light:Destroy()
+		end
+	end
+	conn = RunService.RenderStepped:Connect(function()
+		local el = os.clock() - t0
+		if not part.Parent or (opts.seconds and el > opts.seconds) then
+			stop()
+			return
+		end
+		frame += 1
+		local center = part.Position
+		if coreBall then
+			coreBall.CFrame = CFrame.new(center)
+		end
+		if coreHalo then
+			coreHalo.CFrame = CFrame.new(center)
+		end
+		local fadeOut = if opts.seconds then math.clamp((el - opts.seconds * 0.7) / (opts.seconds * 0.3), 0, 1) else 0
+		local function place(offs: { Vector3 }?): { Vector3 }
+			local pts = {}
+			if offs then
+				for i, o in offs do
+					pts[i] = center + o
+				end
+			end
+			return pts
+		end
+		if frame % opts.every ~= 0 then
+			-- between crackles the arcs ride with the body (shapes kept as offsets: no lagging at speed)
+			for i, b in bolts do
+				drawBolt(b, place(boltOffsets[i]), if boltOffsets[i] then fadeOut else 1)
+			end
+			drawBolt(spark, place(sparkOffsets), if sparkOffsets then fadeOut else 1)
+			return
+		end
+		-- the cluster swells and shrinks; every re-draw is a new crackle
+		local pulse = 0.8 + 0.25 * math.sin(el * 7) + math.random() * 0.15
+		for i, b in bolts do
+			if math.random() < 0.85 then
+				local offs = {}
+				for k, pt in curlPath(Vector3.zero, opts.radius * pulse, opts.segs) do
+					offs[k] = pt
+				end
+				boltOffsets[i] = offs
+			else
+				boltOffsets[i] = nil -- a gap now and then: lightning is never steady
+			end
+			drawBolt(b, place(boltOffsets[i]), if boltOffsets[i] then fadeOut else 1)
+		end
+		if math.random() < 0.35 then -- a stray spark thrown out
+			local dir = randUnit()
+			local a = dir * opts.radius * (0.9 + math.random() * 0.3)
+			sparkOffsets = jagPath(a, a + (dir + randUnit() * 0.6).Unit * (0.8 + math.random() * 0.9), 2, 0.15)
+		else
+			sparkOffsets = nil
+		end
+		drawBolt(spark, place(sparkOffsets), if sparkOffsets then fadeOut else 1)
+		if coreBall then
+			local s = opts.core * (0.7 + math.random() * 0.6) * pulse
+			coreBall.Size = Vector3.new(s, s, s)
+			coreBall.Transparency = 0.2 + math.random() * 0.3 + 0.5 * fadeOut
+			if coreHalo then
+				local hs = s * 2.4
+				coreHalo.Size = Vector3.new(hs, hs, hs)
+				coreHalo.Transparency = 0.78 + 0.1 * math.random() + 0.12 * fadeOut
+			end
+		end
+		if light then
+			light.Brightness = opts.light * (0.6 + math.random() * 0.6) * (1 - fadeOut)
+		end
+	end)
+	return stop
+end
+
 function HackVfx.GrabBeam(attacker: Model?, target: Model): () -> ()
+	-- Rev 15t (VFX-01): the remote-shock link is a jagged white-core / blue-glow bolt from the wrist to the
+	-- target (plus a flickering branch), re-drawn every 2 frames, and a crackling lightning cluster around the
+	-- held body. Glow highlight and crackle sound as before. Reduced Effects: the main bolt only.
 	local made: { Instance } = {}
 	local tBody = (target:FindFirstChild("UpperTorso") or target:FindFirstChild("Torso") or target:FindFirstChild("HumanoidRootPart")) :: BasePart?
 	local wd = attacker and attacker:FindFirstChild("WristDevice")
 	local aPart = attacker and ((wd and wd:FindFirstChildWhichIsA("BasePart", true)) or attacker:FindFirstChild("LeftHand") or attacker:FindFirstChild("Left Arm") or attacker:FindFirstChild("HumanoidRootPart")) :: BasePart?
-	local beams: { Beam } = {}
-	if tBody and aPart then
-		local a0 = Instance.new("Attachment")
-		a0.Parent = aPart
-		local a1 = Instance.new("Attachment")
-		a1.Parent = tBody
-		for i = 1, 2 do
-			local beam = Instance.new("Beam")
-			beam.Attachment0 = a0
-			beam.Attachment1 = a1
-			beam.Color = ColorSequence.new(if i == 1 then Color3.fromRGB(80, 220, 255) else Color3.fromRGB(235, 250, 255))
-			beam.LightEmission = 1
-			beam.Width0, beam.Width1 = (if i == 1 then 0.35 else 0.12), (if i == 1 then 0.5 else 0.15)
-			beam.Transparency = NumberSequence.new(if i == 1 then 0.35 else 0.05)
-			beam.FaceCamera = true
-			beam.Segments = 12
-			beam.Parent = aPart
-			table.insert(made, beam)
-			table.insert(beams, beam)
-		end
-		table.insert(made, a0)
-		table.insert(made, a1)
+	local reduced = UITheme.reducedEffects()
+	local mainBolt: Bolt? = if tBody and aPart then newBolt(8, 0.09, 0.38) else nil
+	local branch: Bolt? = if tBody and aPart and not reduced then newBolt(4, 0.05, 0.22) else nil
+	local stopCluster: (() -> ())? = nil
+	if tBody and not reduced then
+		stopCluster = lightningCluster(tBody, { arcs = 4, segs = 6, radius = 2.7, every = 2, light = 1.6, core = 1.1 })
 	end
 	local glow: Highlight? = nil
-	if tBody and not UITheme.reducedEffects() then
+	if tBody and not reduced then
 		local h = Instance.new("Highlight")
-		h.FillColor = Color3.fromRGB(80, 220, 255)
+		h.FillColor = Color3.fromRGB(70, 150, 255)
 		h.FillTransparency = 0.7
 		h.OutlineColor = Color3.fromRGB(235, 250, 255)
 		h.OutlineTransparency = 0.15
@@ -475,40 +687,40 @@ function HackVfx.GrabBeam(attacker: Model?, target: Model): () -> ()
 			end
 		end)
 	end
-	local parts: { BasePart } = {}
-	for _, p in target:GetDescendants() do
-		if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
-			table.insert(parts, p)
-		end
-	end
 	local frame = 0
 	local conn = RunService.RenderStepped:Connect(function()
 		frame += 1
-		-- jagged arc: re-randomise the curve every 2 frames
-		if frame % 2 == 0 then
-			for i, b in beams do
-				local k = if i == 1 then 5 else 3.5
-				b.CurveSize0 = (math.random() - 0.5) * 2 * k
-				b.CurveSize1 = (math.random() - 0.5) * 2 * k
-			end
-		end
 		if glow then
 			glow.FillTransparency = 0.55 + math.random() * 0.35
 		end
-		-- sparks crawling over the body (bounded: one every 3 frames, short-lived)
-		if frame % 3 == 0 and #parts > 0 and not UITheme.reducedEffects() then
-			local p = parts[math.random(1, #parts)]
-			if p.Parent then
-				local spark = vpart("ShockSpark", Vector3.new(0.12, 0.12, 0.9 + math.random()), p.CFrame * CFrame.new((math.random() - 0.5) * p.Size.X, (math.random() - 0.5) * p.Size.Y, (math.random() - 0.5) * p.Size.Z) * CFrame.Angles(math.random() * 6.28, math.random() * 6.28, 0), Color3.fromRGB(200, 245, 255), Enum.Material.Neon)
-				task.delay(0.08, function()
-					spark:Destroy()
-				end)
+		if frame % 2 ~= 0 or not mainBolt or not tBody or not aPart or not tBody.Parent or not aPart.Parent then
+			return
+		end
+		local a, b = aPart.Position, tBody.Position
+		local amp = math.clamp((b - a).Magnitude * 0.06, 0.3, 1.1)
+		local pts = jagPath(a, b, 8, amp)
+		drawBolt(mainBolt, pts, 0)
+		if branch then
+			if math.random() < 0.7 then
+				local from = pts[math.random(2, #pts - 1)]
+				drawBolt(branch, jagPath(from, from + randUnit() * (1.2 + math.random() * 1.6), 4, 0.25), 0)
+			else
+				drawBolt(branch, {}, 1)
 			end
 		end
 	end)
 	return function()
 		crackleOn = false
 		conn:Disconnect()
+		if mainBolt then
+			destroyBolt(mainBolt)
+		end
+		if branch then
+			destroyBolt(branch)
+		end
+		if stopCluster then
+			stopCluster()
+		end
 		for _, inst in made do
 			inst:Destroy()
 		end
@@ -553,7 +765,7 @@ end
 -- mid-air on longer flights: measured 1.25 s before landing on a 2.2 s high launch.)
 local AURA_MAX_SECONDS = 10
 local HUM_VOLUME = 0.32 -- Rev 15s flight hum: clearly audible locally, below hack / warning cues
-local CYAN_ENERGY = Color3.fromRGB(90, 215, 255)
+local CYAN_ENERGY = Color3.fromRGB(70, 150, 255) -- Rev 15t (VFX-01): deeper electric blue (was 90,215,255 cyan)
 local auras: { [Model]: (landed: boolean) -> () } = {}
 
 function HackVfx.SelfFlingEnd(model: Model)
@@ -591,7 +803,7 @@ local function selfFlingAura(model: Model)
 	tr.Attachment0 = a0
 	tr.Attachment1 = a1
 	tr.Lifetime = 0.42
-	tr.Color = ColorSequence.new(CYAN_ENERGY, Color3.fromRGB(150, 235, 255))
+	tr.Color = ColorSequence.new(Color3.fromRGB(225, 242, 255), CYAN_ENERGY) -- white-hot head fading to blue
 	tr.Transparency = NumberSequence.new(0.2, 1)
 	tr.LightEmission = 0.9
 	tr.Parent = body
@@ -634,6 +846,8 @@ local function selfFlingAura(model: Model)
 		table.insert(fx, pl)
 		table.insert(fx, h)
 	end
+	-- Rev 15t (VFX-01): a lighter crackling lightning cluster rides with the body for the whole flight
+	local stopLightning: (() -> ())? = if reduced then nil else lightningCluster(body, { arcs = 2, segs = 5, radius = 2.1, every = 3, light = 0, core = 0 })
 	-- Rev 15s (owner: "The sound effect should last as long as the blue effect is present"): continuous
 	-- flight audio owned by THIS aura (same start, same stop, same cleanup). No uploads: the built-in wind
 	-- loop pitched up, chopped by a fast tremolo and EQ'd thin = a soft electric hum, plus an occasional very
@@ -699,6 +913,9 @@ local function selfFlingAura(model: Model)
 		end
 		if model.Parent then
 			model:SetAttribute("SelfFlingAura", nil)
+		end
+		if stopLightning then
+			stopLightning()
 		end
 		-- the hum fades out quickly (before the landing thud lands on top of it), then stops
 		if humSound.Parent then
@@ -784,17 +1001,12 @@ function HackVfx.SelfFling(model: Model)
 	h.OutlineTransparency = 0.2
 	h.Adornee = model
 	h.Parent = root()
-	local parts: { BasePart } = {}
-	for _, p in model:GetDescendants() do
-		if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
-			table.insert(parts, p)
-		end
-	end
+	-- Rev 15t (VFX-01): the launch shock is a dense, bright lightning burst around the body (was small
+	-- spark sticks), fading over 0.45 s while the flight aura's lighter lightning takes over
+	lightningCluster(body, { arcs = 5, segs = 6, radius = 2.6, every = 2, light = 2.4, core = 1.6, seconds = 0.45 })
 	local t0 = os.clock()
-	local frame = 0
 	local conn: RBXScriptConnection? = nil
 	conn = RunService.RenderStepped:Connect(function()
-		frame += 1
 		if os.clock() - t0 > 0.35 or not model.Parent then
 			if conn then
 				conn:Disconnect()
@@ -803,13 +1015,6 @@ function HackVfx.SelfFling(model: Model)
 			return
 		end
 		h.FillTransparency = 0.5 + math.random() * 0.4
-		if frame % 2 == 0 and #parts > 0 then
-			local p = parts[math.random(1, #parts)]
-			local spark = vpart("ShockSpark", Vector3.new(0.12, 0.12, 0.9 + math.random()), p.CFrame * CFrame.Angles(math.random() * 6.28, math.random() * 6.28, 0), Color3.fromRGB(200, 245, 255), Enum.Material.Neon)
-			task.delay(0.08, function()
-				spark:Destroy()
-			end)
-		end
 	end)
 end
 -- Rev 15: FLING TARGET landing impact (after the throw, seen by everyone). Grounded and physical, not

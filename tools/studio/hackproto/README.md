@@ -25,7 +25,7 @@ This is an **isolated prototype** for the owner-approved milestone of 2026-11-16
    ```bash
    node tools/studio/hackproto/hp_40_verify_saved.js <place.rbxlx>
    ```
-   The latest save (Rev 15s, 2026-11-17) reported 66/66; place SHA-256 8043F064….
+   The latest save (Rev 15t, 2026-11-17) reported 66/66; place SHA-256 A13446E8….
 
 ## Playing it
 - Press Play (solo). You spawn at the launch area.
