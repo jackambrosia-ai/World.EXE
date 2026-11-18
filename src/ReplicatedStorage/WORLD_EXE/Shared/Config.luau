@@ -7,6 +7,11 @@ local Config = {}
 Config.Version = "0.8.0-phase8a1"
 Config.RootName = "WORLD_EXE"
 
+-- Owner 2026-11-16: "make the game force R6 for everyone". Enforced by ForceR6.server (an R6
+-- StarterCharacter; each player's own appearance is still applied). The Roblox Game Settings avatar type
+-- (R6) should be set to match when the experience is published.
+Config.ForceR6 = true
+
 -- CollectionService tags used by the Studio-owned arena.
 Config.Tags = table.freeze({
 	DecayTile = "DecayTile",
