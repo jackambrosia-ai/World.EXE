@@ -1,0 +1,483 @@
+--!strict
+-- DiscClient (Core Round Step 1, client): throwing input, disc visuals for every disc, hit feedback.
+-- The SERVER decides every hit (CoreDisc). This client:
+--   * predicts its own disc the moment you throw (no wait for the server), then follows server events
+--     (bounce / turn / block / end) and corrects if they disagree;
+--   * draws other discs from the server's launch event, advanced by the elapsed time;
+--   * records, for its own throws, which target the disc VISIBLY crossed on this screen (head / body), so the
+--     Step 1 latency test can compare "what the thrower saw" with "what the server confirmed".
+-- Visuals: a team-coloured spinning disc, a 0.6 s trail, a ring mark at the bounce point, impact bursts.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local CoreRound = ReplicatedStorage:WaitForChild("WORLD_EXE"):WaitForChild("CoreRound")
+local CoreConfig = require(CoreRound:WaitForChild("CoreConfig"))
+local CoreGeom = require(CoreRound:WaitForChild("CoreGeom"))
+local Fx = require(script.Parent:WaitForChild("Fx"))
+local Aim = require(script.Parent:WaitForChild("Aim"))
+
+local DiscClient = {}
+
+local player = Players.LocalPlayer
+local function tune(k: string): number
+	return CoreConfig.Tune("Disc", k)
+end
+
+type Vis = {
+	id: number?,
+	n: number?,
+	owner: string,
+	team: string,
+	pos: Vector3,
+	dir: Vector3,
+	phase: string,
+	travelled: number,
+	bounces: number,
+	part: BasePart,
+	spin: number,
+	mine: boolean,
+	t0: number,
+	seen: { [string]: { out: string?, ret: string?, outT: number? } }, -- own throws: visible crossings per target
+}
+local byId: { [number]: Vis } = {}
+local pending: { [number]: Vis } = {} -- own predicted discs by client sequence n, before the server id arrives
+local mine: Vis? = nil
+local seq = 0
+local readyAt = 0 -- os.clock()
+local params = RaycastParams.new()
+params.FilterType = Enum.RaycastFilterType.Exclude
+params.RespectCanCollide = true
+
+local send: (string, { [string]: any }) -> () = function() end
+local blockers: { shieldUp: () -> boolean, stunned: () -> boolean } = {
+	shieldUp = function()
+		return false
+	end,
+	stunned = function()
+		return false
+	end,
+}
+local hud: any = nil
+
+-- diagnostics: per own throw n -> { visible = { target, part, pass }..., server = {...} }
+DiscClient.Records = {} :: { [number]: { [string]: any } }
+
+local function colorOf(team: string): Color3
+	return (CoreConfig.TeamColors :: any)[team] or CoreConfig.NeutralColor
+end
+
+local function myTeam(): string
+	return if player.Team then player.Team.Name else ""
+end
+
+-- every combat entity this client can see: other players' characters + yard dummies
+local function entities(): { [string]: Model }
+	local out = {}
+	for _, p in Players:GetPlayers() do
+		if p.Character then
+			out[p.Name] = p.Character
+		end
+	end
+	local yard = workspace:FindFirstChild("CoreRoundYard")
+	local d = yard and yard:FindFirstChild("Dummies")
+	if d then
+		for _, m in d:GetChildren() do
+			if m:IsA("Model") then
+				out[m.Name] = m
+			end
+		end
+	end
+	return out
+end
+
+local function teamOfModel(m: Model): string
+	local p = Players:GetPlayerFromCharacter(m)
+	if p then
+		return if p.Team then p.Team.Name else ""
+	end
+	local t = m:GetAttribute("CR_Team")
+	return if typeof(t) == "string" then t else ""
+end
+
+local function ownerRoot(v: Vis): BasePart?
+	local m = entities()[v.owner]
+	return m and m:FindFirstChild("HumanoidRootPart") :: BasePart?
+end
+
+local function makePart(team: string): BasePart
+	local p = Instance.new("Part")
+	p.Name = "Disc"
+	p.Shape = Enum.PartType.Cylinder
+	p.Size = Vector3.new(0.3, 2.2, 2.2)
+	p.Material = Enum.Material.Neon
+	p.Color = colorOf(team)
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	-- trail attachments on the spin axis (the cylinder's X axis, vertical in flight) so the ribbon does not twist
+	local a0 = Instance.new("Attachment")
+	a0.Position = Vector3.new(0.3, 0, 0)
+	a0.Parent = p
+	local a1 = Instance.new("Attachment")
+	a1.Position = Vector3.new(-0.3, 0, 0)
+	a1.Parent = p
+	local tr = Instance.new("Trail")
+	tr.Attachment0 = a0
+	tr.Attachment1 = a1
+	tr.Lifetime = tune("TrailSeconds")
+	tr.LightEmission = 1
+	tr.FaceCamera = true
+	tr.Color = ColorSequence.new(colorOf(team))
+	tr.Transparency = NumberSequence.new(0.2, 1)
+	tr.WidthScale = NumberSequence.new(1, 0.2)
+	tr.Parent = p
+	-- inner core ring (dark centre reads as a disc, not a ball)
+	local core = Instance.new("Part")
+	core.Name = "Core"
+	core.Shape = Enum.PartType.Cylinder
+	core.Size = Vector3.new(0.34, 1.1, 1.1)
+	core.Material = Enum.Material.SmoothPlastic
+	core.Color = Color3.fromRGB(20, 24, 30)
+	core.Anchored = true
+	core.CanCollide = false
+	core.CanQuery = false
+	core.CanTouch = false
+	core.CastShadow = false
+	core.Parent = p
+	p.Parent = Fx.Folder()
+	return p
+end
+
+local function newVis(owner: string, team: string, pos: Vector3, dir: Vector3, isMine: boolean): Vis
+	return {
+		id = nil,
+		n = nil,
+		owner = owner,
+		team = team,
+		pos = pos,
+		dir = dir.Unit,
+		phase = "out",
+		travelled = 0,
+		bounces = 0,
+		part = makePart(team),
+		spin = 0,
+		mine = isMine,
+		t0 = os.clock(),
+		seen = {},
+	}
+end
+
+local function removeVis(v: Vis, how: string)
+	if v.id then
+		byId[v.id] = nil
+	end
+	if v.n then
+		pending[v.n] = nil
+	end
+	if mine == v then
+		mine = nil
+	end
+	if how == "caught" then
+		Fx.Burst(v.pos, colorOf(v.team), 2.2)
+		if v.mine then
+			Fx.Sound("catch")
+		end
+	end
+	local p = v.part
+	-- let the trail fade out
+	p.Transparency = 1
+	local core = p:FindFirstChild("Core") :: BasePart?
+	if core then
+		core.Transparency = 1
+	end
+	task.delay(tune("TrailSeconds"), function()
+		p:Destroy()
+	end)
+end
+
+-- client-side hit volumes (same maths as the server, against what THIS screen shows; no rewind)
+local function visibleHit(m: Model, a: Vector3, b: Vector3): string?
+	local root = m:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local head = m:FindFirstChild("Head") :: BasePart?
+	if not root or not head then
+		return nil
+	end
+	local _, part = CoreGeom.DiscHit(a, b, root.Position, head.Position, {
+		headR = tune("HeadRadius"),
+		bodyR = tune("BodyRadius"),
+		bodyTop = tune("BodyTop"),
+		bodyBottom = tune("BodyBottom"),
+		r = tune("Radius"),
+		tol = tune("HitTolerance"),
+	})
+	return part
+end
+
+local function stepVis(v: Vis, dt: number)
+	local speed
+	if v.phase == "ret" then
+		local root = ownerRoot(v)
+		if not root then
+			return
+		end
+		local to = root.Position - v.pos
+		if to.Magnitude <= tune("CatchRadius") then
+			v.pos = root.Position
+			return -- wait for the server's end event (the owner sees the catch at once anyway)
+		end
+		v.dir = to.Unit
+		speed = tune("ReturnSpeed")
+	else
+		speed = tune("OutSpeed")
+	end
+	local a = v.pos
+	local step = v.dir * speed * dt
+	local b = a + step
+	if v.phase == "out" then
+		local ignore: { Instance } = { Fx.Folder() }
+		for _, m in entities() do
+			table.insert(ignore, m)
+		end
+		params.FilterDescendantsInstances = ignore
+		local hit = workspace:Spherecast(a, tune("Radius"), step, params)
+		if hit then
+			local n = hit.Normal
+			if math.abs(n.Y) < 0.7 and v.bounces < tune("Bounces") then
+				v.bounces += 1
+				v.pos = hit.Position + n * (tune("Radius") * 0.5)
+				v.dir = (v.dir - 2 * v.dir:Dot(n) * n).Unit
+				Fx.Ring(hit.Position + n * 0.05, n, colorOf(v.team), 3, tune("TrailSeconds"))
+				Fx.Sound("bounce", hit.Position)
+			else
+				v.pos = hit.Position + n * (tune("Radius") * 0.5)
+				v.phase = "ret"
+			end
+			b = v.pos
+		else
+			v.pos = b
+			v.travelled += step.Magnitude
+			if v.travelled >= tune("Range") then
+				v.phase = "ret"
+			end
+		end
+	else
+		v.pos = b
+	end
+	-- own throws: record what this screen shows the disc crossing
+	if v.mine and v.n then
+		for name, m in entities() do
+			if name ~= player.Name and (myTeam() == "" or teamOfModel(m) ~= myTeam()) then
+				local part = visibleHit(m, a, b)
+				if part then
+					local s = v.seen[name] or {}
+					v.seen[name] = s
+					if v.phase == "out" then
+						if not s.out then
+							s.out = part
+							s.outT = os.clock()
+						end
+					elseif not s.ret and (s.out == nil or tune("SameTargetPerThrow") >= 1.5) then
+						s.ret = part -- same rule as the server: by default a target already crossed on the way out does not count again
+					end
+					local rec = DiscClient.Records[v.n]
+					if rec then
+						rec.visible[name] = { out = s.out, ret = s.ret }
+					end
+				end
+			end
+		end
+	end
+	-- orient + spin
+	v.spin += dt * 40
+	-- cylinder axis = X: lay it flat (axis up), then spin around the vertical
+	v.part.CFrame = CFrame.new(v.pos) * CFrame.Angles(0, v.spin, 0) * CFrame.Angles(0, 0, math.rad(90))
+	local core = v.part:FindFirstChild("Core") :: BasePart?
+	if core then
+		core.CFrame = v.part.CFrame
+	end
+end
+
+-- ---------- throwing ----------
+function DiscClient.CanThrow(): (boolean, string?)
+	if blockers.stunned() then
+		return false, "stunned"
+	end
+	if blockers.shieldUp() then
+		return false, "shield"
+	end
+	if mine then
+		return false, "in_flight"
+	end
+	if os.clock() < readyAt then
+		return false, "cooldown"
+	end
+	return true, nil
+end
+
+-- dirOverride: test kit only (a scripted aim direction)
+function DiscClient.Throw(dirOverride: Vector3?): (boolean, string?)
+	local c = player.Character
+	local hrp = c and c:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not c or not hrp then
+		return false, "nochar"
+	end
+	local ok, why = DiscClient.CanThrow()
+	if not ok then
+		Fx.Sound("deny")
+		if hud then
+			hud.Deny(why)
+		end
+		return false, why
+	end
+	local origin = hrp.Position + Vector3.new(0, 1.2, 0)
+	local dir = dirOverride or (Aim.Point() - origin)
+	if dir.Magnitude < 1e-3 then
+		dir = hrp.CFrame.LookVector
+	end
+	dir = dir.Unit
+	seq += 1
+	local v = newVis(player.Name, myTeam(), origin, dir, true)
+	v.n = seq
+	pending[seq] = v
+	mine = v
+	DiscClient.Records[seq] = { t = os.clock(), visible = {}, server = {}, origin = origin, dir = dir }
+	send("throw", { n = seq, origin = origin, dir = dir })
+	Fx.Sound("throw")
+	return true, nil
+end
+
+function DiscClient.Busy(): boolean
+	return mine ~= nil
+end
+
+function DiscClient.ReadyIn(): number
+	return math.max(0, readyAt - os.clock())
+end
+
+-- ---------- server events ----------
+function DiscClient.OnEvent(kind: string, d: { [string]: any })
+	if kind == "disc_launch" then
+		if d.owner == player.Name then
+			local v = pending[d.n]
+			if v then
+				v.id = d.id
+				byId[d.id] = v
+			end
+			return
+		end
+		local v = newVis(d.owner, d.team, d.origin, d.dir, false)
+		v.id = d.id
+		byId[d.id] = v
+		-- advance by the elapsed server time so it lines up with the server disc
+		local elapsed = math.clamp(workspace:GetServerTimeNow() - d.t0, 0, 0.5)
+		local steps = math.ceil(elapsed / (1 / 60))
+		for _ = 1, steps do
+			stepVis(v, elapsed / steps)
+		end
+	elseif kind == "disc_bounce" then
+		local v = byId[d.id]
+		if v and v.bounces == 0 then
+			v.bounces = 1
+			v.pos = d.pos
+			v.dir = d.dir
+			Fx.Ring(d.pos, d.dir, colorOf(v.team), 3, tune("TrailSeconds"))
+		elseif v and (v.pos - d.pos).Magnitude > 6 and v.phase == "out" then
+			v.pos = d.pos
+			v.dir = d.dir
+		end
+	elseif kind == "disc_turn" then
+		local v = byId[d.id]
+		if v and v.phase == "out" then
+			v.phase = "ret"
+			if (v.pos - d.pos).Magnitude > 4 then
+				v.pos = d.pos
+			end
+		end
+	elseif kind == "disc_block" then
+		local v = byId[d.id]
+		local col = if v then colorOf(v.team) else CoreConfig.NeutralColor
+		Fx.Ring(d.pos, if v then -v.dir else Vector3.yAxis, Color3.new(1, 1, 1), 4, 0.25)
+		Fx.Burst(d.pos, col, 2.5)
+		Fx.Sound("block", d.pos)
+		if v and v.phase == "out" then
+			v.phase = "ret"
+			v.pos = d.pos
+		end
+		if d.broke then
+			Fx.Sound("shield_break", d.pos)
+		end
+		if hud then
+			hud.Blocked(d)
+		end
+	elseif kind == "disc_end" then
+		local v = byId[d.id]
+		if not v and d.owner == player.Name then
+			v = pending[d.n]
+		end
+		if v then
+			removeVis(v, d.how)
+		end
+		if d.owner == player.Name then
+			local penalty = if d.how == "snap" then tune("SnapPenaltySeconds") else tune("RethrowSeconds")
+			readyAt = os.clock() + penalty
+		end
+	elseif kind == "hit" then
+		local col = if d.kind == "HEAD" then Color3.fromRGB(255, 214, 64) else Color3.new(1, 1, 1)
+		Fx.Burst(d.pos, col, if d.stunned then 5 else 2.2)
+		if d.stunned then
+			Fx.Sound("stun", d.pos)
+		end
+		if d.attacker == player.Name then
+			Fx.Sound(if d.kind == "HEAD" then "hit_head" else "hit_body")
+			local rec = DiscClient.Records[d.n]
+			if rec then
+				rec.server[d.target .. ":" .. d.pass] = { part = d.kind, stunned = d.stunned, meter = d.meter, immune = d.immune, ignored = d.ignored }
+			end
+		end
+		if hud then
+			hud.Hit(d)
+		end
+	elseif kind == "reject" and d.op == "throw" then
+		local v = pending[d.n]
+		if v then
+			removeVis(v, "rejected")
+		end
+		if hud then
+			hud.Deny(d.why)
+		end
+	end
+end
+
+function DiscClient.Start(deps: { send: (string, { [string]: any }) -> (), shieldUp: () -> boolean, stunned: () -> boolean, hud: any })
+	send = deps.send
+	blockers = { shieldUp = deps.shieldUp, stunned = deps.stunned }
+	hud = deps.hud
+	RunService.RenderStepped:Connect(function(dt)
+		for _, v in byId do
+			stepVis(v, dt)
+		end
+		for _, v in pending do
+			if not v.id then
+				stepVis(v, dt)
+			end
+		end
+		-- a lost prediction (no server answer) is cleared after the max flight time
+		local m = mine
+		if m and os.clock() - m.t0 > tune("MaxFlightSeconds") + 1.5 then
+			removeVis(m, "timeout")
+		end
+	end)
+	player.CharacterAdded:Connect(function()
+		local m = mine
+		if m then
+			removeVis(m, "respawn")
+		end
+		readyAt = 0
+	end)
+end
+
+return DiscClient
