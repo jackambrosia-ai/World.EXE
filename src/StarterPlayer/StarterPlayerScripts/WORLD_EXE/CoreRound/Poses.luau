@@ -137,6 +137,8 @@ type State = {
 	dead: boolean,
 	dirty: boolean, -- joints added / removed (avatar parts replaced): rebuild the joint map
 	spin: number, -- owner request: the right hand spins while the disc charges (radians)
+	lastWallT: number, -- correction pass: last frame on a wall (wall-arm check keeps running briefly after)
+	ovT: number, -- correction pass: Power Slide Jump push-off overlay start (PSJ straight into a wall-run)
 	pendKind: string?, -- others: a slide / wall-run just ended; watching for the launch (psj / wj)
 	pendT: number,
 	dashT: number, -- owner request: regular dash start (front / side / back clip by direction)
@@ -218,6 +220,8 @@ local function stateFor(c: Model): State
 		dead = false,
 		dirty = false,
 		spin = 0,
+		lastWallT = -10,
+		ovT = -10,
 		pendKind = nil,
 		pendT = 0,
 		dashT = -10,
@@ -281,10 +285,242 @@ local function wallSideOf(c: Model, hrp: BasePart): number?
 	return nil
 end
 
-local function grounded(c: Model, hrp: BasePart, hum: Humanoid?): boolean
+local function grounded(c: Model, hrp: BasePart, hum: Humanoid?): RaycastResult?
 	params.FilterDescendantsInstances = { c }
 	local reach = (if hum then hum.HipHeight else 2) + hrp.Size.Y / 2 + 0.6
-	return workspace:Raycast(hrp.Position, Vector3.new(0, -reach, 0), params) ~= nil
+	return workspace:Raycast(hrp.Position, Vector3.new(0, -reach, 0), params)
+end
+
+---------------------------------------------------------------------------------------------------- foot contact
+-- Step 1E correction pass (owner): while the run blends into / out of the slide (CoreGeom.SlideWeight, 0.22 s) the
+-- joint-space blend of two poses whose feet are each on the floor can put a foot BELOW the floor (measured up to
+-- 0.64 studs on the canonical avatar, 0.33 on a stock R15). After the final pose is composed, each grounded foot is
+-- checked against the floor under the root using THIS rig's own joint attachments and foot size; a foot below the
+-- floor is lifted by a 2-bone leg IK (hip + knee, bend plane kept, foot keeps its world orientation). Only the legs
+-- change: the root, pelvis translation and the head (server-aligned) are untouched; nothing changes when no foot
+-- is below the floor, so there is no jitter in normal play.
+local function jointC(j: any): (CFrame, CFrame)
+	if j:IsA("Motor6D") then
+		return j.C0, j.C1
+	end
+	return j.Attachment0.CFrame, j.Attachment1.CFrame
+end
+
+local function rotBetween(a: Vector3, b: Vector3): CFrame
+	local au, bu = a.Unit, b.Unit
+	local cr = au:Cross(bu)
+	local sn = cr.Magnitude
+	if sn < 1e-6 then
+		return CFrame.identity
+	end
+	return CFrame.fromAxisAngle(cr / sn, math.atan2(sn, au:Dot(bu)))
+end
+
+local FOOT_CORNERS = {}
+for _, x in { -0.5, 0.5 } do
+	for _, y in { -0.5, 0.5 } do
+		for _, z in { -0.5, 0.5 } do
+			table.insert(FOOT_CORNERS, Vector3.new(x, y, z))
+		end
+	end
+end
+
+Poses.FootFix = { frames = 0, lifts = 0, maxLift = 0 } -- test hook
+Poses.WallFix = { frames = 0, fixes = 0, residual = 0 } -- test hook
+
+-- Step 1E correction pass (owner): wall-side arm vs the real wall plane, per rig. The authored wall-run brace keeps the
+-- canonical avatar's arm within ~0.06 of the wall, but a rig whose shoulders / arms sit further out (stock R15: hand
+-- up to 1.5 studs inside the wall) needs more. The wall-side arm (shoulder, elbow, hand boxes from THIS rig's joints)
+-- is tested against the wall the root is running on; if it is inside, the arm is rotated about the shoulder pivot -
+-- first spun about the character's forward axis, then swung about the vertical - by bisection until it only touches
+-- the wall. Torso, head, legs and the wall-run physics are untouched.
+local function wallArmFix(c: Model, joints: { [string]: any }, hrpCF: CFrame, wp: Vector3, wn: Vector3, side: number, work: { [string]: CFrame })
+	local n = if side > 0 then "Right" else "Left"
+	local rj, wj, sj, ej, hj = joints.Root, joints.Waist, joints[n .. "Shoulder"], joints[n .. "Elbow"], joints[n .. "Wrist"]
+	local ua, la, hand = c:FindFirstChild(n .. "UpperArm") :: BasePart?, c:FindFirstChild(n .. "LowerArm") :: BasePart?, c:FindFirstChild(n .. "Hand") :: BasePart?
+	if not (rj and wj and sj and ej and hj and ua and la and hand and work.Root and work.Waist) then
+		return
+	end
+	local ts, te, tw = work[n .. "Shoulder"], work[n .. "Elbow"], work[n .. "Wrist"]
+	if not (ts and te and tw) then
+		return
+	end
+	local r0, r1 = jointC(rj)
+	local w0, w1 = jointC(wj)
+	local s0, s1 = jointC(sj)
+	local e0, e1 = jointC(ej)
+	local h0, h1 = jointC(hj)
+	local lt = hrpCF * r0 * work.Root * r1:Inverse()
+	local ut = lt * w0 * work.Waist * w1:Inverse()
+	local fs = ut * s0
+	local function pen(tsx: CFrame): number
+		local u = fs * tsx * s1:Inverse()
+		local l = u * e0 * te * e1:Inverse()
+		local hd = l * h0 * tw * h1:Inverse()
+		local worst = -math.huge
+		for _, pr in { { u, ua.Size }, { l, la.Size }, { hd, hand.Size } } do
+			local cf, sz = pr[1], pr[2]
+			for _, k in FOOT_CORNERS do
+				worst = math.max(worst, -((cf * Vector3.new(k.X * sz.X, k.Y * sz.Y, k.Z * sz.Z)) - wp):Dot(wn))
+			end
+		end
+		return worst
+	end
+	Poses.WallFix.frames += 1
+	if pen(ts) <= 0.03 then
+		return
+	end
+	local fsR = fs.Rotation
+	local function rotated(axis: Vector3, ang: number, base: CFrame): CFrame
+		return (fsR:Inverse() * CFrame.fromAxisAngle(axis, ang) * fsR) * base
+	end
+	local best = ts
+	for _, axis in { hrpCF.LookVector, Vector3.yAxis } do
+		local sgn = if pen(rotated(axis, 0.3, best)) < pen(rotated(axis, -0.3, best)) then 1 else -1
+		local lo, hi = 0, math.pi
+		if pen(rotated(axis, sgn * hi, best)) > 0.02 then
+			-- cannot clear with this axis alone: take its best sampled angle and continue with the next axis
+			local bestA, bestP = 0, pen(best)
+			for i = 1, 8 do
+				local a = sgn * hi * i / 8
+				local pv = pen(rotated(axis, a, best))
+				if pv < bestP then
+					bestA, bestP = a, pv
+				end
+			end
+			best = rotated(axis, bestA, best)
+		else
+			for _ = 1, 7 do
+				local mid = (lo + hi) / 2
+				if pen(rotated(axis, sgn * mid, best)) > 0.02 then
+					lo = mid
+				else
+					hi = mid
+				end
+			end
+			best = rotated(axis, sgn * hi, best)
+			break
+		end
+	end
+	work[n .. "Shoulder"] = best
+	Poses.WallFix.fixes += 1
+	Poses.WallFix.residual = math.max(Poses.WallFix.residual, pen(best))
+end
+
+local function fixFeet(c: Model, joints: { [string]: any }, hrpCF: CFrame, floor: RaycastResult, work: { [string]: CFrame })
+	local rj = joints.Root
+	if not rj or not work.Root then
+		return
+	end
+	local r0, r1 = jointC(rj)
+	local lt = hrpCF * r0 * work.Root * r1:Inverse()
+	local fp, fn = floor.Position, floor.Normal
+	for pass = 1, 4 do -- two passes per leg: the ankle lift re-swings the thigh, so the thigh check runs again
+	local side = if pass % 2 == 1 then "Right" else "Left"
+	do
+		local hj, kj, aj = joints[side .. "Hip"], joints[side .. "Knee"], joints[side .. "Ankle"]
+		local foot = c:FindFirstChild(side .. "Foot") :: BasePart?
+		local th, tk, ta = work[side .. "Hip"], work[side .. "Knee"], work[side .. "Ankle"]
+		if hj and kj and aj and foot and th and tk and ta then
+			local h0, h1 = jointC(hj)
+			local k0, k1 = jointC(kj)
+			local a0, a1 = jointC(aj)
+			local fh = lt * h0
+			-- thigh / shin below the floor (e.g. the slide's folded rear leg on a rig with a lower hip height than the
+			-- authoring rig): swing the thigh about the hip (bisection) until the leg rests on the floor; the knee bend
+			-- is kept. The ankle lift below then handles the foot.
+			local ulPart = c:FindFirstChild(side .. "UpperLeg") :: BasePart?
+			local llPart = c:FindFirstChild(side .. "LowerLeg") :: BasePart?
+			if ulPart and llPart then
+				local function legPen(thx: CFrame): number
+					local u = fh * thx * h1:Inverse()
+					local l = u * k0 * tk * k1:Inverse()
+					local worst = -math.huge
+					for _, pr in { { u, ulPart.Size }, { l, llPart.Size } } do
+						local cf, sz2 = pr[1], pr[2]
+						for _, k in FOOT_CORNERS do
+							local corner = cf * Vector3.new(k.X * sz2.X, k.Y * sz2.Y, k.Z * sz2.Z)
+							worst = math.max(worst, -(corner - fp):Dot(fn))
+						end
+					end
+					return worst
+				end
+				local p0 = legPen(th)
+				if p0 > 0.01 then
+					local sgn = if legPen(CFrame.Angles(0.2, 0, 0) * th) < legPen(CFrame.Angles(-0.2, 0, 0) * th) then 1 else -1
+					local lo, hi = 0, 1.2
+					if legPen(CFrame.Angles(sgn * hi, 0, 0) * th) > 0.005 then
+						lo = hi
+					else
+						for _ = 1, 7 do
+							local mid = (lo + hi) / 2
+							if legPen(CFrame.Angles(sgn * mid, 0, 0) * th) > 0.005 then
+								lo = mid
+							else
+								hi = mid
+							end
+						end
+						lo = hi
+					end
+					th = CFrame.Angles(sgn * lo, 0, 0) * th
+					work[side .. "Hip"] = th
+				end
+			end
+			local ul = fh * th * h1:Inverse()
+			local fk = ul * k0
+			local ll = fk * tk * k1:Inverse()
+			local fa = ll * a0
+			local ft = fa * ta * a1:Inverse()
+			local sz = foot.Size
+			local low = math.huge
+			for _, k in FOOT_CORNERS do
+				local corner = ft * Vector3.new(k.X * sz.X, k.Y * sz.Y, k.Z * sz.Z)
+				low = math.min(low, (corner - fp):Dot(fn))
+			end
+			-- the shin's lower (ankle-end) corners too: lifting the ankle lifts them as well
+			local shin = c:FindFirstChild(side .. "LowerLeg") :: BasePart?
+			if shin then
+				local ss = shin.Size
+				for _, k in FOOT_CORNERS do
+					if k.Y < 0 then
+						local corner = ll * Vector3.new(k.X * ss.X, k.Y * ss.Y, k.Z * ss.Z)
+						low = math.min(low, (corner - fp):Dot(fn))
+					end
+				end
+			end
+			local lift = -low
+			if lift > 0.005 then
+				lift = math.min(lift, 1.2)
+				local hp, kp, ap = fh.Position, fk.Position, fa.Position
+				local L1, L2 = (kp - hp).Magnitude, (ap - kp).Magnitude
+				local want = ap + Vector3.yAxis * (lift / math.max(0.5, fn.Y))
+				local ht = want - hp
+				local d = math.clamp(ht.Magnitude, math.abs(L1 - L2) + 1e-3, L1 + L2 - 1e-3)
+				local u = ht.Unit
+				local axis = (ap - hp):Cross(kp - hp)
+				axis = if axis.Magnitude < 1e-4 then lt.RightVector else axis.Unit
+				local w = axis:Cross(u).Unit
+				if w:Dot(kp - hp) < 0 then
+					w = -w
+				end
+				local cosA = math.clamp((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d), -1, 1)
+				local kNew = hp + u * (L1 * cosA) + w * (L1 * math.sqrt(1 - cosA * cosA))
+				local rot1 = rotBetween(kp - hp, kNew - hp)
+				local aAfter = hp + rot1:VectorToWorldSpace(ap - hp)
+				local rot2 = rotBetween(aAfter - kNew, (hp + u * d) - kNew)
+				local fhR = fh.Rotation
+				work[side .. "Hip"] = (fhR:Inverse() * rot1 * fhR) * th
+				local fkR = rot1 * fk.Rotation
+				work[side .. "Knee"] = (fkR:Inverse() * rot2 * fkR) * tk
+				local faR = fa.Rotation
+				work[side .. "Ankle"] = (faR:Inverse() * (rot2 * rot1):Inverse() * faR) * ta
+				Poses.FootFix.lifts += 1
+				Poses.FootFix.maxLift = math.max(Poses.FootFix.maxLift, lift)
+			end
+		end
+	end
+	end
+	Poses.FootFix.frames += 1
 end
 
 -- start (or keep) the base clip `name`; every other base track fades out
@@ -360,6 +596,10 @@ local function drawCharacter(c: Model, s: State, hrp: BasePart, hum: Humanoid?, 
 			-- the check stays open for 0.35 s after the change instead of testing only that instant.
 			if s.lastState == "slide" and applied == "run" then
 				s.pendKind, s.pendT = "psj", now
+			elseif s.lastState == "slide" and applied == "wallrun" then
+				-- correction pass: a Power Slide Jump straight into a wall-run replicates as slide -> wallrun with no run in
+				-- between; show the push-off as a short overlay on the wall-run (no delay to the wall-run itself)
+				s.ovT = now
 			elseif s.lastState == "wallrun" and applied == "run" then
 				s.pendKind, s.pendT = "wj", now
 				s.wjSide = s.wallSide
@@ -380,7 +620,16 @@ local function drawCharacter(c: Model, s: State, hrp: BasePart, hum: Humanoid?, 
 		end
 		sliding = applied == "slide"
 		if applied == "wallrun" then
-			wallSide = wallSideOf(c, hrp) or s.wallSide
+			-- correction pass (two-client finding): when a chained jump reaches the next wall, the replicated state says
+			-- "wallrun" before the drawn position is within the 4-stud side ray, and the old side was kept (~0.12 s
+			-- wrong-side flash). While the character still moves sideways fast (it is crossing to the new wall) the
+			-- side is the direction of that sideways motion; otherwise the nearest ray hit; otherwise the last side.
+			local lat = hrp.CFrame.RightVector:Dot(Vector3.new(vel.X, 0, vel.Z))
+			if math.abs(lat) > 12 then
+				wallSide = if lat > 0 then 1 else -1
+			else
+				wallSide = wallSideOf(c, hrp) or s.wallSide
+			end
 		end
 		local cs = c:GetAttribute("CR_ChargeStart")
 		if typeof(cs) == "number" then
@@ -398,6 +647,9 @@ local function drawCharacter(c: Model, s: State, hrp: BasePart, hum: Humanoid?, 
 	setSlide(s, sliding and not off, now)
 	if wallSide then
 		s.wallSide = wallSide
+		if s.psjT > 0 and now - s.psjT < 0.25 and s.ovT < s.psjT then
+			s.ovT = s.psjT -- this client's own PSJ that reaches a wall: finish the push-off as an overlay (correction pass)
+		end
 		s.psjT = -10 -- a wall-run ends the Power Slide Jump sequence (the next jump is a wall jump)
 	end
 	s.wallOn = wallSide ~= nil
@@ -411,7 +663,8 @@ local function drawCharacter(c: Model, s: State, hrp: BasePart, hum: Humanoid?, 
 		s.dashDir = Vector3.new(vel.X, 0, vel.Z).Unit
 	end
 	s.lastFlat = flat
-	local air = not grounded(c, hrp, hum)
+	local floorHit = grounded(c, hrp, hum)
+	local air = floorHit == nil
 	s.airT = if air then s.airT + dt else 0
 	if s.wasAir and not air then
 		local fellFast = vel.Y < 1
@@ -600,6 +853,18 @@ local function drawCharacter(c: Model, s: State, hrp: BasePart, hum: Humanoid?, 
 			end
 		end
 	end
+	-- correction pass: PSJ push-off overlay into a wall-run (full for 0.08 s, gone by 0.25 s)
+	local oa = now - s.ovT
+	if oa >= 0 and oa < 0.25 and not off then
+		local ow = if oa < 0.08 then 1 else 1 - CoreGeom.Ease((oa - 0.08) / 0.17)
+		for _, name in FULL do
+			local cur = work[name]
+			local cf = sample(clips.psj_push, math.min(clips.psj_push.len, 0.05 + oa), name)
+			if cur and cf then
+				work[name] = cur:Lerp(cf, ow)
+			end
+		end
+	end
 	-- lower-body turn (weighted by the run's share of the base layer)
 	local runW = 0
 	for _, tr in s.base do
@@ -649,6 +914,11 @@ local function drawCharacter(c: Model, s: State, hrp: BasePart, hum: Humanoid?, 
 	for _, tr in { s.disc, s.shield } do
 		if tr and tr.w > 0.001 then
 			for _, name in tr.clip.mask :: { string } do
+				-- correction pass: the disc arm is the right arm; on a wall to the RIGHT its wind-up would swing into the
+				-- wall, so the wall-run brace arm is kept there (the chest twist, held disc and hand spin still show)
+				if tr == s.disc and s.wallOn and s.wallSide > 0 and name ~= "Waist" and name ~= "RightWrist" then
+					continue
+				end
 				local cur = work[name]
 				local cf = sample(tr.clip, tr.t, name)
 				if cur and cf then
@@ -677,6 +947,43 @@ local function drawCharacter(c: Model, s: State, hrp: BasePart, hum: Humanoid?, 
 	if s.discOn and chargeK > 0 and not deps.reduced() and work.RightShoulder then
 		local a = R(1.6) * chargeK
 		work.RightShoulder = work.RightShoulder * CFrame.Angles(math.sin(now * 53) * a, 0, math.sin(now * 41) * a)
+	end
+	-- wall-side arm vs the wall (correction pass)
+	if s.wallOn then
+		s.lastWallT = now
+	end
+	if (s.wallOn or now - s.lastWallT < 0.4) and not off and not s.r6 then
+		-- also for 0.4 s after a wall-run ends (the body is still at the wall while the clips blend out)
+		params.FilterDescendantsInstances = { c }
+		local rv = hrp.CFrame.RightVector
+		local hr = workspace:Raycast(hrp.Position, rv * 2.5, params)
+		local hl = workspace:Raycast(hrp.Position, -rv * 2.5, params)
+		local hit, sd = hr, 1
+		if hl and (not hr or hl.Distance < hr.Distance) then
+			hit, sd = hl, -1
+		end
+		if hit then
+			-- the pose is written before physics moves the root this frame: test against where the wall will be
+			-- relative to the root after this step when the body is still closing on it
+			local approach = math.max(0, -vel:Dot(hit.Normal)) * dt
+			wallArmFix(c, joints, hrp.CFrame, hit.Position + hit.Normal * approach, hit.Normal, sd, work)
+		end
+	end
+	-- feet vs floor (correction pass). The pose is written before physics moves the root this frame, so a falling
+	-- character is checked where its root will be after this step (measured: a one-frame 0.33 dip at touchdown).
+	if not off then
+		local fall = math.min(0, vel.Y) * dt
+		local probe = floorHit
+		if not probe and fall < 0 then
+			params.FilterDescendantsInstances = { c }
+			local reach = (if hum then hum.HipHeight else 2) + hrp.Size.Y / 2 + 0.6 - fall * 1.5
+			probe = workspace:Raycast(hrp.Position, Vector3.new(0, -reach, 0), params)
+		end
+		if probe then
+			local stand = (if hum then hum.HipHeight else 2) + hrp.Size.Y / 2
+			local y = math.max(hrp.Position.Y + fall, probe.Position.Y + stand - 0.5)
+			fixFeet(c, joints, hrp.CFrame + Vector3.new(0, y - hrp.Position.Y, 0), probe, work)
+		end
 	end
 	for _, name in FULL do
 		local j = joints[name]

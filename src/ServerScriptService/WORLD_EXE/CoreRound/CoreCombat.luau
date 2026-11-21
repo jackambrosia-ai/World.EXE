@@ -164,6 +164,15 @@ function CoreCombat.Record()
 			e.histN = e.histN % HIST + 1
 			local sw = CoreGeom.SlideWeight(e.slideStartT, e.slideEndT, t, tune("Slide", "PoseBlendSeconds"))
 			e.hist[e.histN] = { t = t, cf = root.CFrame, head = head.Position, yaw = e.shieldYaw, up = e.shieldUp, state = e.moveState, sw = sw }
+			-- Step 1E correction pass: a longer (10 s) diagnostics ring, Studio test attribute only (gameplay never reads it)
+			if workspace:GetAttribute("CR_HitTrace") == true then
+				local dg = (e :: any).diag or {}
+				(e :: any).diag = dg
+				table.insert(dg, { t = t, pos = root.Position, head = head.Position, state = e.moveState, sw = sw, vel = root.AssemblyLinearVelocity })
+				if #dg > 700 then
+					table.remove(dg, 1)
+				end
+			end
 		end
 	end
 end

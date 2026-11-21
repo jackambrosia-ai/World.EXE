@@ -462,6 +462,7 @@ def clip_land():
 
 # ================================================================================================ WALL-RUN (wall on the right)
 WALL_X = 0.90  # wall plane, character space (the root rides ~0.85-0.9 from the wall: HRP half width 0.85)
+WALL_SHIFT = -0.06  # correction pass: drawn pelvis 0.06 away from the wall (searched: arm/wall overlap 0.30 -> ~0.06)
 WALL_TILT = 8.0  # body lean away from the wall (the head stays within 0.4 of the server's upright head)
 
 
@@ -474,6 +475,8 @@ def wall_pose(phi):
     P["Waist"] = (E(-4, -10 * fr, 2), Z3)
     P["Neck"] = (E(12, 5 * fr, -WALL_TILT * 0.8), Z3)
     anchor_head(P, (0.0, 0.0, 1.0))  # forward only: shifting toward the wall would push the hips into it
+    q_, t_ = P["Root"]
+    P["Root"] = (q_, (t_[0] + WALL_SHIFT, t_[1], t_[2]))
     zk, hk, pk, zf, zb = run_leg_keys()
     # The root rides ~0.9 from the wall (the HumanoidRootPart touches it), so the body is flush with the wall: the
     # legs run the sprint cycle under the body (no floor: the cycle is lifted); the wall-side foot rolls its outer
@@ -493,7 +496,8 @@ def wall_pose(phi):
     c = math.cos(TAU * (phi - 0.80))
     arm(P, -1, 15 + 60 * c, 12, twist=-6 * c, elbow=90 + 20 * c, wrist=-8)
     c2 = math.cos(TAU * (phi - 0.30))
-    arm(P, 1, 104 + 6 * c2, -48, twist=90, elbow=28 + 8 * c2, wrist=-10)  # searched: closest to the wall plane
+    # correction pass: forearm twisted so the arm's wide face is off the wall; elbow straight, hand brushing forward
+    arm(P, 1, 100 + 4 * c2, 10, twist=-120, elbow=2 + 3 * c2, wrist=-15)  # searched: closest to the wall plane
     return P
 
 
@@ -521,7 +525,11 @@ def clip_walljump_push():
     air_anchor(P2)
     solve_leg(P2, 1, (1.3, G + 0.4, 0.9), E(-50, 0, 15), "toe")
     solve_leg(P2, -1, (-0.95, G + 0.85, -0.7), E(-15, 0, -8), "toe")
-    keys = [(0, P0, "BEZIER"), (3, P1, "QUAD_OUT"), (6, P2, "BEZIER")]
+    # correction pass: the wall-run arm is twisted (-120) to stay off the wall; untwist it in front of the chest
+    # first (searched key) so the push-off arm does not sweep through the torso
+    Pm = copy(P0)
+    arm(Pm, 1, 60, 0, twist=-30, elbow=8, wrist=10)
+    keys = [(0, P0, "BEZIER"), (1, Pm, "BEZIER"), (3, P1, "QUAD_OUT"), (6, P2, "BEZIER")]
     return {"name": "walljump_r", "loop": False, "frames": 6, "keys": keys, "interp": "BEZIER", "ground": False,
             "layer": "full", "mirror": "walljump_l"}
 

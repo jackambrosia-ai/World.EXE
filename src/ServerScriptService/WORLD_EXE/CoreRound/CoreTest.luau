@@ -103,6 +103,29 @@ function CoreTest.Handle(op: string, ctx: any, ...): any
 		end
 		local r, h = pose(e)
 		return { root = r, head = h }
+	elseif op == "Trace" then -- Step 1E correction pass: server hit trace for (ownerName, n)
+		return CoreDisc.TraceLog[tostring(args[1]) .. ":" .. tostring(args[2])]
+	elseif op == "HistAt" then -- (entityName, { serverTimes }) -> sampled root / head / state / slide weight
+		local e = CoreCombat.ByName(args[1])
+		if not e then
+			return "missing"
+		end
+		-- from the 10 s diagnostics ring (linear interpolation)
+		local dg = (e :: any).diag or {}
+		local out = {}
+		for _, t in args[2] do
+			local r
+			for i = 2, #dg do
+				if dg[i - 1].t <= t and dg[i].t >= t then
+					local k = (t - dg[i - 1].t) / math.max(1e-4, dg[i].t - dg[i - 1].t)
+					r = { t = t, root = dg[i - 1].pos:Lerp(dg[i].pos, k), head = dg[i - 1].head:Lerp(dg[i].head, k), state = dg[i].state,
+						sw = dg[i - 1].sw + (dg[i].sw - dg[i - 1].sw) * k, vel = dg[i].vel }
+					break
+				end
+			end
+			table.insert(out, r or { t = t })
+		end
+		return out
 	elseif op == "Hit" then
 		local e = CoreCombat.ByName(args[1])
 		if not e then

@@ -37,6 +37,7 @@ type Disc = {
 	hitRet: { [Model]: boolean },
 	deflectUntil: number,
 	blockedBy: { [Model]: boolean }, -- owner bug fix: a shield blocks a given disc at most once per throw
+	trace: { { [string]: any } }, -- Step 1E correction pass: Studio diagnostics
 	log: { any },
 	-- Step 1B: per-throw flight from the server-validated charge (0 = tap). Never changes damage / stun / blocking.
 	charge: number,
@@ -104,6 +105,9 @@ local function finish(d: Disc, how: string)
 	d.owner:SetAttribute("CR_DiscOut", false)
 	d.owner:SetAttribute("CR_DiscReadyAt", readyAt[d.owner])
 	fire("disc_end", { id = d.id, n = d.n, owner = d.ownerName, how = how, pos = d.pos })
+	if #d.trace > 0 then
+		CoreDisc.TraceLog[d.ownerName .. ":" .. tostring(d.n)] = d.trace
+	end
 	logEvent({ kind = "disc_end", id = d.id, how = how, flight = now() - d.t0 })
 end
 
@@ -138,6 +142,7 @@ function CoreDisc.Throw(owner: Model, ownerName: string, n: number, origin: Vect
 		hitRet = {},
 		deflectUntil = 0,
 		blockedBy = {},
+		trace = {},
 		log = {},
 		charge = k,
 		outSpeed = lerp(tune("OutSpeed"), tune("ChargedOutSpeed"), k),
@@ -213,8 +218,11 @@ local function hitEntity(d: Disc, e: CoreCombat.Entity, kind: string, at: Vector
 	local _ = victim
 end
 
+CoreDisc.TraceLog = {} :: { [string]: { { [string]: any } } } -- Step 1E correction pass (Studio diagnostics)
+
 -- advance one disc by dt (sub-stepped)
 function CoreDisc.StepOne(d: Disc, dt: number)
+	local traceOn = workspace:GetAttribute("CR_HitTrace") == true
 	local remaining = dt
 	while remaining > 1e-4 and discs[d.id] do
 		local h = math.min(remaining, 1 / 90)
@@ -294,6 +302,12 @@ function CoreDisc.StepOne(d: Disc, dt: number)
 					local cf, head, _, _, state, sw = CoreCombat.Sample(e, t - rewindFor(e))
 					if cf and head then
 						local th, part = CoreCombat.TestHit(cf, head, a, b, r, state, sw, e.slideHead)
+						-- Step 1E correction pass: Studio diagnostics (Workspace attribute CR_HitTrace)
+						if traceOn and (cf.Position - b).Magnitude < 10 then
+							local live = rootPos(m)
+							table.insert(d.trace, { st = t, rewind = rewindFor(e), a = a, b = b, root = cf.Position, head = head,
+								state = state, sw = sw, sh = e.slideHead, live = live, target = e.name, part = part, th = th, pass = d.phase })
+						end
 						if th and part and th <= bestT then
 							table.insert(crossed, { t = th, e = e, part = part })
 						end

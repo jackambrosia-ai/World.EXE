@@ -77,6 +77,10 @@ local blockers: { shieldUp: () -> boolean, stunned: () -> boolean } = {
 }
 local hud: any = nil
 
+-- Step 1E correction pass (Studio diagnostics, off unless Workspace attribute CR_HitTrace is true): per own throw n,
+-- every disc step that passes within 10 studs of an enemy: server-clock time, disc segment, the target root / head
+-- as drawn here, the drawn slide weight / slide head, and this screen's verdict.
+DiscClient.Trace = {} :: { [number]: { { [string]: any } } }
 -- diagnostics: per own throw n -> { visible = { target, part, pass }..., server = {...} }
 DiscClient.Records = {} :: { [number]: { [string]: any } }
 
@@ -313,6 +317,19 @@ local function stepVis(v: Vis, dt: number)
 		for name, m in entities() do
 			if name ~= player.Name and (myTeam() == "" or teamOfModel(m) ~= myTeam()) then
 				local part = visibleHit(m, a, b)
+				if workspace:GetAttribute("CR_HitTrace") == true then
+					local root = m:FindFirstChild("HumanoidRootPart") :: BasePart?
+					local head = m:FindFirstChild("Head") :: BasePart?
+					if root and head and (root.Position - b).Magnitude < 10 then
+						local tr = DiscClient.Trace[v.n] or {}
+						DiscClient.Trace[v.n] = tr
+						if #tr < 300 then
+							table.insert(tr, { st = workspace:GetServerTimeNow(), pass = v.phase, a = a, b = b, root = root.Position,
+								head = head.Position, vel = root.AssemblyLinearVelocity, sw = Poses.SlideWeight(m), sh = Poses.SlideHead(m),
+								state = m:GetAttribute("CR_MoveState"), part = part })
+						end
+					end
+				end
 				if part then
 					local s = v.seen[name] or {}
 					v.seen[name] = s

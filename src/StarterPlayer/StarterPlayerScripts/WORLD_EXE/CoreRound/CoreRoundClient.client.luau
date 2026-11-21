@@ -278,6 +278,8 @@ if RunService:IsStudio() then
 				return false
 			end
 			return DiscClient.Throw((a :: Vector3) - (hrp.Position + Vector3.new(0, 1.2, 0)))
+		elseif op == "Trace" then -- Step 1E correction pass: client hit trace for own throw n (a)
+			return DiscClient.Trace[a :: number]
 		elseif op == "Records" then
 			return DiscClient.Records
 		elseif op == "Agreement" then
