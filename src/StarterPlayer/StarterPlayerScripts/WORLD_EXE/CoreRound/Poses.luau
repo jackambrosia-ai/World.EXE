@@ -137,6 +137,8 @@ type State = {
 	dead: boolean,
 	dirty: boolean, -- joints added / removed (avatar parts replaced): rebuild the joint map
 	spin: number, -- owner request: the right hand spins while the disc charges (radians)
+	pendKind: string?, -- others: a slide / wall-run just ended; watching for the launch (psj / wj)
+	pendT: number,
 	dashT: number, -- owner request: regular dash start (front / side / back clip by direction)
 	dashDir: Vector3,
 	lastFlat: number,
@@ -216,6 +218,8 @@ local function stateFor(c: Model): State
 		dead = false,
 		dirty = false,
 		spin = 0,
+		pendKind = nil,
+		pendT = 0,
 		dashT = -10,
 		dashDir = Vector3.new(0, 0, -1),
 		lastFlat = 0,
@@ -351,15 +355,28 @@ local function drawCharacter(c: Model, s: State, hrp: BasePart, hum: Humanoid?, 
 		end
 		local applied = if now - s.seenAt >= delay then s.seenState else s.lastState
 		if applied ~= s.lastState then
-			-- a slide that ends while rising fast is a Power Slide Jump; leaving a wall-run while rising is a wall jump
-			if s.lastState == "slide" and applied == "run" and vel.Y > CoreConfig.Tune("Slide", "PowerJumpUp") * 0.6 then
-				s.psjT = now
-			elseif s.lastState == "wallrun" and applied == "run" and vel.Y > 8 then
-				s.wjT = now
+			-- a slide that ends while rising fast is a Power Slide Jump; leaving a wall-run while rising is a wall jump.
+			-- Acceptance two-client finding: the replicated state change arrives ~0.2 s BEFORE the launch velocity, so
+			-- the check stays open for 0.35 s after the change instead of testing only that instant.
+			if s.lastState == "slide" and applied == "run" then
+				s.pendKind, s.pendT = "psj", now
+			elseif s.lastState == "wallrun" and applied == "run" then
+				s.pendKind, s.pendT = "wj", now
 				s.wjSide = s.wallSide
-				s.wjMeasured = false
 			end
 			s.lastState = applied
+		end
+		if s.pendKind then
+			if now - s.pendT > 0.35 or applied ~= "run" then
+				s.pendKind = nil
+			elseif s.pendKind == "psj" and vel.Y > CoreConfig.Tune("Slide", "PowerJumpUp") * 0.6 then
+				s.psjT = now
+				s.pendKind = nil
+			elseif s.pendKind == "wj" and vel.Y > 8 then
+				s.wjT = now
+				s.wjMeasured = false
+				s.pendKind = nil
+			end
 		end
 		sliding = applied == "slide"
 		if applied == "wallrun" then
@@ -455,6 +472,10 @@ local function drawCharacter(c: Model, s: State, hrp: BasePart, hum: Humanoid?, 
 		else
 			want(s, "fall", 1, 1)
 		end
+	elseif s.pendKind and air and s.baseName then
+		-- others: a slide / wall-run just ended and the launch has not replicated yet (<= 0.35 s): hold the current
+		-- clip instead of flashing the fall pose (acceptance two-client finding)
+		want(s, s.baseName, if s.baseName == "run" then rateRun else 1, 1)
 	elseif wa >= 0 and wa < 1.5 and air then
 		local side = if s.wjSide > 0 then "_r" else "_l"
 		if wa < clips["walljump" .. side].len then

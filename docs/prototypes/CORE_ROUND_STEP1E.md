@@ -297,3 +297,52 @@ The panel stands 3 studs in front of the defender, so a disc thrown at the defen
 
 **Still open (owner decision):** a thrower standing in the 3-stud gap between the panel and the defender hits the body.
 - Owner decision (2026-11-21): **keep as is.** The shield does not protect the defender's back: a disc from behind still hits the body before the panel's back face stops it.
+
+## Acceptance closeout (ChatGPT review of fbea8d2; 2026-11-21)
+
+**Backups.** The pre-change place was preserved in `backup_step1e_accept_2026-11-21` (SHA `a80b97a7…`). The final place backup is `backup_step1e_2026-11-21` (identical to the live place).
+
+**Repo cleanup.** Three tracked `tools/animation/__pycache__/*.pyc` files were removed and `.gitignore` now ignores `__pycache__/` and `*.pyc` (723bfe6). Source scripts and animation data are unchanged.
+
+**Dash KeyframeSequences, local Animator test (no upload).** `dash_f`, `dash_b`, `dash_r` and `dash_l` register as temporary IDs and play at 0.333 s on an Animator test rig. They match AnimData within 0.02° at a sampled frame.
+
+### Two-client Studio sessions (owner started Server & Clients, 2 players)
+
+The test players have the canonical proportions (posed slide head 0.195). For the different-avatar check, B was given a stock R15 body with `ApplyDescription` (session-only; posed head 0.065).
+
+**As seen by the OTHER client — OK:**
+- run, slide (drawn head exactly on the server's slide head: 0.02, 0.19, 0.00), wall-run L/R, landing;
+- all four dashes, each for 0.33 s. A side dash rolls −29° on both screens. A dash with the body turned toward the move direction is correctly drawn as a front dash;
+- charge pose with hand spin (~5.2 turns/s seen) and release follow-through;
+- shield raise / hold / lower on the left arm.
+
+**Defect found and fixed** (other-player path only: `Poses.luau`; local play and gameplay unchanged).
+- **Cause.** The replicated state change (slide → run, wall-run → run) arrives about 0.2 s before the launch velocity. The other client checked only at that instant, so it never showed the Power Slide Jump or wall-jump clips.
+- **Fix.** The check stays open for 0.35 s after the state change, and the current clip is held meanwhile, so no fall flash.
+- **Retest (third session):**
+  - The other client shows the PSJ push → rise → apex → fall → land.
+  - Wall-run → wall-jump → wall-run (second wall) → land is shown.
+- **Discarded attempt.** A longer (7-stud) side ray made side flicker worse and was reverted to 4 studs.
+
+**Residual discrepancies (not fixed):**
+1. **Wrong-side wall-run flash.** When A chains to the second wall, the other client shows the wall-run on the old side for about 0.12 s (was 0.18 s) until its 4-stud ray finds the new wall.
+2. **Push-off missing into a wall-run.** When a PSJ leads straight into a wall-run (~0.15 s), the other client skips the push-off: the state goes slide → wall-run with no run in between.
+3. **Hits during a slide.** B threw 4 discs at a moving A. The 2 thrown while A ran matched the server (BODY). The 2 thrown while A slid were seen as BODY hits on B but registered no hit on the server ("seen-not-confirmed").
+   - The hit maths and volumes are unchanged by Step 1E; animation does not feed the hit test.
+   - Likely cause: other players are drawn slightly behind their server position while decelerating in a slide (the Step 1 finding that moving-target hits are unreliable even at 0 ms).
+   - There is no Step 1D baseline under the same conditions, so this is not proven pre-existing.
+4. **Feet below the floor during the slide blend.**
+   - While the slide blends in or out (0.22 s), the run-to-slide joint blend draws a foot up to 0.64 studs below the floor on canonical proportions and about 0.33 on the stock body. Measured as drawn on the other client.
+   - With the slide fully in, feet are on the floor (stock body 0.04 below its standing baseline).
+5. **Wall-side arm.**
+   - From the player camera on the canonical avatar, the wall-side arm sits at the wall face with no obvious poke-through (measured up to 0.30 studs inside).
+   - On the stock body (wider torso) the torso edge and wall arm sit at or inside the wall plane (staged capture).
+
+**Evidence:** `evidence/captures_1e/accept_canon_wallrun*`, `accept_stock_r15/`.
+
+**Verification.**
+- Gameplay tuning (`CoreConfig.luau`) is unchanged since Step 1D (1b0e857).
+- Saved place parity 24/24, SHA-256 `f9e8960f7f98043c5e15d3bc371396277323923825eff1dd1dfda831bf811209`; backup identical.
+- Step 1D place `e260bd57…` unchanged. Protected files 9/9.
+
+**Shield.** The two-sided panel kept here is the owner's explicit decision (0d0d6bd, made after fbea8d2). The close-range gap behaviour is unchanged pending the owner's decision.
