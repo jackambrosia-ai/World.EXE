@@ -114,7 +114,9 @@ local SOUNDS = {
 	bounce = { "rbxasset://sounds/action_jump_land.mp3", 2.6, 0.5 },
 	-- Step 1B
 	charge_tick = { "rbxasset://sounds/volume_slider.ogg", 1.0, 0.35 },
-	charge_max = { "rbxasset://sounds/impact_explosion_03.mp3", 2.8, 0.3 },
+	-- full charge: a clean "ready" chime, one step above the last charge tick (ticks rise to x1.8); the earlier
+	-- pitched-up explosion still read as an explosion (owner feedback 2026-11-21)
+	charge_max = { "rbxasset://sounds/volume_slider.ogg", 2.4, 0.6 },
 	throw_max = { "rbxasset://sounds/action_jump.mp3", 2.2, 0.7 },
 	slide_start = { "rbxasset://sounds/action_jump_land.mp3", 0.7, 0.5 },
 	wall_catch = { "rbxasset://sounds/action_jump_land.mp3", 1.4, 0.45 },

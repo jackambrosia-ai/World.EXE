@@ -33,7 +33,7 @@ This is the isolated **movement + Rebound Disc + holographic shield** prototype.
    node tools/studio/coreround/cr_40_verify_saved.js <place.rbxlx>
    ```
    Step 1 save (2026-11-20): 19/19, no extra scripts, SHA-256 `f8cf4b0a1d5dead43cc9822b74f5e3b51d36df5eeeb1927fde847c0dd128dc9e`.
-   Step 1B save (2026-11-21, `WorldEXE_CoreRound_Step1B_2026-11-21.rbxlx`): 22/22, no extra scripts, SHA-256 `1f2718ec71a707df41390cd7b4a0699759e1e19066451f16dcb2293495f17e9d`.
+   Step 1B save (2026-11-21, `WorldEXE_CoreRound_Step1B_2026-11-21.rbxlx`): 22/22, no extra scripts, SHA-256 `48e7a0f99df666af7cb10cf1d322d676fe895758faa33fea33aa9f38dc174d30` (after the full-charge sound fix; first 1B save was `1f2718ec…17e9d`).
 
 ## Captures
 `cr_grab.ps1` grabs only the CoreRound Studio window (never the desktop). `cr_burst.ps1` takes timed bursts. Both take `-Match "<window title pattern>"` (for example `-Match "*Step1B*Roblox Studio*"`) when more than one CoreRound window is open. Hide the player list before capturing (`StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)`) so the account name never appears. Captures stay local and are never committed.

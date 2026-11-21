@@ -6,7 +6,7 @@ Owner feedback pass on the Step 1 prototype (movement, Rebound Disc, holographic
 | | Path | SHA-256 |
 |---|---|---|
 | Step 1 (kept, unchanged) | `C:\WORLD.EXE-Art\CoreRound\place\WorldEXE_CoreRound_2026-11-20.rbxlx` (+ `backup_step1_2026-11-20`) | `f8cf4b0a1d5dead43cc9822b74f5e3b51d36df5eeeb1927fde847c0dd128dc9e` |
-| Step 1B (new) | `C:\WORLD.EXE-Art\CoreRound\place\WorldEXE_CoreRound_Step1B_2026-11-21.rbxlx` (+ `backup_step1b_2026-11-21`) | `1f2718ec71a707df41390cd7b4a0699759e1e19066451f16dcb2293495f17e9d` |
+| Step 1B (new) | `C:\WORLD.EXE-Art\CoreRound\place\WorldEXE_CoreRound_Step1B_2026-11-21.rbxlx` (+ `backup_step1b_2026-11-21`) | `48e7a0f99df666af7cb10cf1d322d676fe895758faa33fea33aa9f38dc174d30` (after the full-charge sound fix; first 1B save was `1f2718ec…17e9d`) |
 
 Saved-place parity: `cr_40_verify_saved.js` reads 22/22 scripts identical to `src/`, with no extra scripts. The Step 1 commit `b3651ff` is unchanged on the branch history.
 
@@ -91,6 +91,7 @@ The `CoreTune_Move_SuperEnabled` and `CoreTune_Move_DashEnabled` switches contro
 - Other players see your charge.
 - There are tick and max sounds.
 - Charged throws get a hotter trail.
+- The full-charge cue is a clean chime (the click sound, pitched above the last tick). The first 1B build used a pitched-up explosion that still read as an explosion (owner feedback).
 - New threat arrows point toward incoming enemy discs (inspired by Knockout City).
 
 ### Camera
