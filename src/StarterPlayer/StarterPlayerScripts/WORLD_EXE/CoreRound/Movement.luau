@@ -52,7 +52,7 @@ end
 local teamColor: () -> Color3 = function()
 	return CoreConfig.NeutralColor
 end
-local onDash: () -> () = function() end
+local onDash: (kind: string, dir: Vector3) -> () = function(_kind, _dir) end
 
 -- diagnostics (test kit / HUD)
 Movement.Log = {} :: { { [string]: any } }
@@ -178,7 +178,7 @@ local function startBurst(kind: string, dir: Vector3, speed: number, seconds: nu
 	burst = { kind = kind, t0 = os.clock(), until_ = os.clock() + seconds, dir = dir, att = att, lv = lv, startPos = hrp.Position, n = n }
 	note({ kind = kind, n = n, charges = charges, air = hum.FloorMaterial == Enum.Material.Air })
 	Fx.Sound(kind)
-	onDash()
+	onDash(kind, dir) -- Step 1E: the animation controller picks the front / side / back dash clip from dir
 end
 
 -- the dash input
@@ -264,7 +264,7 @@ function Movement.OnWallRunEnd(how: string)
 	end
 end
 
-function Movement.Start(deps: { send: (string, { [string]: any }) -> (), stunned: () -> boolean, teamColor: () -> Color3, onDash: () -> () })
+function Movement.Start(deps: { send: (string, { [string]: any }) -> (), stunned: () -> boolean, teamColor: () -> Color3, onDash: (string, Vector3) -> () })
 	send = deps.send
 	stunnedFn = deps.stunned
 	teamColor = deps.teamColor

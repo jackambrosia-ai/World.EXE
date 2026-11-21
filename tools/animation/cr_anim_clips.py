@@ -536,6 +536,86 @@ def clip_walljump_recover():
             "ground": False, "layer": "full", "mirror": "walljump_recover_l"}
 
 
+# ================================================================================================ DASH (owner request)
+# The regular dash is a 0.25 s burst at 104 studs/s toward the move input (camera forward if none). With the aim lock
+# the body faces the camera, so the burst can go forward, back or sideways relative to the body: one clip per
+# direction (side is authored to the right and mirrored), blended by the controller for diagonals. 10 frames:
+# 0 = launch, 2 = full shape, 7 = held shape drifting, 10 = recovered (the controller fades back to the base layer).
+# Feet skim the floor (it is a glide, not steps), the head stays on the server's head (anchored).
+
+def dash_front(k=1.0):
+    P = base()
+    P["Root"] = (E(-24 * k, 0, 0), (0.0, -0.35 * k, 0.0))
+    P["Waist"] = (E(-8 * k, 0, 0), Z3)
+    P["Neck"] = (E(26 * k, 0, 0), Z3)
+    anchor_head(P, (1.0, 0.0, 1.0))
+    # long lunge: lead (left) knee forward, rear (right) leg driven back and straight, toe skimming
+    solve_leg(P, -1, (-0.45, G + 0.05 + 0.2 * (1 - k), -1.6 * k - 0.2), E(-6 * k, 0, 0), "toe")
+    solve_leg(P, 1, (0.45, G + 0.25 * k, 1.9 * k), E(-55 * k, 0, 0), "toe")
+    # arms swept back, streamlined
+    arm(P, 1, -55 * k, 18 * k, twist=-15 * k, elbow=20, wrist=-10 * k)
+    arm(P, -1, -50 * k, 18 * k, twist=-15 * k, elbow=20, wrist=-10 * k)
+    return P
+
+
+def dash_back(k=1.0):
+    P = base()
+    P["Root"] = (E(12 * k, 0, 0), (0.0, -0.45 * k, 0.0))
+    P["Waist"] = (E(-14 * k, 0, 0), Z3)  # chest stays over the hips, eyes forward
+    P["Neck"] = (E(2 * k, 0, 0), Z3)
+    anchor_head(P, (1.0, 0.0, 1.0))
+    # hop-back: front (right) foot pushes off ahead, rear (left) leg reaches back to catch
+    solve_leg(P, 1, (0.5, G + 0.05, -1.2 * k), E(10 * k, 0, 0), "heel")
+    solve_leg(P, -1, (-0.5, G + 0.2 * k, 1.15 * k), E(-25 * k, 0, 0), "toe")
+    # arms forward for balance
+    arm(P, 1, 55 * k, 22 * k, twist=-8 * k, elbow=40 * k)
+    arm(P, -1, 45 * k, 26 * k, twist=-8 * k, elbow=45 * k)
+    return P
+
+
+def dash_side(k=1.0):
+    """dash to the character's RIGHT: body leans into it, lead (right) leg reaches out, trail leg pushes."""
+    P = base()
+    P["Root"] = (E(-6 * k, 8 * k, -21 * k), (0.0, -0.5 * k, 0.0))  # -Z rolls the top to the right
+    P["Waist"] = (E(-4 * k, -6 * k, -4 * k), Z3)
+    P["Neck"] = (E(6 * k, 0, 24 * k), Z3)
+    anchor_head(P, (1.0, 0.0, 1.0))
+    solve_leg(P, 1, (0.433 + 1.3 * k, G + 0.24 + 0.08 * k, -0.2 * k), qmul(E(0, 0, 6 * k), E(-10 * k, 0, 0)), "mid")
+    solve_leg(P, -1, (-0.433 - 0.9 * k, G + 0.3, 0.15 * k), qmul(E(0, 0, -12 * k), E(-35 * k, 0, 0)), "toe")
+    # trail arm swings across the chest, lead arm out low for balance
+    arm(P, 1, 20 * k, 40 * k, twist=-10 * k, elbow=25 * k)
+    arm(P, -1, 45 * k, -8 * k, twist=10 * k, elbow=60 * k)
+    return P
+
+
+def _dash_clip(name, fn, mirror_name=None):
+    # keyed on every frame (feet are solved per frame, so joint-space interpolation cannot dip them into the floor)
+    def k_at(f):
+        if f <= 2:
+            return 0.55 + 0.45 * smooth(f / 2)
+        if f <= 7:
+            return 1.0 - 0.08 * (f - 2) / 5
+        return 0.92 - 0.67 * smooth((f - 7) / 3)
+    keys = [(f, fn(k_at(f)), "BEZIER") for f in range(11)]
+    c = {"name": name, "loop": False, "frames": 10, "keys": keys, "interp": "BEZIER", "ground": True,
+         "layer": "full"}
+    if mirror_name:
+        c["mirror"] = mirror_name
+    return c
+
+
+def clip_dash_front():
+    return _dash_clip("dash_f", dash_front)
+
+
+def clip_dash_back():
+    return _dash_clip("dash_b", dash_back)
+
+
+def clip_dash_side():
+    return _dash_clip("dash_r", dash_side, "dash_l")
+
+
 # ================================================================================================ UPPER BODY: DISC
 DISC_MASK = ["Waist", "RightShoulder", "RightElbow", "RightWrist"]
 SHIELD_MASK = ["LeftShoulder", "LeftElbow", "LeftWrist"]
@@ -601,6 +681,7 @@ def clip_shield_lower():
 def all_clips():
     clips = [clip_run(), clip_slide_in(), clip_slide_loop(), clip_slide_out(), clip_psj_push(), clip_psj_rise(),
              clip_psj_apex(), clip_fall(), clip_land(), clip_wallrun(), clip_walljump_push(), clip_walljump_recover(),
+             clip_dash_front(), clip_dash_back(), clip_dash_side(),
              clip_disc_charge(), clip_disc_release(), clip_shield_raise(), clip_shield_hold(), clip_shield_lower()]
     # normalise keys to (frame, pose, interp)
     for c in clips:

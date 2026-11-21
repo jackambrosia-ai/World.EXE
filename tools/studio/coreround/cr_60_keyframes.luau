@@ -72,7 +72,8 @@ _G.CR_BuildKeyframes = build
 local RunService = game:GetService("RunService")
 if RunService:IsEdit() then
 	local SS = game:GetService("ServerStorage")
-	local AD = require(game:GetService("StarterPlayer").StarterPlayerScripts:FindFirstChild("AnimData", true) :: ModuleScript)
+	-- require a fresh copy: Edit-mode require caches the module, so a just-synced AnimData would be missed
+	local AD = require((game:GetService("StarterPlayer").StarterPlayerScripts:FindFirstChild("AnimData", true) :: ModuleScript):Clone())
 	local saves = SS:FindFirstChild("RBX_ANIMSAVES") or Instance.new("Model")
 	saves.Name = "RBX_ANIMSAVES"
 	saves.Parent = SS

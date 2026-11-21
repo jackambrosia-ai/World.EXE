@@ -194,3 +194,33 @@ Protected-file check: 9/9 OK.
 - **Measured in Studio Play:** 4.6 turns/s early in the charge and 7.9 turns/s near full charge; the wrist is back to 0 after release.
 - **Side effect:** the held disc is attached to the hand, so it now also circles the forearm.
 - **Place:** SHA-256 `2c5e1f855cf2962f3d07b5b9aaa562daf3d6195fd3b20f9694834959af2d45d7`, parity 24/24, backup refreshed. Step 1D place unchanged; protected files 9/9.
+
+## Follow-up: directional dash animation (owner request, 2026-11-21)
+
+**Clips.** The regular dash (0.25 s at 104 studs/s) now has its own animation, chosen by the dash direction relative to the body:
+
+| Direction | Clip | Pose |
+|---|---|---|
+| Front | `dash_f` | Low forward lunge: torso leaned 24°, rear leg driven back, arms swept back. |
+| Back | `dash_b` | Back hop: hips drop, front foot pushes, rear leg reaches back, arms forward for balance. |
+| Side | `dash_r`, `dash_l` (mirror) | Body rolls about 21° into the dash, lead leg steps out, trail leg pushes, trail arm swings across. |
+
+- All three are 10 frames, keyed every frame; foot IK keeps the feet out of the floor. QA passes for all four clips. The data set is now **24 clips**.
+- **Blending.** Diagonals blend between the two nearest clips by heading. The layer fades in over 0.04 s and out over the last 0.1 s (0.35 s total).
+- **Gameplay unchanged.** No root motion; the movement code still owns the dash. The Super Dash keeps the run / fall animation, and starting it ends the dash clip.
+- **Triggers.**
+  - Local: `Movement` passes the burst kind and heading to the existing `onDash` callback (signature change only, no gameplay change).
+  - Other players: a jump in horizontal speed past 85 studs/s starts the clip in their move direction. Only the dash reaches ~104 (Super Dash 70, slide ≤ 58, wall-run ≤ 60). No new remotes.
+- **Measured in Studio Play** (aim lock on, so the body faces the camera):
+
+  | Input | Clip chosen | Root while dashing |
+  |---|---|---|
+  | W+Q | front | pitch −24° |
+  | S+Q | back | pitch +12° |
+  | D+Q | right | roll ≈ −30° |
+  | A+Q | left | roll ≈ +30° |
+
+  All at 104 studs/s.
+- **Evidence.** Real-avatar stills in `evidence/captures_1e/stage_dash*`.
+- **Tooling fix.** `cr_60_keyframes.luau` now requires a fresh copy of `AnimData`, because Edit-mode `require` caches the module. It saves all 24 clips locally.
+- **Place.** SHA-256 `fed520d8a4f83ce5ffcd7ebe25487c9d369dae8e9d283aeb157bb829c10130a0`, parity 24/24, backup refreshed. Step 1D place unchanged; protected files 9/9.

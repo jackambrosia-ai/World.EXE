@@ -137,6 +137,9 @@ type State = {
 	dead: boolean,
 	dirty: boolean, -- joints added / removed (avatar parts replaced): rebuild the joint map
 	spin: number, -- owner request: the right hand spins while the disc charges (radians)
+	dashT: number, -- owner request: regular dash start (front / side / back clip by direction)
+	dashDir: Vector3,
+	lastFlat: number,
 }
 local states: { [Model]: State } = {}
 local JOINT_CHILD = {
@@ -213,6 +216,9 @@ local function stateFor(c: Model): State
 		dead = false,
 		dirty = false,
 		spin = 0,
+		dashT = -10,
+		dashDir = Vector3.new(0, 0, -1),
+		lastFlat = 0,
 	}
 	states[c] = ns
 	c.Destroying:Connect(function()
@@ -381,6 +387,13 @@ local function drawCharacter(c: Model, s: State, hrp: BasePart, hum: Humanoid?, 
 
 	-- 2. base layer: pick the clip
 	local flat = Vector3.new(vel.X, 0, vel.Z).Magnitude
+	-- other players' regular dash: only a dash moves at ~104 studs/s (Move.DashDistance / DashSeconds; Super Dash 70,
+	-- slide <= 58, wall-run <= 60), so a jump past 85 starts the dash clip in the direction they are moving
+	if not mine and flat > 85 and s.lastFlat <= 85 and now - s.dashT > 0.3 then
+		s.dashT = now
+		s.dashDir = Vector3.new(vel.X, 0, vel.Z).Unit
+	end
+	s.lastFlat = flat
 	local air = not grounded(c, hrp, hum)
 	s.airT = if air then s.airT + dt else 0
 	if s.wasAir and not air then
@@ -543,6 +556,29 @@ local function drawCharacter(c: Model, s: State, hrp: BasePart, hum: Humanoid?, 
 			end
 		end
 	end
+	-- owner request: regular dash. One clip per direction relative to the body (front / side / back; side is mirrored
+	-- left / right), blended by the dash heading so diagonals sit between two clips. Fades in over 0.04 s, out over
+	-- the last 0.1 s of the 0.35 s burst + recovery. No root motion: the dash itself is the movement code's.
+	local da = now - s.dashT
+	if da >= 0 and da < 0.35 and not off and not s.wallOn then
+		local dw = CoreGeom.Ease(da / 0.04) * (1 - CoreGeom.Ease((da - 0.25) / 0.1))
+		local d = hrp.CFrame:VectorToObjectSpace(s.dashDir)
+		local h = math.atan2(d.X, -d.Z) -- 0 front, + right
+		local fb = math.cos(h)
+		local side = math.sin(h)
+		local a = if fb >= 0 then clips.dash_f else clips.dash_b
+		local b = if side >= 0 then clips.dash_r else clips.dash_l
+		local mix = math.abs(side) / (math.abs(side) + math.abs(fb) + 1e-6) -- 0 = pure front/back, 1 = pure side
+		if dw > 0.001 then
+			for _, name in FULL do
+				local cur = work[name]
+				local ca, cb = sample(a, da, name), sample(b, da, name)
+				if cur and ca and cb then
+					work[name] = cur:Lerp(ca:Lerp(cb, mix), dw)
+				end
+			end
+		end
+	end
 	-- lower-body turn (weighted by the run's share of the base layer)
 	local runW = 0
 	for _, tr in s.base do
@@ -668,6 +704,22 @@ function Poses.WallJump(side: number?)
 	end
 end
 
+-- owner request: this client's own regular dash (immediate). kind "super" ends the dash clip (the Super Dash keeps
+-- the run / fall animation).
+function Poses.Dash(kind: string, dir: Vector3)
+	local c = player.Character
+	if not c then
+		return
+	end
+	local s = stateFor(c)
+	if kind == "dash" then
+		s.dashT = os.clock()
+		s.dashDir = dir
+	else
+		s.dashT = -10
+	end
+end
+
 -- kept for the Step 1C wiring: a plain slide jump has no separate clip (the slide exit + fall cover it)
 function Poses.Reach() end
 
@@ -720,6 +772,7 @@ function Poses.Debug(c: Model): { [string]: any }?
 		wall = s.wallOn,
 		wallSide = s.wallSide,
 		dead = s.dead,
+		dash = if os.clock() - s.dashT < 0.35 then string.format("%.2f", os.clock() - s.dashT) else nil,
 	}
 end
 

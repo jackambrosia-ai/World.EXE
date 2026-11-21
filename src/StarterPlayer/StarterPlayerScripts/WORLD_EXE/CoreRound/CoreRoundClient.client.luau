@@ -69,8 +69,9 @@ Movement.Start({
 	send = send,
 	stunned = stunned,
 	teamColor = teamColor,
-	onDash = function()
+	onDash = function(kind, dir)
 		ShieldClient.ForceDown() -- dashing lowers the shield (the server lowers it too)
+		Poses.Dash(kind, dir) -- Step 1E: directional dash clip
 	end,
 })
 
