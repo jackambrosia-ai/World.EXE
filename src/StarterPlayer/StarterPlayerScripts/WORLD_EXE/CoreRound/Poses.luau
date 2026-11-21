@@ -136,6 +136,7 @@ type State = {
 	seenAt: number,
 	dead: boolean,
 	dirty: boolean, -- joints added / removed (avatar parts replaced): rebuild the joint map
+	spin: number, -- owner request: the right hand spins while the disc charges (radians)
 }
 local states: { [Model]: State } = {}
 local JOINT_CHILD = {
@@ -211,6 +212,7 @@ local function stateFor(c: Model): State
 		seenAt = 0,
 		dead = false,
 		dirty = false,
+		spin = 0,
 	}
 	states[c] = ns
 	c.Destroying:Connect(function()
@@ -601,6 +603,18 @@ local function drawCharacter(c: Model, s: State, hrp: BasePart, hum: Humanoid?, 
 				end
 			end
 		end
+	end
+	-- owner request (Step 1E follow-up): while the disc charges (left click held) the right hand spins rapidly about the
+	-- forearm, faster as the charge builds (3 -> 8 turns/s; half speed in Reduced FX). Drawn on every client.
+	if s.discOn and work.RightWrist then
+		local turns = 3 + 5 * chargeK
+		if deps.reduced() then
+			turns *= 0.5
+		end
+		s.spin = (s.spin + dt * turns * 2 * math.pi) % (2 * math.pi)
+		work.RightWrist = work.RightWrist * CFrame.Angles(0, s.spin, 0)
+	else
+		s.spin = 0
 	end
 	-- charge tension: a small tremble that grows with the charge (off in Reduced FX)
 	if s.discOn and chargeK > 0 and not deps.reduced() and work.RightShoulder then

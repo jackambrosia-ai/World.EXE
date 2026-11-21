@@ -186,3 +186,11 @@ Protected-file check: 9/9 OK.
 - **L-0116 (Draft):** Keep the drawn head on the server's hit geometry. Anchor the torso lean by translating the Root, and drive the slide torso blend with the same curve the server uses.
 - **L-0117 (Draft):** With aim lock the body faces the camera. A forward run clip needs lower-body steering (Root yaw toward the move direction, chest counter-turn) and a reversed cycle for backpedal.
 - **L-0118 (Draft):** `KeyframeSequenceProvider:RegisterKeyframeSequence` gives Studio-only, client-local temp IDs. They are useful to verify clip data on the Animator, but are not a shipping path.
+
+## Follow-up: hand spin while charging (owner request, 2026-11-21)
+
+- While the left click is held to charge the disc, the right hand spins rapidly about the forearm (wrist twist), from 3 to 8 turns per second as the charge builds. Reduced FX halves the speed.
+- The spin stops at once on release or cancel, when the throw clip takes over. Other players see it too, from the replicated charge start.
+- **Measured in Studio Play:** 4.6 turns/s early in the charge and 7.9 turns/s near full charge; the wrist is back to 0 after release.
+- **Side effect:** the held disc is attached to the hand, so it now also circles the forearm.
+- **Place:** SHA-256 `2c5e1f855cf2962f3d07b5b9aaa562daf3d6195fd3b20f9694834959af2d45d7`, parity 24/24, backup refreshed. Step 1D place unchanged; protected files 9/9.
