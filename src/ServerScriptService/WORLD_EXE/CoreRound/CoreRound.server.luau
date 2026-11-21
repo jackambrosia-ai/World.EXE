@@ -437,4 +437,4 @@ if RunService:IsStudio() then
 end
 
 logEvent({ kind = "boot" })
-print("[CoreRound] Step 1B server running")
+print("[CoreRound] Step 1C server running")

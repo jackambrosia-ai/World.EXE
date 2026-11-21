@@ -22,9 +22,12 @@ export type Entity = {
 	player: Player?,
 	name: string,
 	-- history ring: { t, root CFrame, head position, shield yaw / up, movement state }
-	hist: { { t: number, cf: CFrame, head: Vector3, yaw: number, up: boolean, state: string } },
+	hist: { { t: number, cf: CFrame, head: Vector3, yaw: number, up: boolean, state: string, sw: number } },
 	moveState: string, -- Step 1B: "run" | "slide" | "wallrun" (validated by the server)
 	moveStateT: number,
+	slideStartT: number?, -- Step 1C: server times the current / last slide started and ended (blended hit volumes)
+	slideEndT: number?,
+	slideHead: number?, -- Step 1C: this rig's drawn slide-head height above the root (CoreGeom.PosedHeadOffset)
 	chargeStart: number?, -- Step 1B: server time the throw button was pressed (charge timing is server-side)
 	histN: number,
 	meter: number,
@@ -158,14 +161,16 @@ function CoreCombat.Record()
 		local root, head = rootOf(m), headOf(m)
 		if root and head and m.Parent then
 			e.histN = e.histN % HIST + 1
-			e.hist[e.histN] = { t = t, cf = root.CFrame, head = head.Position, yaw = e.shieldYaw, up = e.shieldUp, state = e.moveState }
+			local sw = CoreGeom.SlideWeight(e.slideStartT, e.slideEndT, t, tune("Slide", "PoseBlendSeconds"))
+			e.hist[e.histN] = { t = t, cf = root.CFrame, head = head.Position, yaw = e.shieldYaw, up = e.shieldUp, state = e.moveState, sw = sw }
 		end
 	end
 end
 
 -- pose at server time t (interpolated); falls back to the live pose. Also returns the shield yaw / up flag and the
 -- movement state recorded at that time (Step 1B: panels and slide hit volumes use the same rewound time as bodies).
-function CoreCombat.Sample(e: Entity, t: number): (CFrame?, Vector3?, number?, boolean?, string?)
+-- Step 1C: the 6th value is the slide blend weight at that time (interpolated like the pose).
+function CoreCombat.Sample(e: Entity, t: number): (CFrame?, Vector3?, number?, boolean?, string?, number?)
 	local best, after = nil, nil
 	for _, h in e.hist do
 		if h.t <= t then
@@ -180,20 +185,20 @@ function CoreCombat.Sample(e: Entity, t: number): (CFrame?, Vector3?, number?, b
 	end
 	if best and after then
 		local a = (t - best.t) / math.max(1e-4, after.t - best.t)
-		return best.cf:Lerp(after.cf, a), best.head:Lerp(after.head, a), best.yaw, best.up, best.state
+		return best.cf:Lerp(after.cf, a), best.head:Lerp(after.head, a), best.yaw, best.up, best.state, best.sw + (after.sw - best.sw) * a
 	end
 	local h = best or after
 	if h then
-		return h.cf, h.head, h.yaw, h.up, h.state
+		return h.cf, h.head, h.yaw, h.up, h.state, h.sw
 	end
 	local root, head = rootOf(e.model), headOf(e.model)
 	if root and head then
-		return root.CFrame, head.Position, e.shieldYaw, e.shieldUp, e.moveState
+		return root.CFrame, head.Position, e.shieldYaw, e.shieldUp, e.moveState, CoreGeom.SlideWeight(e.slideStartT, e.slideEndT, now(), tune("Slide", "PoseBlendSeconds"))
 	end
-	return nil, nil, nil, nil, nil
+	return nil, nil, nil, nil, nil, nil
 end
 
-local function hitShape(r: number, state: string?): CoreGeom.HitShape
+local function hitShape(r: number, state: string?, slideW: number?, slideHead: number?): CoreGeom.HitShape
 	return {
 		headR = tune("Disc", "HeadRadius"),
 		bodyR = tune("Disc", "BodyRadius"),
@@ -202,17 +207,19 @@ local function hitShape(r: number, state: string?): CoreGeom.HitShape
 		r = r,
 		tol = tune("Disc", "HitTolerance"),
 		state = state,
-		slideHead = tune("Slide", "HeadHeight"),
+		slideHead = slideHead or tune("Slide", "HeadHeight"),
 		slideTop = tune("Slide", "BodyTop"),
 		slideBottom = tune("Slide", "BodyBottom"),
+		slideW = slideW,
 	}
 end
 CoreCombat.HitShape = hitShape
 
 -- swept disc (a -> b, disc radius r) vs an entity pose. Returns (fraction, "HEAD"/"BODY") or nil.
 -- Step 1B: a sliding target uses the lowered slide volumes (same rule on server and client).
-function CoreCombat.TestHit(cf: CFrame, head: Vector3, a: Vector3, b: Vector3, r: number, state: string?): (number?, string?)
-	return CoreGeom.DiscHit(a, b, cf.Position, head, hitShape(r, state))
+-- Step 1C: the volumes are blended by slideW (the rewound slide weight), matching the eased pose clients draw.
+function CoreCombat.TestHit(cf: CFrame, head: Vector3, a: Vector3, b: Vector3, r: number, state: string?, slideW: number?, slideHead: number?): (number?, string?)
+	return CoreGeom.DiscHit(a, b, cf.Position, head, hitShape(r, state, slideW, slideHead))
 end
 
 -- shield panel of an entity at server time t (or nil if not raised). Step 1B (review item "shield latency"): the panel
@@ -338,6 +345,18 @@ end
 
 -- Step 1B: validated movement state ("run" / "slide" / "wallrun"), replicated as CR_MoveState
 function CoreCombat.SetMoveState(e: Entity, state: string)
+	local t = now()
+	if state == "slide" and e.moveState ~= "slide" then
+		if e.slideHead == nil then
+			e.slideHead = CoreGeom.PosedHeadOffset(e.model) -- once per character (rig proportions do not change)
+		end
+		-- Step 1C: a new slide blends in from where the last one left off (a quick re-slide does not snap)
+		local cur = CoreGeom.SlideWeight(e.slideStartT, e.slideEndT, t, tune("Slide", "PoseBlendSeconds"))
+		e.slideStartT = t - cur * math.max(0.02, tune("Slide", "PoseBlendSeconds"))
+		e.slideEndT = nil
+	elseif state ~= "slide" and e.moveState == "slide" then
+		e.slideEndT = t
+	end
 	e.moveState = state
 	e.moveStateT = now()
 	e.model:SetAttribute("CR_MoveState", state)

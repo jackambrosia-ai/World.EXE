@@ -28,8 +28,11 @@ local WallRun = require(here:WaitForChild("WallRun"))
 local Slide = require(here:WaitForChild("Slide"))
 local WallRun2 = require(here:WaitForChild("WallRun2"))
 local Poses = require(here:WaitForChild("Poses"))
+-- Step 1C
+local SpeedFx = require(here:WaitForChild("SpeedFx"))
 
 local player = Players.LocalPlayer
+local wallTilt = true -- Step 1C (A3): per-player toggle for the wall-run camera roll (settings panel)
 local Request = CoreNet.Request()
 local Event = CoreNet.Event()
 
@@ -87,7 +90,11 @@ Slide.Start({
 		ShieldClient.ForceDown()
 		Fx.Sound("slide_start")
 	end,
-	onEnd = function(_how) end,
+	onEnd = function(how)
+		if how == "jump" then
+			Poses.Reach() -- Step 1C: arm reach on a slide jump
+		end
+	end,
 	teamColor = teamColor,
 })
 WallRun2.Start({
@@ -97,16 +104,38 @@ WallRun2.Start({
 	onEnd = function(how)
 		if how == "jump" then
 			Fx.Sound("wall_jump")
+			Poses.Reach() -- Step 1C: arm reach on a wall jump
 		end
 	end,
 })
-Poses.Start({ localSlide = Slide.Active })
+Poses.Start({
+	localSlide = Slide.Active,
+	localWall = WallRun2.WallNormal,
+	charging = function()
+		local ch = DiscClient.Charging()
+		return ch == true
+	end,
+})
 Aim.SetExtra({
 	slideActive = Slide.Active,
 	wallBias = WallRun2.CamBias,
 	reduced = function()
 		return Fx.Reduced
 	end,
+	wallNormal = WallRun2.WallNormal,
+	tiltEnabled = function()
+		return wallTilt
+	end,
+})
+SpeedFx.Start({
+	reduced = function()
+		return Fx.Reduced
+	end,
+	burst = function()
+		local o = MoveState.Owner()
+		return o == "dash" or o == "super"
+	end,
+	teamColor = teamColor,
 })
 
 -- visible-vs-server agreement over this client's own throws (diagnostic)
@@ -153,6 +182,7 @@ Hud.Start({
 	toggles = {
 		{ name = "Reduced FX", get = function() return reduced end, set = function(v) reduced = v; Fx.Reduced = v end },
 		{ name = "Aim lock", get = function() return Aim.LockEnabled end, set = function(v) Aim.LockEnabled = v end },
+		{ name = "Wall-run tilt", get = function() return wallTilt end, set = function(v) wallTilt = v end },
 		{ name = "Touch shield toggle", get = function() return ShieldClient.TouchToggle end, set = function(v) ShieldClient.TouchToggle = v end },
 		{ name = "Speed readout", get = function() return showSpeed end, set = function(v) showSpeed = v; Hud.SetShowSpeed(v) end },
 	},
@@ -280,6 +310,24 @@ if RunService:IsStudio() then
 			return { DiscClient.Charging() }
 		elseif op == "Threats" then
 			return #DiscClient.Threats()
+		-- Step 1C
+		elseif op == "FxStats" then -- script time of the new per-frame work (performance)
+			return { poses = table.clone(Poses.Stats), speedFx = table.clone(SpeedFx.Stats) }
+		elseif op == "FxStatsReset" then
+			Poses.Stats.frames, Poses.Stats.seconds = 0, 0
+			SpeedFx.Stats.frames, SpeedFx.Stats.seconds, SpeedFx.Stats.maxVisible = 0, 0, 0
+			return true
+		elseif op == "Roll" then
+			return math.deg(Aim.Roll())
+		elseif op == "SpeedFx" then
+			return { SpeedFx.Intensity() }
+		elseif op == "SlideWeight" then -- as drawn on this client for a character (a = player name)
+			local p = Players:FindFirstChild(a :: string)
+			local c = p and (p :: Player).Character
+			return if c then Poses.SlideWeight(c) else -1
+		elseif op == "WallTilt" then
+			wallTilt = a == true
+			return wallTilt
 		end
 		local _ = b
 		return "unknown"
@@ -287,4 +335,4 @@ if RunService:IsStudio() then
 	bf.Parent = player:WaitForChild("PlayerScripts")
 end
 
-print("[CoreRound] Step 1B client running")
+print("[CoreRound] Step 1C client running")

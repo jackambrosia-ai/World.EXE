@@ -118,13 +118,90 @@ export type HitShape = {
 	slideHead: number?,
 	slideTop: number?,
 	slideBottom: number?,
+	slideW: number?, -- Step 1C: 0..1 blend between standing and slide volumes (same curve as the visible pose)
 }
+
+-- Step 1C: smooth 0..1 easing shared by the slide pose (clients) and the slide hit volumes (server), so the volumes
+-- lower and rise exactly as the drawn body does instead of switching in one frame.
+function CoreGeom.Ease(x: number): number
+	x = math.clamp(x, 0, 1)
+	return x * x * (3 - 2 * x)
+end
+
+-- Step 1C: slide blend weight at time t for a slide that started at startT and (optionally) ended at endT, blending
+-- over `blend` seconds. A slide that ends before it fully blended in falls back from where it reached.
+function CoreGeom.SlideWeight(startT: number?, endT: number?, t: number, blend: number): number
+	if not startT then
+		return 0
+	end
+	blend = math.max(0.02, blend)
+	if endT and endT >= startT then
+		local reached = math.clamp((endT - startT) / blend, 0, 1)
+		return CoreGeom.Ease(reached - math.clamp((t - endT) / blend, 0, 1))
+	end
+	return CoreGeom.Ease((t - startT) / blend)
+end
+
+-- Step 1C: the slide pose's torso / head joint targets (R15), shared so the server can compute where the drawn head is.
+local R = math.rad
+CoreGeom.SlidePoseR15 = {
+	Root = CFrame.new(0, -1.35, 0.2) * CFrame.Angles(R(38), 0, 0), -- lower + lean back
+	Waist = CFrame.Angles(R(-12), R(-8), 0), -- curl the chest forward a little
+	Neck = CFrame.Angles(R(-22), 0, 0), -- keep looking ahead
+}
+
+-- Step 1C: height of the head centre above the root when the slide pose is drawn on THIS character's rig, computed from
+-- its own joints (Motor6D C0/C1 or AnimationConstraint attachments) with the pose targets above. Avatars differ (Step 1C
+-- two-client measurement: the default test avatar's drawn head sits ~0.19 above the root; Step 1B's fixed 0.5 came from
+-- another avatar), so the server and clients use this per character instead of a fixed number. nil if the rig is not a
+-- standard R15 chain (callers fall back to Slide.HeadHeight).
+local function link(j: Instance?, part0: BasePart?, part1: BasePart?, t: CFrame): CFrame?
+	if not j or not part0 or not part1 then
+		return nil
+	end
+	if j:IsA("Motor6D") then
+		if j.Part0 ~= part0 or j.Part1 ~= part1 then
+			return nil
+		end
+		return j.C0 * t * j.C1:Inverse()
+	elseif j:IsA("AnimationConstraint") then
+		local a0, a1 = j.Attachment0, j.Attachment1
+		if not a0 or not a1 or a0.Parent ~= part0 or a1.Parent ~= part1 then
+			return nil
+		end
+		return a0.CFrame * t * a1.CFrame:Inverse()
+	end
+	return nil
+end
+function CoreGeom.PosedHeadOffset(m: Model): number?
+	local hrp = m:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local lower = m:FindFirstChild("LowerTorso") :: BasePart?
+	local upper = m:FindFirstChild("UpperTorso") :: BasePart?
+	local head = m:FindFirstChild("Head") :: BasePart?
+	if not hrp or not lower or not upper or not head then
+		return nil
+	end
+	local p = CoreGeom.SlidePoseR15
+	local l1 = link(lower:FindFirstChild("Root"), hrp, lower, p.Root)
+	local l2 = link(upper:FindFirstChild("Waist"), lower, upper, p.Waist)
+	local l3 = link(head:FindFirstChild("Neck"), upper, head, p.Neck)
+	if not l1 or not l2 or not l3 then
+		return nil
+	end
+	local y = (l1 * l2 * l3).Position.Y
+	return if y == y then math.clamp(y, -0.5, 1.5) else nil
+end
+
 function CoreGeom.DiscHit(a: Vector3, b: Vector3, root: Vector3, head: Vector3, s: HitShape): (number?, string?)
 	local bodyTop, bodyBottom = s.bodyTop, s.bodyBottom
-	if s.state == "slide" then
-		head = root + Vector3.new(0, s.slideHead or 0.9, 0)
-		bodyTop = s.slideTop or 0
-		bodyBottom = s.slideBottom or -1.9
+	local w = s.slideW
+	if w == nil then
+		w = if s.state == "slide" then 1 else 0
+	end
+	if w > 0 then
+		head = head:Lerp(root + Vector3.new(0, s.slideHead or 0.9, 0), w)
+		bodyTop += ((s.slideTop or 0) - bodyTop) * w
+		bodyBottom += ((s.slideBottom or -1.9) - bodyBottom) * w
 	end
 	local top = math.min(root.Y + bodyTop, head.Y - s.headR)
 	local bottom = Vector3.new(root.X, root.Y + bodyBottom + s.bodyR, root.Z)

@@ -285,9 +285,9 @@ function CoreDisc.StepOne(d: Disc, dt: number)
 		if t >= d.deflectUntil then
 			for m, e in CoreCombat.All() do
 				if enemy(d, m) then
-					local cf, head, _, _, state = CoreCombat.Sample(e, t - rewindFor(e))
+					local cf, head, _, _, state, sw = CoreCombat.Sample(e, t - rewindFor(e))
 					if cf and head then
-						local th, part = CoreCombat.TestHit(cf, head, a, b, r, state)
+						local th, part = CoreCombat.TestHit(cf, head, a, b, r, state, sw, e.slideHead)
 						if th and part and th <= bestT then
 							table.insert(crossed, { t = th, e = e, part = part })
 						end

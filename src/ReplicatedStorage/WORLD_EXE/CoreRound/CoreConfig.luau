@@ -49,7 +49,8 @@ CoreConfig.Tuning = {
 	-- mostly ground movement with reduced steering, downhill speeds it up, jumping out keeps the speed)
 	Slide = {
 		MinStartSpeed = 16, -- horizontal speed needed to start (from a run)
-		EntryBoost = 8, -- added on entry (Titanfall 2 reference: a clear initial boost that dials back) ...
+		EntryBoost = 8, -- added on entry (Titanfall 2 reference: a clear initial boost that dials back) ... Step 1C (A5)
+		-- compared 8 / 10 / 12 via CoreTune_Slide_EntryBoost; 8 stays the default until the owner reviews the comparison
 		BoostCooldown = 0.9, -- ... only if the last boosted slide started this long ago (rewards paced chaining, no spam)
 		MaxEntrySpeed = 46, -- a boosted entry never exceeds this (chaining cannot run away)
 		Friction = 13, -- studs/s per s on flat ground
@@ -61,10 +62,28 @@ CoreConfig.Tuning = {
 		ReentryDelay = 0.25, -- seconds between slides
 		JumpBoost = 2, -- slide-jump keeps the slide speed plus this (carried by the air momentum)
 		CoyoteSeconds = 0.12, -- leaving a ledge keeps the slide state this long (no instant cancel on bumps)
-		HeadHeight = 0.5, -- hit volumes while sliding (server + client): head centre above the root (measured: posed head 0.51) ...
+		HeadHeight = 0.5, -- FALLBACK slide head centre above the root, for rigs that are not a standard R15 chain. Step 1C:
+		-- the server and clients compute it per character from the rig (CoreGeom.PosedHeadOffset; default test avatar 0.19) ...
 		BodyTop = 0.0, -- ... body capsule top / bottom relative to the root
 		BodyBottom = -1.9,
-		PoseBlendSeconds = 0.12,
+		-- Step 1C (A1): pose AND hit-volume blend time. The server lowers / raises the slide hit volumes on the same eased
+		-- curve over this time (CoreGeom.SlideWeight) that every client uses to draw the slide pose (was 0.12, pose only)
+		PoseBlendSeconds = 0.22,
+	},
+	-- Step 1C (A1): third-person camera offset changes (slide drop, wall push, shoulder) reach ~95% in this time
+	Cam = {
+		BlendSeconds = 0.25,
+	},
+	-- Step 1C (A2): client-only speed presentation (screen-edge streaks + team-colour edge glow); off in Reduced FX
+	SpeedFx = {
+		Enabled = 1,
+		MinSpeed = 40, -- streaks start above this horizontal speed (studs/s) ...
+		FullSpeed = 75, -- ... and reach full intensity here
+		Streaks = 24, -- hard cap on 2D streaks
+		StreakAlpha = 0.55, -- max streak opacity
+		GlowAlpha = 0.35, -- max edge-glow opacity (dash / Super Dash, and high speed at 60% of this)
+		FadeSeconds = 0.25, -- intensity eases in / out over about this long
+		ClearRadius = 0.55, -- streaks stay outside this fraction of the half-screen (crosshair, charge ring, arrows)
 	},
 	-- Step 1B: horizontal wall-run v2 (Titanfall 2 reference, translated to third person). Mode 2 = v2 (default),
 	-- 1 = the Step 1 wall-run (upward climb, kept for comparison), 0 = off.
@@ -90,7 +109,10 @@ CoreConfig.Tuning = {
 		JumpUp = 40, -- wall jump: upward
 		JumpBoost = 4, -- wall jump: extra speed along the run (Titanfall: jumping off a wall boosts speed)
 		JumpCarrySeconds = 0.35, -- the push-off keeps its direction this long (air control would cancel it), then normal air control
-		TiltDegrees = 10, -- lean away from the wall (eased)
+		TiltDegrees = 10, -- body lean away from the wall (Step 1C: a blended joint pose; the physical root stays upright)
+		CamTiltDegrees = 8, -- Step 1C (A3): optional camera roll away from the wall (0 = off; forced 0 in Reduced FX) ...
+		CamTiltInSeconds = 0.25, -- ... eased in ...
+		CamTiltOutSeconds = 0.3, -- ... and out
 		AlignResponsiveness = 18, -- orientation easing (no snapping)
 		CamPush = 1.2, -- third-person camera eases this far away from the wall
 	},

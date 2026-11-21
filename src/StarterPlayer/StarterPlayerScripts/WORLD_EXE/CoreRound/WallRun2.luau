@@ -6,7 +6,8 @@
 --   * speed is preserved and slightly rewarded, never replaced by a fixed velocity
 --   * no upward climb: rising speed is capped on entry and a gentle "wall gravity" pulls you down over time
 --   * the body eases into a small lean away from the wall (no snapping); the third-person camera eases away from the
---     wall instead of rolling (no unrequested view motion)
+--     wall. Step 1C: the lean is a blended joint pose (Poses), not a tilt of the physical root, and an optional, tunable
+--     camera roll away from the wall is applied by Aim (WallRun2.CamTiltDegrees; 0 in Reduced FX)
 --   * wall jump pushes away and up and keeps (boosts) the forward speed; you can chain to the opposite wall
 --   * every exit (wall end, time, peel, landing, jump) keeps the current velocity
 -- WallRun2.Mode (CoreTune_WallRun2_Mode): 2 = this (default), 1 = the Step 1 climbing wall-run (comparison), 0 = off.
@@ -87,6 +88,12 @@ function WallRun2.CamBias(): Vector3
 	return camBias
 end
 
+-- Step 1C: flat wall normal (pointing away from the wall) while wall-running, else nil (poses + camera tilt)
+function WallRun2.WallNormal(): Vector3?
+	local r = run
+	return if r then r.n else nil
+end
+
 local params = RaycastParams.new()
 params.FilterType = Enum.RaycastFilterType.Exclude
 params.RespectCanCollide = true
@@ -120,7 +127,7 @@ local function finish(how: string)
 	r.ao:Destroy()
 	r.att:Destroy()
 	if r.track then
-		r.track:Stop(0.15)
+		r.track:Stop(0.25) -- Step 1C: longer fade back to the default animations (was 0.15)
 	end
 	if hum then
 		hum.AutoRotate = r.autoRotate
@@ -245,8 +252,9 @@ local function tryStart(c: Model, hum: Humanoid, hrp: BasePart)
 				ao.Parent = hrp
 				local track = runTrack(c, hum)
 				if track then
-					track:Play(0.12)
+					track:Play(0.2) -- Step 1C: eased in (was 0.12)
 				end
+				ao.CFrame = CFrame.lookAt(Vector3.zero, tdir, Vector3.yAxis) -- face along the wall, upright (Step 1C)
 				run = {
 					t0 = t,
 					n = n,
@@ -332,7 +340,7 @@ function WallRun2.Start(d: typeof(deps))
 			r.ao:Destroy()
 			r.att:Destroy()
 			if r.track then
-				r.track:Stop(0.1)
+				r.track:Stop(0.2)
 			end
 			hum.AutoRotate = r.autoRotate
 			lastEnd = os.clock()
@@ -376,8 +384,9 @@ function WallRun2.Start(d: typeof(deps))
 		r.speed = math.min(r.speed, tune("MaxSpeed"))
 		r.vy = math.max(r.vy - tune("Gravity") * dt, -tune("MaxSink"))
 		r.lv.VectorVelocity = r.t * r.speed - n * tune("Stick") + Vector3.yAxis * r.vy
-		local up = (Vector3.yAxis + n * math.tan(math.rad(tune("TiltDegrees")))).Unit
-		r.ao.CFrame = CFrame.lookAt(Vector3.zero, r.t, up)
+		-- Step 1C: the root stays upright (facing along the wall); the lean away from the wall is drawn by Poses as a
+		-- blended joint pose, so nothing snaps upright when the run ends and collision is unchanged
+		r.ao.CFrame = CFrame.lookAt(Vector3.zero, r.t, Vector3.yAxis)
 		camTarget = n * tune("CamPush")
 		if r.track then
 			r.track:AdjustSpeed(math.clamp(r.speed / 16, 0.8, 3))

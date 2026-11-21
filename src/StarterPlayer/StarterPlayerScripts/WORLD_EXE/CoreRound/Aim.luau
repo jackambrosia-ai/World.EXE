@@ -71,14 +71,20 @@ end
 
 -- Step 1B camera refinements (third person stays primary): the shoulder offset is eased (no snapping), shortened by a
 -- raycast so the camera does not clip into walls, lowered during a slide, pushed away from the wall during a wall-run
--- (instead of rolling the view), and a small spring-back dip on hard landings (Titanfall 2 interview: the landing
--- spring sells weight). No camera shake or roll. Reduced Effects disables the landing dip.
+-- and a small spring-back dip on hard landings (Titanfall 2 interview: the landing spring sells weight). No camera
+-- shake. Reduced Effects disables the landing dip and (Step 1C) the optional wall-run roll.
 local camOffset = Vector3.zero
 local dip = 0
 local lastVy = 0
 local camParams = RaycastParams.new()
 camParams.FilterType = Enum.RaycastFilterType.Exclude
-local extra: { slideActive: () -> boolean, wallBias: () -> Vector3, reduced: () -> boolean } = {
+local extra: {
+	slideActive: () -> boolean,
+	wallBias: () -> Vector3,
+	reduced: () -> boolean,
+	wallNormal: (() -> Vector3?)?,
+	tiltEnabled: (() -> boolean)?,
+} = {
 	slideActive = function()
 		return false
 	end,
@@ -89,6 +95,14 @@ local extra: { slideActive: () -> boolean, wallBias: () -> Vector3, reduced: () 
 		return false
 	end,
 }
+
+-- Step 1C (A3): optional wall-run camera roll away from the wall. Eased in / out, applied after Roblox's camera
+-- update each frame (never stored, so it cannot accumulate). Roll turns the view around its own look direction, so
+-- the crosshair ray, the aim yaw (shield facing) and the camera position (collision) are unchanged.
+local roll = 0 -- current roll (radians, + = horizon turns so the view's up leans to screen-left)
+Aim.Roll = function(): number
+	return roll
+end
 
 function Aim.SetExtra(e: typeof(extra))
 	extra = e
@@ -139,10 +153,34 @@ function Aim.Start(deps: { owner: () -> string?, stunned: () -> boolean })
 		local hum = c and c:FindFirstChildOfClass("Humanoid")
 		local hrp = c and c:FindFirstChild("HumanoidRootPart") :: BasePart?
 		local want = Aim.LockEnabled and Aim.UsesMouse() and hum ~= nil and hum.Health > 0
+		local tune = require(game:GetService("ReplicatedStorage"):WaitForChild("WORLD_EXE"):WaitForChild("CoreRound"):WaitForChild("CoreConfig")).Tune
 		if hum and hrp and hum.Health > 0 then
 			local target = desiredOffset(hum, hrp, want, dt)
-			camOffset = camOffset:Lerp(target, math.min(1, dt * 12))
+			-- Step 1C (A1): one tunable blend time for camera offset changes (slide drop, wall push, shoulder); the rate
+			-- reaches ~95% of a change in Cam.BlendSeconds
+			camOffset = camOffset:Lerp(target, math.min(1, dt * 3 / math.max(0.05, tune("Cam", "BlendSeconds"))))
 			hum.CameraOffset = camOffset
+		end
+		-- Step 1C (A3): wall-run camera roll
+		local cam = workspace.CurrentCamera
+		local wantRoll = 0
+		local n = extra.wallNormal and extra.wallNormal()
+		local enabled = (extra.tiltEnabled == nil or extra.tiltEnabled()) and not extra.reduced()
+		if n and enabled and hum and hum.Health > 0 then
+			-- wall on the screen's right (normal points left) -> roll the up vector left, away from the wall
+			local side = if n:Dot(cam.CFrame.RightVector) < 0 then 1 else -1
+			wantRoll = math.rad(math.clamp(tune("WallRun2", "CamTiltDegrees"), 0, 20)) * side
+		end
+		local secs = if math.abs(wantRoll) > math.abs(roll) then tune("WallRun2", "CamTiltInSeconds") else tune("WallRun2", "CamTiltOutSeconds")
+		-- constant rate: a full tilt eases in / out in CamTiltIn / OutSeconds (no long exponential tail)
+		local full = math.max(math.rad(math.clamp(tune("WallRun2", "CamTiltDegrees"), 0, 20)), math.abs(roll), 1e-3)
+		local step = full * dt / math.max(0.05, secs)
+		roll = if roll < wantRoll then math.min(wantRoll, roll + step) else math.max(wantRoll, roll - step)
+		if not enabled and not n then
+			roll = if math.abs(roll) < 1e-3 then 0 else roll
+		end
+		if math.abs(roll) > 1e-4 then
+			cam.CFrame = cam.CFrame * CFrame.Angles(0, 0, roll)
 		end
 		if want and hum and hrp then
 			lockActive = true

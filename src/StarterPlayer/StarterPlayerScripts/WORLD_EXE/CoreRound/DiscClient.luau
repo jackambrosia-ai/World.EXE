@@ -17,6 +17,7 @@ local CoreConfig = require(CoreRound:WaitForChild("CoreConfig"))
 local CoreGeom = require(CoreRound:WaitForChild("CoreGeom"))
 local Fx = require(script.Parent:WaitForChild("Fx"))
 local Aim = require(script.Parent:WaitForChild("Aim"))
+local Poses = require(script.Parent:WaitForChild("Poses")) -- Step 1C: drawn slide weight for the visible-hit record
 
 local DiscClient = {}
 
@@ -248,6 +249,11 @@ local function visibleHit(m: Model, a: Vector3, b: Vector3): string?
 		bodyBottom = tune("BodyBottom"),
 		r = tune("Radius"),
 		tol = tune("HitTolerance"),
+		-- Step 1C: a sliding target's volumes as drawn on THIS screen (same eased curve the server uses)
+		slideHead = Poses.SlideHead(m),
+		slideTop = CoreConfig.Tune("Slide", "BodyTop"),
+		slideBottom = CoreConfig.Tune("Slide", "BodyBottom"),
+		slideW = Poses.SlideWeight(m),
 	})
 	return part
 end
