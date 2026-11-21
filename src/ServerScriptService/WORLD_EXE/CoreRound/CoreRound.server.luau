@@ -485,4 +485,4 @@ if RunService:IsStudio() then
 end
 
 logEvent({ kind = "boot" })
-print("[CoreRound] Step 1D server running")
+print("[CoreRound] Step 1E server running")

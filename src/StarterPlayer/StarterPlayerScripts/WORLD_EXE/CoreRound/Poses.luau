@@ -1,20 +1,22 @@
 --!strict
--- Poses (Core Round Step 1B/1C, client): procedural movement poses, drawn on EVERY client for every character.
--- No animation assets or uploads: each pose is a weighted blend applied to the rig's joint Transforms after Roblox's
--- default animations each frame (RunService.PreSimulation). Only joints move: collision, the root part and root motion
--- are never changed by a pose.
+-- Poses (Core Round client): the character animation controller, drawn on EVERY client for every character.
 --
--- Layers (Step 1C, owner-approved Phase A, item A4):
---   * slide   - lean-back slide, lead leg out, rear leg tucked, disc arm forward. Its weight uses the SAME eased curve
---               as the server's slide hit volumes (CoreGeom.SlideWeight), so the drawn body and the judged volumes
---               lower and rise together (item A1 fairness rule).
---   * wall    - wall-run: the body leans away from the wall and the wall-side hand reaches to the wall. (Step 1B tilted
---               the physical root with an AlignOrientation and it snapped upright on exit; 1C keeps the root upright
---               and draws the lean here, blended in and out.)
---   * reach   - after a wall jump or a slide jump the free (left) arm reaches forward-up for a moment.
--- Other players: states come from the replicated CR_MoveState attribute (no new remote traffic). Their pose clock starts
--- Disc.InterpPlayerSeconds after the attribute arrives: the delay with which their positions are drawn (Step 1
--- calibration), so pose and position stay in step with the server's rewound hit volumes.
+-- Step 1E replaces the Step 1B-1D procedural pose layers with original keyframed clips (AnimData, generated from the
+-- Blender source WorldEXE_CoreRound_Anim_Step1E.blend by tools/animation). No animation assets, uploads or asset IDs:
+-- this module samples the clips itself and writes each joint's Transform ONCE per frame, in RunService.PreSimulation
+-- after the Animator (Roblox's default animations stay underneath for idle / walk / climb / swim and anything this
+-- controller does not cover). Only joints move: collision, the root part and its motion are never changed (no root
+-- motion), so gameplay never waits on an animation.
+--
+-- Layers, in order (each blends over what is below it):
+--   base   one full-body clip at a time with crossfades: run (speed-scaled), fall, land, Power Slide Jump
+--          (push -> rise -> apex -> fall), wall-run (wall side aware), wall-jump push -> recovery
+--   slide  slide entry -> loop, exit; weight = CoreGeom.SlideWeight, the SAME eased curve the server uses for the slide
+--          hit volumes (Step 1C fairness rule), so the drawn torso / head and the judged volumes move together
+--   upper  disc charge / release (right arm + an additive chest twist) and shield raise / hold / lower (left arm)
+-- Other players: their states come from replicated attributes (CR_MoveState, CR_ChargeStart, CR_ShieldUp) - no new
+-- remotes - and are applied after Disc.InterpPlayerSeconds, the delay their positions are drawn with.
+-- Stun / death: every layer fades out (0.1 s) and the character is forgotten; a respawned character starts clean.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -23,6 +25,7 @@ local RunService = game:GetService("RunService")
 local CoreRound = ReplicatedStorage:WaitForChild("WORLD_EXE"):WaitForChild("CoreRound")
 local CoreConfig = require(CoreRound:WaitForChild("CoreConfig"))
 local CoreGeom = require(CoreRound:WaitForChild("CoreGeom"))
+local AnimData = require(script.Parent:WaitForChild("AnimData")) :: any
 
 local Poses = {}
 
@@ -34,90 +37,149 @@ local deps = {
 	localWall = function(): Vector3?
 		return nil
 	end,
-	charging = function(): boolean
+	charging = function(): (boolean, number)
+		return false, 0
+	end,
+	shieldUp = function(): boolean
+		return false
+	end,
+	reduced = function(): boolean
 		return false
 	end,
 }
 
-local R = math.rad
--- target joint transforms (local joint space). Sign conventions checked on captures: +X on a shoulder swings the arm
--- forward; -Z on the right shoulder / +Z on the left swings it out to the side (Step 1C); +Z on Root tilts the body
--- to its left (Step 1C).
-local SLIDE_R15 = {
-	-- torso / head targets are shared with the server (CoreGeom.SlidePoseR15) so it can compute the drawn head height
-	Root = CoreGeom.SlidePoseR15.Root, -- lower + lean back
-	Waist = CoreGeom.SlidePoseR15.Waist, -- curl the chest forward a little
-	Neck = CoreGeom.SlidePoseR15.Neck, -- keep looking ahead
-	RightHip = CFrame.Angles(R(34), 0, 0), -- lead leg extended forward
-	RightKnee = CFrame.Angles(R(-6), 0, 0),
-	LeftHip = CFrame.Angles(R(-8), 0, R(-6)), -- rear leg tucked under
-	LeftKnee = CFrame.Angles(R(-105), 0, 0),
-	RightShoulder = CFrame.Angles(R(55), 0, R(10)), -- disc arm forward
-	LeftShoulder = CFrame.Angles(R(-25), 0, R(-40)), -- balance arm back / out
+---------------------------------------------------------------------------------------------------- clip library
+type Clip = {
+	name: string,
+	loop: boolean,
+	frames: number,
+	len: number,
+	speed: number?,
+	mask: { string }?,
+	cf: { [string]: { CFrame } },
 }
--- Step 1D: Power Slide Jump. PUSH = the push-off (legs driving down / back, free arm swinging up), TUCK = airborne
--- (knees pulled up, disc arm forward, free arm out for balance). The layer blends PUSH -> TUCK in the first ~0.2 s,
--- holds while rising, and fades back to the default animations once the character starts to fall.
-local PJ_PUSH = {
-	Root = CFrame.Angles(R(-12), 0, 0), -- lean into the push
-	RightHip = CFrame.Angles(R(-22), 0, 0),
-	LeftHip = CFrame.Angles(R(-8), 0, 0),
-	RightKnee = CFrame.Angles(R(-4), 0, 0),
-	LeftKnee = CFrame.Angles(R(-12), 0, 0),
-	RightShoulder = CFrame.Angles(R(60), 0, 0), -- disc arm forward
-	LeftShoulder = CFrame.Angles(R(150), 0, R(10)), -- free arm swings up
-}
-local PJ_TUCK = {
-	Root = CFrame.Angles(R(6), 0, 0),
-	Waist = CFrame.Angles(R(10), 0, 0), -- slight curl
-	RightHip = CFrame.Angles(R(72), 0, 0), -- knees up
-	LeftHip = CFrame.Angles(R(48), 0, 0),
-	RightKnee = CFrame.Angles(R(-95), 0, 0),
-	LeftKnee = CFrame.Angles(R(-70), 0, 0),
-	RightShoulder = CFrame.Angles(R(65), 0, 0), -- disc arm forward
-	LeftShoulder = CFrame.Angles(R(45), 0, R(28)), -- free arm out for balance
-}
-local PJ_JOINTS = { "Root", "Waist", "RightHip", "LeftHip", "RightKnee", "LeftKnee", "RightShoulder", "LeftShoulder" }
-local SLIDE_R6 = {
-	RootJoint = CFrame.new(0, 0, -1.2) * CFrame.Angles(R(-38), 0, 0), -- R6 RootJoint axes differ (Z is down)
-}
+local FPS = AnimData.fps
+local clips: { [string]: Clip } = {}
+for name, c in AnimData.clips do
+	local n = if c.loop then c.frames else c.frames + 1
+	local cf: { [string]: { CFrame } } = {}
+	for j, d in c.j do
+		local arr = table.create(n)
+		for i = 0, n - 1 do
+			local b = i * 4
+			local tx, ty, tz = 0, 0, 0
+			if d.t then
+				tx, ty, tz = d.t[i * 3 + 1], d.t[i * 3 + 2], d.t[i * 3 + 3]
+			end
+			arr[i + 1] = CFrame.new(tx, ty, tz, d.q[b + 2], d.q[b + 3], d.q[b + 4], d.q[b + 1])
+		end
+		cf[j] = arr
+	end
+	clips[name] = { name = name, loop = c.loop, frames = c.frames, len = c.frames / FPS, speed = c.speed, mask = c.mask, cf = cf }
+end
+Poses.Clips = clips
 
-type Joint = { m: any, name: string }
+local function sample(clip: Clip, t: number, j: string): CFrame?
+	local arr = clip.cf[j]
+	if not arr then
+		return nil
+	end
+	local f = t * FPS
+	if clip.loop then
+		f = f % clip.frames
+		local i = math.floor(f)
+		local nxt = (i + 1) % clip.frames
+		return arr[i + 1]:Lerp(arr[nxt + 1], f - i)
+	end
+	f = math.clamp(f, 0, clip.frames)
+	local i = math.min(math.floor(f), clip.frames - 1)
+	return arr[i + 1]:Lerp(arr[i + 2], f - i)
+end
+
+local FULL = { "Root", "Waist", "Neck", "RightShoulder", "RightElbow", "RightWrist", "LeftShoulder", "LeftElbow", "LeftWrist", "RightHip", "RightKnee", "RightAnkle", "LeftHip", "LeftKnee", "LeftAnkle" }
+local R = math.rad
+local SLIDE_R6 = { RootJoint = CFrame.new(0, 0, -1.2) * CFrame.Angles(R(-38), 0, 0) } -- R6 fallback (axes differ)
+
+---------------------------------------------------------------------------------------------------- per character
+type Track = { clip: Clip, t: number, rate: number, w: number, target: number, fadeIn: number, fadeOut: number }
 type State = {
 	joints: { [string]: any },
 	r6: boolean,
-	-- slide clock (local os.clock times)
+	-- slide (local os.clock times)
 	slideOn: boolean,
 	slideStart: number?,
 	slideEnd: number?,
-	-- wall layer
-	wallW: number,
-	wallSide: number, -- +1 wall on the character's right, -1 on its left
+	-- base layer
+	base: { Track },
+	baseName: string?,
+	airT: number, -- seconds airborne
+	wasAir: boolean,
+	landT: number,
+	wallSide: number, -- +1 wall on the character's right, -1 left
 	wallOn: boolean,
-	-- reach layer
-	reachT: number,
-	-- Step 1D: Power Slide Jump layer (launch time, fade start)
-	pjT: number,
-	pjFade: number?,
+	landPending: boolean,
+	moveYaw: number, -- lower-body turn toward the move direction (aim lock keeps the body facing the camera)
+	backward: boolean,
+	psjT: number,
+	wjT: number,
+	wjSide: number,
+	wjLean: number, -- extra roll toward the launch direction (camera-aimed wall jump)
+	wjMeasured: boolean,
+	-- upper layer
+	disc: Track?,
+	discOn: boolean,
+	shield: Track?,
+	shieldOn: boolean,
+	-- other players' replicated state
 	lastState: string,
 	seenState: string,
 	seenAt: number,
+	dead: boolean,
+	dirty: boolean, -- joints added / removed (avatar parts replaced): rebuild the joint map
 }
 local states: { [Model]: State } = {}
+local JOINT_CHILD = {
+	Root = "LowerTorso", Waist = "UpperTorso", Neck = "Head",
+	RightShoulder = "RightUpperArm", RightElbow = "RightLowerArm", RightWrist = "RightHand",
+	LeftShoulder = "LeftUpperArm", LeftElbow = "LeftLowerArm", LeftWrist = "LeftHand",
+	RightHip = "RightUpperLeg", RightKnee = "RightLowerLeg", RightAnkle = "RightFoot",
+	LeftHip = "LeftUpperLeg", LeftKnee = "LeftLowerLeg", LeftAnkle = "LeftFoot",
+}
+
+-- Step 1B finding (L-0050): newer avatar rigs use AnimationConstraint joints instead of Motor6D; both expose .Transform.
+-- Step 1E finding: the joint objects are NOT stable for a character's life - the measured avatar's head (with its Neck
+-- joint) is replaced after spawn while the appearance loads, and a cached reference kept posing the destroyed Neck (the
+-- head never took the slide pose, in Step 1C/1D too). The map is rebuilt whenever a joint is added or removed, and each
+-- joint is matched to the part it drives (a live AnimationConstraint wins over a Motor6D of the same name).
+local function scanJoints(c: Model): { [string]: any }
+	local joints: { [string]: any } = {}
+	local rank: { [string]: number } = {}
+	for _, d in c:GetDescendants() do
+		local child = JOINT_CHILD[d.Name]
+		if child then
+			local r = 0
+			if d:IsA("AnimationConstraint") and d.Enabled and d.Attachment1 and d.Attachment1.Parent and d.Attachment1.Parent.Name == child then
+				r = 2
+			elseif d:IsA("Motor6D") and d.Enabled and d.Part1 and d.Part1.Name == child then
+				r = 1
+			end
+			if r > (rank[d.Name] or 0) then
+				rank[d.Name] = r
+				joints[d.Name] = d
+			end
+		elseif d:IsA("Motor6D") and d.Name == "RootJoint" then
+			joints.RootJoint = d -- R6 fallback
+		end
+	end
+	return joints
+end
 
 local function stateFor(c: Model): State
 	local s = states[c]
 	if s then
 		return s
 	end
-	local joints: { [string]: any } = {}
-	for _, d in c:GetDescendants() do
-		-- Step 1B finding (draft lesson L-0050): newer avatar rigs use AnimationConstraint joints instead of Motor6D;
-		-- both expose .Transform, so both are posed.
-		if d:IsA("Motor6D") or d:IsA("AnimationConstraint") then
-			joints[d.Name] = d
-		end
-	end
+	local joints = scanJoints(c)
 	local hum = c:FindFirstChildOfClass("Humanoid")
 	local ns: State = {
 		joints = joints,
@@ -125,20 +187,47 @@ local function stateFor(c: Model): State
 		slideOn = false,
 		slideStart = nil,
 		slideEnd = nil,
-		wallW = 0,
+		base = {},
+		baseName = nil,
+		airT = 0,
+		wasAir = false,
+		landT = -10,
+		landPending = false,
+		moveYaw = 0,
+		backward = false,
 		wallSide = 1,
 		wallOn = false,
-		reachT = -10,
-		pjT = -10,
-		pjFade = nil,
+		psjT = -10,
+		wjT = -10,
+		wjSide = 1,
+		wjLean = 0,
+		wjMeasured = true,
+		disc = nil,
+		discOn = false,
+		shield = nil,
+		shieldOn = false,
 		lastState = "run",
 		seenState = "run",
 		seenAt = 0,
+		dead = false,
+		dirty = false,
 	}
 	states[c] = ns
 	c.Destroying:Connect(function()
 		states[c] = nil
 	end)
+	local function touched(d: Instance)
+		if d:IsA("AnimationConstraint") or d:IsA("Motor6D") or d:IsA("Attachment") then
+			ns.dirty = true
+		end
+	end
+	c.DescendantAdded:Connect(touched)
+	c.DescendantRemoving:Connect(touched)
+	if hum then
+		hum.Died:Connect(function()
+			ns.dead = true -- stop writing at once: the death / ragdoll belongs to Roblox
+		end)
+	end
 	return ns
 end
 
@@ -146,7 +235,6 @@ local function slideBlend(): number
 	return math.max(0.02, CoreConfig.Tune("Slide", "PoseBlendSeconds"))
 end
 
--- current slide weight of a character (0..1, eased; the same curve the server uses for hit volumes)
 local function slideWeight(s: State, now: number): number
 	return CoreGeom.SlideWeight(s.slideStart, s.slideEnd, now, slideBlend())
 end
@@ -156,8 +244,7 @@ local function setSlide(s: State, on: boolean, at: number)
 		return
 	end
 	if on then
-		-- a quick re-slide continues from the current weight (same rule as the server)
-		local cur = slideWeight(s, at)
+		local cur = slideWeight(s, at) -- a quick re-slide continues from the current weight (same rule as the server)
 		s.slideStart = at - cur * slideBlend()
 		s.slideEnd = nil
 	else
@@ -169,7 +256,6 @@ end
 local params = RaycastParams.new()
 params.FilterType = Enum.RaycastFilterType.Exclude
 
--- which side the wall is on for another player's character (they only replicate "wallrun")
 local function wallSideOf(c: Model, hrp: BasePart): number?
 	params.FilterDescendantsInstances = { c }
 	local right = hrp.CFrame.RightVector
@@ -183,130 +269,373 @@ local function wallSideOf(c: Model, hrp: BasePart): number?
 	return nil
 end
 
-local function lerpJoint(s: State, name: string, target: CFrame, w: number)
-	local j = s.joints[name]
-	if j and w > 0.001 then
-		j.Transform = j.Transform:Lerp(target, w)
+local function grounded(c: Model, hrp: BasePart, hum: Humanoid?): boolean
+	params.FilterDescendantsInstances = { c }
+	local reach = (if hum then hum.HipHeight else 2) + hrp.Size.Y / 2 + 0.6
+	return workspace:Raycast(hrp.Position, Vector3.new(0, -reach, 0), params) ~= nil
+end
+
+-- start (or keep) the base clip `name`; every other base track fades out
+local FADE = {
+	run = 0.15, fall = 0.2, land = 0.05, psj_push = 0.04, psj_rise = 0.08, psj_apex = 0.1,
+	wallrun_r = 0.12, wallrun_l = 0.12, walljump_r = 0.04, walljump_l = 0.04, walljump_recover_r = 0.06, walljump_recover_l = 0.06,
+}
+local function want(s: State, name: string?, rate: number, weight: number)
+	if name ~= s.baseName then
+		s.baseName = name
+		if name then
+			local clip = clips[name]
+			-- the run keeps its phase when it comes back within a moment (no stride restart)
+			local t = 0
+			for _, tr in s.base do
+				if tr.clip == clip then
+					t = tr.t
+				end
+			end
+			table.insert(s.base, { clip = clip, t = t, rate = rate, w = 0, target = weight, fadeIn = FADE[name] or 0.1, fadeOut = 0.12 })
+		end
+		for i, tr in s.base do
+			if i < #s.base or not name then
+				tr.target = 0
+			end
+		end
+	end
+	local top = s.base[#s.base]
+	if name and top then
+		top.rate = rate
+		top.target = weight
+	end
+end
+
+local function stepTrack(tr: Track, dt: number)
+	tr.t += dt * tr.rate
+	if tr.w < tr.target then
+		tr.w = math.min(tr.target, tr.w + dt / math.max(0.01, tr.fadeIn))
+	elseif tr.w > tr.target then
+		tr.w = math.max(tr.target, tr.w - dt / math.max(0.01, tr.fadeOut))
+	end
+end
+
+---------------------------------------------------------------------------------------------------- frame update
+local work: { [string]: CFrame } = {}
+
+local function drawCharacter(c: Model, s: State, hrp: BasePart, hum: Humanoid?, mine: boolean, now: number, dt: number, delay: number)
+	-- 1. inputs: this client's own state is local and immediate; others' come from replicated attributes, applied
+	--    after the same delay their positions are drawn with
+	local st = c:GetAttribute("CR_MoveState")
+	local stateNow = if typeof(st) == "string" then st else "run"
+	local sliding: boolean, wallSide: number? = false, nil
+	local vel = hrp.AssemblyLinearVelocity
+	local charging, chargeK, shieldUp = false, 0, false
+	if mine then
+		sliding = deps.localSlide()
+		local n = deps.localWall()
+		if n then
+			wallSide = if n:Dot(hrp.CFrame.RightVector) < 0 then 1 else -1
+		end
+		local on, k = deps.charging()
+		charging, chargeK = on, k or 0
+		shieldUp = deps.shieldUp()
+	else
+		if stateNow ~= s.seenState then
+			s.seenState = stateNow
+			s.seenAt = now
+		end
+		local applied = if now - s.seenAt >= delay then s.seenState else s.lastState
+		if applied ~= s.lastState then
+			-- a slide that ends while rising fast is a Power Slide Jump; leaving a wall-run while rising is a wall jump
+			if s.lastState == "slide" and applied == "run" and vel.Y > CoreConfig.Tune("Slide", "PowerJumpUp") * 0.6 then
+				s.psjT = now
+			elseif s.lastState == "wallrun" and applied == "run" and vel.Y > 8 then
+				s.wjT = now
+				s.wjSide = s.wallSide
+				s.wjMeasured = false
+			end
+			s.lastState = applied
+		end
+		sliding = applied == "slide"
+		if applied == "wallrun" then
+			wallSide = wallSideOf(c, hrp) or s.wallSide
+		end
+		local cs = c:GetAttribute("CR_ChargeStart")
+		if typeof(cs) == "number" then
+			local tune = function(k: string): number
+				return CoreConfig.Tune("Disc", k)
+			end
+			charging = true
+			chargeK = math.clamp((workspace:GetServerTimeNow() - cs - tune("TapSeconds")) / math.max(0.05, tune("ChargeSeconds")), 0, 1)
+		end
+		shieldUp = c:GetAttribute("CR_ShieldUp") == true
+	end
+	local stunUntil = (c:GetAttribute("CR_StunUntil") :: number?) or 0
+	local stunned = workspace:GetServerTimeNow() < stunUntil
+	local off = s.dead or stunned or (hum ~= nil and hum.Health <= 0)
+	setSlide(s, sliding and not off, now)
+	if wallSide then
+		s.wallSide = wallSide
+		s.psjT = -10 -- a wall-run ends the Power Slide Jump sequence (the next jump is a wall jump)
+	end
+	s.wallOn = wallSide ~= nil
+
+	-- 2. base layer: pick the clip
+	local flat = Vector3.new(vel.X, 0, vel.Z).Magnitude
+	local air = not grounded(c, hrp, hum)
+	s.airT = if air then s.airT + dt else 0
+	if s.wasAir and not air then
+		local fellFast = vel.Y < 1
+		if fellFast and (now - s.psjT > 0.25) and (now - s.wjT > 0.15) and s.landPending then
+			s.landT = now
+		end
+	end
+	if air and s.airT > 0.35 then
+		s.landPending = true
+	elseif not air then
+		s.landPending = false
+	end
+	s.wasAir = air
+	if not air and now - s.psjT > 0.3 then
+		s.psjT = -10 -- Power Slide Jump sequence ends on landing
+	end
+	if not air and now - s.wjT > 0.3 then
+		s.wjT = -10
+	end
+	-- camera-aimed wall jump: lean into the launch direction (measured once the launch has been applied)
+	if not s.wjMeasured and now - s.wjT > 0.04 then
+		s.wjMeasured = true
+		local side = hrp.CFrame.RightVector:Dot(Vector3.new(vel.X, 0, vel.Z))
+		s.wjLean = math.clamp(side / 50, -1, 1) * R(14)
+	end
+	local rateRun = math.clamp(flat / 36, 0.45, 1.8)
+	-- directional run: with aim lock the body faces the camera, so the character often strafes or backpedals. The legs
+	-- turn toward the move direction (up to 65 deg, chest and head counter-turn to stay on the aim) and a backpedal
+	-- plays the cycle in reverse, so planted feet still travel with the ground.
+	local yawTarget = 0
+	if flat > 3 then
+		local d = hrp.CFrame:VectorToObjectSpace(Vector3.new(vel.X, 0, vel.Z))
+		local heading = math.atan2(d.X, -d.Z) -- 0 forward, + to the right
+		local back = math.abs(heading) > R(110)
+		if back ~= s.backward and math.abs(math.abs(heading) - R(110)) > R(10) then
+			s.backward = back
+		end
+		local rel = if s.backward then heading - math.sign(heading) * math.pi else heading
+		yawTarget = -math.clamp(rel, -R(65), R(65))
+	end
+	s.moveYaw += (yawTarget - s.moveYaw) * math.min(1, dt * 12)
+	if s.backward then
+		rateRun = -rateRun
+	end
+	local pa, wa = now - s.psjT, now - s.wjT
+	local push, rise, apex = clips.psj_push, clips.psj_rise, clips.psj_apex
+	if off then
+		want(s, nil, 1, 0)
+	elseif s.wallOn then
+		want(s, if s.wallSide > 0 then "wallrun_r" else "wallrun_l", rateRun, 1)
+	elseif pa >= 0 and pa < 2.5 and air then
+		if pa < push.len then
+			want(s, "psj_push", 1, 1)
+		elseif vel.Y > 12 and pa < 1.2 then
+			want(s, "psj_rise", 1, 1)
+		elseif s.baseName ~= "fall" and (s.baseName ~= "psj_apex" or s.base[#s.base].t < apex.len) then
+			want(s, "psj_apex", 1, 1)
+		else
+			want(s, "fall", 1, 1)
+		end
+	elseif wa >= 0 and wa < 1.5 and air then
+		local side = if s.wjSide > 0 then "_r" else "_l"
+		if wa < clips["walljump" .. side].len then
+			want(s, "walljump" .. side, 1, 1)
+		elseif wa < clips["walljump" .. side].len + clips["walljump_recover" .. side].len then
+			want(s, "walljump_recover" .. side, 1, 1)
+		else
+			want(s, "fall", 1, 1)
+		end
+	elseif air and (s.airT > 0.15 or vel.Y < -12) then
+		want(s, "fall", 1, 1)
+	elseif not air and now - s.landT < clips.land.len then
+		-- landing recovery: full on a standing landing, light while running (never blocks: no root motion)
+		want(s, "land", 1, if flat > 10 then 0.4 else 1)
+	elseif not air and flat >= 6 then
+		want(s, "run", rateRun, math.clamp((flat - 6) / 10, 0, 1))
+	else
+		want(s, nil, 1, 0)
+	end
+	for i = #s.base, 1, -1 do
+		local tr = s.base[i]
+		stepTrack(tr, dt)
+		if tr.target == 0 and tr.w <= 0 then
+			table.remove(s.base, i)
+		end
+	end
+
+	-- 3. upper body tracks
+	if charging and not off and not s.discOn then
+		s.discOn = true
+		s.disc = { clip = clips.disc_charge, t = 0, rate = 1, w = 0, target = 1, fadeIn = 0.06, fadeOut = 0.1 }
+	elseif s.discOn and (not charging or off) then
+		s.discOn = false
+		if not off and not shieldUp and s.disc then
+			-- released: the throw follow-through (the disc itself is already on its way - combat never waits)
+			s.disc = { clip = clips.disc_release, t = 0, rate = 1, w = 1, target = 1, fadeIn = 0.01, fadeOut = 0.12 }
+		elseif s.disc then
+			s.disc.target = 0
+		end
+	end
+	local disc = s.disc
+	if disc then
+		stepTrack(disc, dt)
+		if disc.clip.name == "disc_release" and disc.t > disc.clip.len - 0.12 then
+			disc.target = 0
+		end
+		if disc.target == 0 and disc.w <= 0 then
+			s.disc = nil
+		end
+	end
+	if shieldUp and not off and not s.shieldOn then
+		s.shieldOn = true
+		s.shield = { clip = clips.shield_raise, t = 0, rate = 1, w = 1, target = 1, fadeIn = 0.01, fadeOut = 0.08 }
+	elseif s.shieldOn and (not shieldUp or off) then
+		s.shieldOn = false
+		s.shield = if off then nil else { clip = clips.shield_lower, t = 0, rate = 1, w = 1, target = 1, fadeIn = 0.01, fadeOut = 0.06 }
+	end
+	local sh = s.shield
+	if sh then
+		stepTrack(sh, dt)
+		if sh.clip.name == "shield_raise" and sh.t >= sh.clip.len then
+			sh.clip, sh.t = clips.shield_hold, 0
+		elseif sh.clip.name == "shield_lower" and sh.t >= sh.clip.len then
+			sh.target = 0
+		end
+		if sh.target == 0 and sh.w <= 0 then
+			s.shield = nil
+		end
+	end
+
+	-- 4. compose: one Transform write per joint
+	if s.dirty then
+		s.dirty = false
+		s.joints = scanJoints(c)
+	end
+	if s.r6 then
+		local sw = slideWeight(s, now)
+		local j = s.joints.RootJoint
+		if j and sw > 0.001 then
+			j.Transform = j.Transform:Lerp(SLIDE_R6.RootJoint, sw)
+		end
+		return
+	end
+	local joints = s.joints
+	for _, name in FULL do
+		local j = joints[name]
+		if j then
+			work[name] = j.Transform
+		end
+	end
+	for _, tr in s.base do
+		if tr.w > 0.001 then
+			for _, name in FULL do
+				local cur = work[name]
+				local cf = sample(tr.clip, tr.t, name)
+				if cur and cf then
+					work[name] = cur:Lerp(cf, tr.w)
+				end
+			end
+		end
+	end
+	-- lower-body turn (weighted by the run's share of the base layer)
+	local runW = 0
+	for _, tr in s.base do
+		if tr.clip.name == "run" then
+			runW = math.max(runW, tr.w)
+		end
+	end
+	if runW > 0.001 and math.abs(s.moveYaw) > 0.001 and work.Root and work.Waist and work.Neck then
+		local y = s.moveYaw * runW
+		work.Root = CFrame.Angles(0, y, 0) * work.Root
+		work.Waist = work.Waist * CFrame.Angles(0, -y * 0.7, 0)
+		work.Neck = work.Neck * CFrame.Angles(0, -y * 0.3, 0)
+	end
+	-- wall-jump lean toward the launch direction (camera-aimed), fading over the recovery
+	if wa >= 0 and wa < 0.6 and work.Root and s.wjLean ~= 0 then
+		local k = if wa < 0.1 then wa / 0.1 else 1 - (wa - 0.1) / 0.5
+		work.Root = work.Root * CFrame.Angles(0, 0, -s.wjLean * CoreGeom.Ease(k))
+	end
+	-- slide layer (weight = the server's hit-volume curve)
+	local sw = slideWeight(s, now)
+	if sw > 0.001 then
+		local slideClip, st2
+		if s.slideOn and s.slideStart then
+			local ts = now - s.slideStart
+			if ts < clips.slide_in.len then
+				slideClip, st2 = clips.slide_in, ts
+			else
+				slideClip, st2 = clips.slide_loop, if deps.reduced() then 0 else ts - clips.slide_in.len
+			end
+		else
+			local te = now - (s.slideEnd or now)
+			if pa >= 0 and pa < 0.5 then
+				slideClip, st2 = clips.slide_loop, 0 -- jumped out of the slide: the push-off below takes over
+			else
+				slideClip, st2 = clips.slide_out, te
+			end
+		end
+		for _, name in FULL do
+			local cur = work[name]
+			local cf = sample(slideClip, st2, name)
+			if cur and cf then
+				work[name] = cur:Lerp(cf, sw)
+			end
+		end
+	end
+	-- upper body: arm joints override, the chest twist (Waist) adds on top so the slide / run torso stays
+	for _, tr in { s.disc, s.shield } do
+		if tr and tr.w > 0.001 then
+			for _, name in tr.clip.mask :: { string } do
+				local cur = work[name]
+				local cf = sample(tr.clip, tr.t, name)
+				if cur and cf then
+					if name == "Waist" then
+						work[name] = cur * CFrame.identity:Lerp(cf, tr.w)
+					else
+						work[name] = cur:Lerp(cf, tr.w)
+					end
+				end
+			end
+		end
+	end
+	-- charge tension: a small tremble that grows with the charge (off in Reduced FX)
+	if s.discOn and chargeK > 0 and not deps.reduced() and work.RightShoulder then
+		local a = R(1.6) * chargeK
+		work.RightShoulder = work.RightShoulder * CFrame.Angles(math.sin(now * 53) * a, 0, math.sin(now * 41) * a)
+	end
+	for _, name in FULL do
+		local j = joints[name]
+		local cf = work[name]
+		if j and cf then
+			j.Transform = cf
+		end
 	end
 end
 
 Poses.Stats = { frames = 0, seconds = 0 } -- script time spent here (test hook: performance)
 
-function Poses.Start(d: typeof(deps))
-	deps = d
+function Poses.Start(d: any)
+	for k, v in d do
+		(deps :: any)[k] = v
+	end
 	RunService.PreSimulation:Connect(function(dt)
 		local t0 = os.clock()
-		local now = os.clock()
+		local now = t0
 		local delay = CoreConfig.Tune("Disc", "InterpPlayerSeconds")
 		for _, p in Players:GetPlayers() do
 			local c = p.Character
 			local hrp = c and c:FindFirstChild("HumanoidRootPart") :: BasePart?
 			if c and c.Parent and hrp then
-				local mine = p == player
-				local st = c:GetAttribute("CR_MoveState")
-				local stateNow = if typeof(st) == "string" then st else "run"
-				local s = states[c]
-				if not s and stateNow == "run" and not (mine and (deps.localSlide() or deps.localWall() ~= nil)) then
-					continue -- nothing to draw and nothing to remember
+				local s = stateFor(c)
+				if s.dead then
+					continue
 				end
-				s = s or stateFor(c)
-				local ss = s :: State
-				-- 1. inputs: this client's own state is local and immediate; others' come from the replicated attribute,
-				--    applied after the same delay their positions are drawn with
-				local sliding, wallNormalSide
-				if mine then
-					sliding = deps.localSlide()
-					local n = deps.localWall()
-					if n then
-						wallNormalSide = if n:Dot(hrp.CFrame.RightVector) < 0 then 1 else -1
-					end
-				else
-					if stateNow ~= ss.seenState then
-						ss.seenState = stateNow
-						ss.seenAt = now
-					end
-					local applied = if now - ss.seenAt >= delay then ss.seenState else ss.lastState
-					if applied ~= ss.lastState then
-						-- a jump out of a wall-run or a slide (airborne and rising) gets the reach; a slide that ends while
-						-- rising fast is a Power Slide Jump (Step 1D) and gets the push-off / tuck instead
-						local vyNow = hrp.AssemblyLinearVelocity.Y
-						if ss.lastState == "slide" and applied == "run" and vyNow > CoreConfig.Tune("Slide", "PowerJumpUp") * 0.6 then
-							ss.pjT = now
-							ss.pjFade = nil
-						elseif (ss.lastState == "wallrun" or ss.lastState == "slide") and applied == "run" and vyNow > 8 then
-							ss.reachT = now
-						end
-						ss.lastState = applied
-					end
-					sliding = applied == "slide"
-					if applied == "wallrun" then
-						wallNormalSide = wallSideOf(c, hrp) or ss.wallSide
-					end
-				end
-				setSlide(ss, sliding, now)
-				local wallOn = wallNormalSide ~= nil
-				if wallOn then
-					ss.wallSide = wallNormalSide :: number
-				end
-				local wIn, wOut = 0.2, 0.25
-				ss.wallW = if wallOn then math.min(1, ss.wallW + dt / wIn) else math.max(0, ss.wallW - dt / wOut)
-
-				-- 2. layers (in order: slide replaces most joints, wall leans and lifts one arm, reach lifts the left arm)
-				local sw = slideWeight(ss, now)
-				if sw > 0.001 then
-					local map = if ss.r6 then SLIDE_R6 else SLIDE_R15
-					for name, target in map :: any do
-						lerpJoint(ss, name, target, sw)
-					end
-				end
-				local ww = CoreGeom.Ease(ss.wallW)
-				if ww > 0.001 and not ss.r6 then
-					local side = ss.wallSide
-					local lean = R(CoreConfig.Tune("WallRun2", "TiltDegrees"))
-					lerpJoint(ss, "Root", CFrame.Angles(0, 0, lean * side), ww)
-					-- wall-side hand to the wall (shoulder out to about shoulder height, slightly forward), unless that arm
-					-- is holding a charging disc (right arm)
-					local armName = if side > 0 then "RightShoulder" else "LeftShoulder"
-					local holding = mine and side > 0 and deps.charging()
-					if not holding then
-						-- measured in Step 1C captures: -Z swings the RIGHT arm out to the side (+Z swung it across the chest)
-					lerpJoint(ss, armName, CFrame.Angles(R(25), 0, R(-78) * side), ww)
-						lerpJoint(ss, if side > 0 then "RightElbow" else "LeftElbow", CFrame.Angles(R(18), 0, 0), ww)
-					end
-				elseif ww > 0.001 and ss.r6 then
-					lerpJoint(ss, "RootJoint", CFrame.Angles(0, R(CoreConfig.Tune("WallRun2", "TiltDegrees")) * -ss.wallSide, 0), ww)
-				end
-				-- Step 1D: Power Slide Jump layer
-				local pa = now - ss.pjT
-				local pjActive = false
-				if pa >= 0 and pa < 1.6 and not ss.r6 then
-					local vy = hrp.AssemblyLinearVelocity.Y
-					if not ss.pjFade and ((pa > 0.25 and vy < -20) or pa > 1.2) then
-						ss.pjFade = now -- starting to fall: hand back to the default fall / landing animations
-					end
-					local wIn = CoreGeom.Ease(pa / 0.08)
-					local wOut = if ss.pjFade then 1 - CoreGeom.Ease((now - ss.pjFade) / 0.3) else 1
-					local pw = wIn * wOut
-					if pw > 0.001 then
-						pjActive = true
-						local mix = CoreGeom.Ease((pa - 0.04) / 0.16) -- push-off -> tuck
-						for _, name in PJ_JOINTS do
-							local a = (PJ_PUSH :: any)[name] or CFrame.identity
-							local b = (PJ_TUCK :: any)[name] or CFrame.identity
-							lerpJoint(ss, name, a:Lerp(b, mix), pw)
-						end
-					end
-				end
-				local ra = now - ss.reachT
-				if ra >= 0 and ra < 0.5 and not ss.r6 and not pjActive then
-					local rw = if ra < 0.1 then CoreGeom.Ease(ra / 0.1) else CoreGeom.Ease(1 - (ra - 0.1) / 0.4)
-					lerpJoint(ss, "LeftShoulder", CFrame.Angles(R(150), 0, R(-12)), rw)
-					lerpJoint(ss, "LeftElbow", CFrame.Angles(R(10), 0, 0), rw)
-				end
-				-- forget idle characters (no layer active)
-				if sw <= 0.001 and ss.wallW <= 0 and ra >= 0.5 and pa >= 1.6 and stateNow == "run" and ss.lastState == "run" and not ss.slideOn then
-					states[c] = nil
-				end
+				local hum = c:FindFirstChildOfClass("Humanoid")
+				drawCharacter(c, s, hrp, hum, p == player, now, dt, delay)
 			end
 		end
 		Poses.Stats.frames += 1
@@ -314,21 +643,25 @@ function Poses.Start(d: typeof(deps))
 	end)
 end
 
--- this client's own jump out of a wall-run or slide (immediate; others see it from the replicated state)
-function Poses.Reach()
+-- this client's own jump out of a wall-run (immediate; others see it from the replicated state). side: +1 wall on the right
+function Poses.WallJump(side: number?)
 	local c = player.Character
 	if c then
-		stateFor(c).reachT = os.clock()
+		local s = stateFor(c)
+		s.wjT = os.clock()
+		s.wjSide = side or s.wallSide
+		s.wjMeasured = false
 	end
 end
+
+-- kept for the Step 1C wiring: a plain slide jump has no separate clip (the slide exit + fall cover it)
+function Poses.Reach() end
 
 -- Step 1D: this client's own Power Slide Jump (immediate; others see it from the replicated state + rising speed)
 function Poses.PowerJump()
 	local c = player.Character
 	if c then
-		local st = stateFor(c)
-		st.pjT = os.clock()
-		st.pjFade = nil
+		stateFor(c).psjT = os.clock()
 	end
 end
 
@@ -351,6 +684,29 @@ end
 
 function Poses.Weight(c: Model): number
 	return Poses.SlideWeight(c)
+end
+
+-- test hook: what the controller is drawing for a character
+function Poses.Debug(c: Model): { [string]: any }?
+	local s = states[c]
+	if not s then
+		return nil
+	end
+	local base = {}
+	for _, tr in s.base do
+		table.insert(base, string.format("%s w%.2f t%.2f", tr.clip.name, tr.w, tr.t))
+	end
+	return {
+		base = base,
+		baseName = s.baseName,
+		slideW = slideWeight(s, os.clock()),
+		disc = if s.disc then s.disc.clip.name .. string.format(" w%.2f", s.disc.w) else nil,
+		shield = if s.shield then s.shield.clip.name .. string.format(" w%.2f", s.shield.w) else nil,
+		airT = s.airT,
+		wall = s.wallOn,
+		wallSide = s.wallSide,
+		dead = s.dead,
+	}
 end
 
 return Poses

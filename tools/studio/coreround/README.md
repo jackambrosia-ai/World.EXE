@@ -51,3 +51,10 @@ This is the isolated **movement + Rebound Disc + holographic shield** prototype.
 - Real input for tests: `user_keyboard_input` with W + LeftShift (slide; Step 1D - Left Ctrl was dropped because Ctrl+A / Ctrl+D are Studio shortcuts in test windows), Space (jump / wall-jump), Q (dash). Gamepad codes (`ButtonB`, `ButtonX`, `ButtonR2`) are accepted and reach the same bindings. Scripted `Humanoid:Move` from the test VM does not move the character.
 - Dummy throws are stand-in attackers, not two-client evidence.
 - Network shaping for latency tests uses Studio's `settings().Network` (`InboundNetworkMinDelayMs` / `OutboundNetworkMinDelayMs`). It persists in Studio settings, so set it back to 0 afterwards.
+
+## Step 1E (animation)
+
+- `tools/animation/` - Blender 5.3 authoring / bake / QA / preview scripts (see `docs/prototypes/CORE_ROUND_STEP1E.md`). They write `src/.../CoreRound/AnimData.luau` (generated: edit the clips, not the module).
+- `cr_60_keyframes.luau` (Edit mode) - saves every clip as a LOCAL KeyframeSequence in `ServerStorage.RBX_ANIMSAVES.CoreRound_AnimRig` (no upload). Its builder is also used in a Play client for the temp-id test.
+- `cr_70_anim_capture.luau` - Play-client helpers for the animation review (aim lock off, teleport, controller log, follow camera). Paste into the client datamodel; the client cannot fetch it over HTTP.
+- `cr_sheet.ps1` - tiles capture frames into one contact sheet. Client test ops added: `AnimDebug`, `AimLock`.

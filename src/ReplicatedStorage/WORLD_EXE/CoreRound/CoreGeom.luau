@@ -143,9 +143,12 @@ function CoreGeom.SlideWeight(startT: number?, endT: number?, t: number, blend: 
 end
 
 -- Step 1C: the slide pose's torso / head joint targets (R15), shared so the server can compute where the drawn head is.
+-- Step 1E: Root z 0.2 -> -1.11. With 0.2 the drawn slide head sat 1.31 studs BEHIND the root while the server's slide
+-- head sphere is centred above the root (DiscHit: root + (0, slideHead, 0)); -1.11 puts the drawn head on it. Only z
+-- changed, so PosedHeadOffset (a height) and every server hit volume are unchanged (0.194 on the measured avatar).
 local R = math.rad
 CoreGeom.SlidePoseR15 = {
-	Root = CFrame.new(0, -1.35, 0.2) * CFrame.Angles(R(38), 0, 0), -- lower + lean back
+	Root = CFrame.new(0, -1.35, -1.11) * CFrame.Angles(R(38), 0, 0), -- lower + lean back, pelvis forward of the root
 	Waist = CFrame.Angles(R(-12), R(-8), 0), -- curl the chest forward a little
 	Neck = CFrame.Angles(R(-22), 0, 0), -- keep looking ahead
 }

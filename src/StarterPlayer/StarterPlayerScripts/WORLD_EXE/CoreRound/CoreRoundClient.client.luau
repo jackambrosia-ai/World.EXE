@@ -107,16 +107,17 @@ WallRun2.Start({
 	onEnd = function(how)
 		if how == "jump" then
 			Fx.Sound("wall_jump")
-			Poses.Reach() -- Step 1C: arm reach on a wall jump
+			Poses.WallJump() -- Step 1E: wall-jump push-off -> recovery clips (side from the last wall seen)
 		end
 	end,
 })
 Poses.Start({
 	localSlide = Slide.Active,
 	localWall = WallRun2.WallNormal,
-	charging = function()
-		local ch = DiscClient.Charging()
-		return ch == true
+	charging = DiscClient.Charging, -- (charging, 0..1)
+	shieldUp = ShieldClient.IsUp,
+	reduced = function()
+		return Fx.Reduced
 	end,
 })
 Aim.SetExtra({
@@ -328,6 +329,13 @@ if RunService:IsStudio() then
 			local p = Players:FindFirstChild(a :: string)
 			local c = p and (p :: Player).Character
 			return if c then Poses.SlideWeight(c) else -1
+		elseif op == "AimLock" then -- Step 1E capture helper: turn the aim lock off for side views
+			Aim.LockEnabled = a == true
+			return Aim.LockEnabled
+		elseif op == "AnimDebug" then -- Step 1E: what the animation controller draws for a character (a = player name)
+			local p = if a then Players:FindFirstChild(a :: string) else player
+			local c = p and (p :: Player).Character
+			return if c then Poses.Debug(c) else nil
 		elseif op == "WallTilt" then
 			wallTilt = a == true
 			return wallTilt
@@ -338,4 +346,4 @@ if RunService:IsStudio() then
 	bf.Parent = player:WaitForChild("PlayerScripts")
 end
 
-print("[CoreRound] Step 1D client running")
+print("[CoreRound] Step 1E client running")
