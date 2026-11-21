@@ -36,7 +36,7 @@ local regenAt = 0 -- os.clock() when the next charge arrives (0 = full)
 local lastOwnPress = -100
 
 -- current burst
-type Burst = { kind: string, t0: number, until_: number, dir: Vector3, att: Attachment, lv: LinearVelocity, startPos: Vector3, n: number }
+type Burst = { kind: string, t0: number, until_: number, dir: Vector3, att: Attachment, lv: LinearVelocity, startPos: Vector3, n: number, speed: number, keep: number }
 local burst: Burst? = nil
 local firstPressT = -100 -- when the dash that may be extended was pressed
 local superUsed = true
@@ -125,12 +125,23 @@ local function wantDir(hum: Humanoid): Vector3
 	return CoreGeom.Flat(workspace.CurrentCamera.CFrame.LookVector) or Vector3.new(0, 0, -1)
 end
 
+-- Step 1E bug fix (dash into obstacles): while a burst drives the root, the Humanoid may not trip. With the old
+-- unlimited push a dash into a wall or rail flipped the character into FallingDown and launched it (measured: up to
+-- 200 studs/s up, ~50 studs high, tumbling for over a second).
+local function setTrip(enabled: boolean)
+	local hum = parts()
+	if hum then
+		hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, enabled)
+	end
+end
+
 local function endBurst(reason: string, slip: boolean)
 	local b = burst
 	if not b then
 		return
 	end
 	burst = nil
+	setTrip(true)
 	local _, hrp = parts()
 	b.lv:Destroy()
 	b.att:Destroy()
@@ -172,10 +183,13 @@ local function startBurst(kind: string, dir: Vector3, speed: number, seconds: nu
 	lv.VelocityConstraintMode = Enum.VelocityConstraintMode.Plane
 	lv.PrimaryTangentAxis = Vector3.xAxis
 	lv.SecondaryTangentAxis = Vector3.zAxis
-	lv.MaxForce = math.huge
+	-- Step 1E bug fix: a finite push (reaches dash speed in ~0.005 s) instead of math.huge, so a blocked dash cannot
+	-- turn an unlimited force into a launch
+	lv.MaxForce = hrp.AssemblyMass * 20000
 	lv.PlaneVelocity = Vector2.new(dir.X, dir.Z) * speed
 	lv.Parent = hrp
-	burst = { kind = kind, t0 = os.clock(), until_ = os.clock() + seconds, dir = dir, att = att, lv = lv, startPos = hrp.Position, n = n }
+	setTrip(false)
+	burst = { kind = kind, t0 = os.clock(), until_ = os.clock() + seconds, dir = dir, att = att, lv = lv, startPos = hrp.Position, n = n, speed = speed, keep = 1 }
 	note({ kind = kind, n = n, charges = charges, air = hum.FloorMaterial == Enum.Material.Air })
 	Fx.Sound(kind)
 	onDash(kind, dir) -- Step 1E: the animation controller picks the front / side / back dash clip from dir
@@ -302,6 +316,53 @@ function Movement.Start(deps: { send: (string, { [string]: any }) -> (), stunned
 		boost = tune("RunSpeed")
 	end)
 
+	-- Step 1E bug fix: obstacle guard, run BEFORE physics each frame while a burst drives the root. A box the width of
+	-- the root and from 0.7 above the feet to the top of the root is cast ahead along the burst. On a wall-like hit
+	-- (|normal.Y| < 0.7) the burst keeps only its speed ALONG the surface (it slides along walls); if under 40 % of
+	-- it would remain (head-on) the burst ends without slip and the speed into the surface is removed. Steps under
+	-- 0.7 studs stay to the Humanoid. Open-ground distance and speed are unchanged.
+	local castParams = RaycastParams.new()
+	castParams.FilterType = Enum.RaycastFilterType.Exclude
+	local lastDt = 1 / 60
+	RunService.PreSimulation:Connect(function(dt)
+		lastDt = dt
+		local b = burst
+		local hum, hrp = parts()
+		if not b or not hum or not hrp or not player.Character then
+			return
+		end
+		castParams.FilterDescendantsInstances = { player.Character, Fx.Folder() }
+		local h = hrp.Size.Y + hum.HipHeight - 0.7
+		local centre = Vector3.new(hrp.Position.X, hrp.Position.Y + hrp.Size.Y / 2 - h / 2, hrp.Position.Z)
+		local cur = b.lv.PlaneVelocity.Magnitude
+		local reach = cur * math.max(lastDt, 1 / 60) * 1.5 + 0.35
+		local res = workspace:Blockcast(CFrame.lookAt(centre, centre + b.dir), Vector3.new(hrp.Size.X * 0.9, h, 0.6), b.dir * reach, castParams)
+		if not res or math.abs(res.Normal.Y) >= 0.7 then
+			return
+		end
+		local n = CoreGeom.Flat(res.Normal)
+		if not n then
+			return
+		end
+		local along = b.dir - n * b.dir:Dot(n)
+		local keep = along.Magnitude
+		note({ kind = b.kind .. "_obstacle", keep = keep, hit = res.Instance.Name })
+		if keep < 0.4 then
+			endBurst("blocked", false)
+			local v = hrp.AssemblyLinearVelocity
+			local into = Vector3.new(v.X, 0, v.Z):Dot(n)
+			if into < 0 then
+				hrp.AssemblyLinearVelocity = v - n * into
+			end
+			boost = tune("RunSpeed")
+		else
+			b.dir = along.Unit
+			b.keep = math.min(b.keep, keep)
+			local spd = if b.kind == "super" then tune("SuperSpeed") else b.speed
+			b.lv.PlaneVelocity = Vector2.new(b.dir.X, b.dir.Z) * spd * b.keep
+		end
+	end)
+
 	RunService.Heartbeat:Connect(function(dt)
 		local hum, hrp = parts()
 		if not hum or not hrp then
@@ -320,6 +381,7 @@ function Movement.Start(deps: { send: (string, { [string]: any }) -> (), stunned
 				burst = nil
 				b.lv:Destroy()
 				b.att:Destroy()
+				setTrip(true)
 				note({ kind = b.kind .. "_end", reason = "handover", secs = t - b.t0 })
 			elseif stunned or hum.Health <= 0 then
 				endBurst("stunned", false)
@@ -335,7 +397,7 @@ function Movement.Start(deps: { send: (string, { [string]: any }) -> (), stunned
 					local nd = CoreGeom.Flat(cur:Lerp(want, k)) or cur
 					b.dir = nd
 				end
-				b.lv.PlaneVelocity = Vector2.new(b.dir.X, b.dir.Z) * tune("SuperSpeed")
+				b.lv.PlaneVelocity = Vector2.new(b.dir.X, b.dir.Z) * tune("SuperSpeed") * b.keep
 				if not Fx.Reduced and t - lastImage > 0.08 and player.Character then
 					lastImage = t
 					Fx.Afterimage(player.Character, teamColor())

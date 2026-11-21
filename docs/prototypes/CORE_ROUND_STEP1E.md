@@ -224,3 +224,39 @@ Protected-file check: 9/9 OK.
 - **Evidence.** Real-avatar stills in `evidence/captures_1e/stage_dash*`.
 - **Tooling fix.** `cr_60_keyframes.luau` now requires a fresh copy of `AnimData`, because Edit-mode `require` caches the module. It saves all 24 clips locally.
 - **Place.** SHA-256 `fed520d8a4f83ce5ffcd7ebe25487c9d369dae8e9d283aeb157bb829c10130a0`, parity 24/24, backup refreshed. Step 1D place unchanged; protected files 9/9.
+
+## Bug fix: dash into obstacles (owner report, 2026-11-21)
+
+**Bug (pre-existing since Step 1).** The dash drove the root with an unlimited-force `LinearVelocity` for the full 0.25 s. Into a wall or the 4.5-stud rail, the physics turned that force into a launch. Measured:
+- a 24-stud wall: bounced back, flipped, thrown up at 200 studs/s and about 50 studs away, tumbling in `FallingDown` for over a second (another try slid along the wall at 60 studs/s while fallen down);
+- the rail: launched about 50 studs up at up to 134 studs/s and ended upside down.
+
+**Fix (`Movement.luau`).**
+- **Obstacle guard.** Before physics each frame, a root-width box (0.7 above the feet up to the root top) is cast ahead along the burst.
+  - On a wall-like hit (|normal.Y| < 0.7), the burst keeps only its speed along the surface, so it slides along walls.
+  - If under 40% would remain (head-on), the burst ends without slip and the speed into the surface is removed.
+  - Steps under 0.7 studs are still left to the Humanoid.
+- **Finite push.** The push is `AssemblyMass × 20000`, which reaches dash speed in about 5 ms, instead of `math.huge`.
+- **No tripping.** `FallingDown` is disabled while a burst drives the root and re-enabled on every exit path.
+- **Super Dash** uses the same guard.
+
+**Retest (Studio Play).** Rise, vertical speed and tilt were also checked: 0 rise and no flip in every case.
+
+| Case | Result |
+|---|---|
+| Open ground | 27.7 studs (configured 26; the timer ends on a frame) |
+| Head-on, 24-stud wall | Stops at the wall after 5.1 studs |
+| Head-on, rail | Stops after 5.1 studs |
+| 35° glancing hit on a wall | Slides along it, 23 studs |
+
+The character stays `Running` throughout. No tuning values changed.
+
+## Open bug: disc stuck on a shield after a hit from behind (owner report; not fixed)
+
+**Reproduction.** Thrower 16 studs behind `D-SHIELD`:
+- The disc hits the defender's back, then passes through the panel's back face (panels block one side only).
+- On its return toward the thrower it meets the panel's FRONT face. A return-pass block only suppresses body hits for 0.3 s; it does not change the disc's path. The homing return re-enters the panel every 1/90 s step.
+
+**Measured:** 234 blocks between 0.55 s and 2.5 s, until the flight timer snapped the disc home. In a real match each block costs 15 shield energy, so one throw from behind would break a raised shield.
+
+**Proposed fix (needs the owner's go-ahead: it changes disc / shield rules).** A shield blocks a given disc at most once. On the return pass, the first block either ends the flight (the disc drops home) or lets the disc pass through that panel for the rest of the flight.
