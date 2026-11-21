@@ -251,12 +251,30 @@ Protected-file check: 9/9 OK.
 
 The character stays `Running` throughout. No tuning values changed.
 
-## Open bug: disc stuck on a shield after a hit from behind (owner report; not fixed)
+## Bug fix: disc stuck on a shield after a hit from behind (owner report, 2026-11-21)
 
-**Reproduction.** Thrower 16 studs behind `D-SHIELD`:
-- The disc hits the defender's back, then passes through the panel's back face (panels block one side only).
-- On its return toward the thrower it meets the panel's FRONT face. A return-pass block only suppresses body hits for 0.3 s; it does not change the disc's path. The homing return re-enters the panel every 1/90 s step.
+**Bug (pre-existing since Step 1B).** The owner's Studio capture (`…Step1E…2026-11-21 07-58-13.mp4`, SHA-256 `9133a003…`; frames reviewed and deleted) showed a block flash pulsing at the panel while the HUD said IN FLIGHT.
+- **Cause.** A disc thrown from behind or a behind-diagonal hits the defender's back and passes the panel's back face (panels block one side). On the way home it meets the FRONT face. A return-pass block only suppressed body hits for 0.3 s and did not change the homing path, so the disc re-blocked every 1/90 s step until the 2.5 s flight cap snapped it home.
+- **Before the fix** (real player throws):
 
-**Measured:** 234 blocks between 0.55 s and 2.5 s, until the flight timer snapped the disc home. In a real match each block costs 15 shield energy, so one throw from behind would break a raised shield.
+  | Throw from | Result |
+  |---|---|
+  | Behind | ~235 blocks |
+  | Behind-diagonal (135°) | 236 blocks |
+  | Front, 45°, side | Normal |
 
-**Proposed fix (needs the owner's go-ahead: it changes disc / shield rules).** A shield blocks a given disc at most once. On the return pass, the first block either ends the flight (the disc drops home) or lets the disc pass through that panel for the rest of the flight.
+  Each block costs the defender 15 shield energy.
+
+**Fix (`CoreDisc.luau`).** A shield blocks a given disc at most once per throw (`blockedBy` per disc); afterwards that panel is ignored for the rest of the flight. Nothing else changes: front blocks, block cost, return behaviour and one-sided panels are the same.
+
+**Retest (player throws at `D-SHIELD`, after the fix):**
+
+| Throw from | Result |
+|---|---|
+| Front | 1 block, home 0.15 s |
+| 45° | 1 block, home 0.13 s |
+| Side | Body hit, home 0.65 s |
+| Behind-diagonal | Body hit + 1 block, home 0.65 s |
+| Behind | Body hits + 1 block, home 0.67 s |
+
+**Still a design question (unchanged).** A disc from behind passes through the panel's back face, and a thrower inside the 3-stud gap between the panel and the defender hits the body.

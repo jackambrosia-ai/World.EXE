@@ -36,6 +36,7 @@ type Disc = {
 	hitOut: { [Model]: number }, -- server time of the outbound hit
 	hitRet: { [Model]: boolean },
 	deflectUntil: number,
+	blockedBy: { [Model]: boolean }, -- owner bug fix: a shield blocks a given disc at most once per throw
 	log: { any },
 	-- Step 1B: per-throw flight from the server-validated charge (0 = tap). Never changes damage / stun / blocking.
 	charge: number,
@@ -136,6 +137,7 @@ function CoreDisc.Throw(owner: Model, ownerName: string, n: number, origin: Vect
 		hitOut = {},
 		hitRet = {},
 		deflectUntil = 0,
+		blockedBy = {},
 		log = {},
 		charge = k,
 		outSpeed = lerp(tune("OutSpeed"), tune("ChargedOutSpeed"), k),
@@ -250,7 +252,11 @@ function CoreDisc.StepOne(d: Disc, dt: number)
 			return if d.rewind < 0 then 0 else math.min(tune("RewindMax"), d.rewind + (if e.player then tune("InterpPlayerSeconds") else tune("InterpSeconds")))
 		end
 		for m, e in CoreCombat.All() do
-			if enemy(d, m) then
+			-- owner bug fix (Step 1E): a panel that already blocked this disc is ignored for the rest of its flight. A disc
+			-- thrown from behind passes the panel's back face (panels block one side), and on its way home it met the
+			-- FRONT face; a return-pass block does not change the homing path, so it re-blocked every 1/90 s step (~235
+			-- blocks, each costing shield energy) until the 2.5 s flight cap snapped it home.
+			if enemy(d, m) and not d.blockedBy[m] then
 				-- Step 1B: panels at the same rewound time as bodies (review item "shield latency")
 				local c, nrm, right, up, hw, hh = CoreCombat.Panel(e, t - rewindFor(e))
 				if c and nrm and right and up and hw and hh then
@@ -320,6 +326,7 @@ function CoreDisc.StepOne(d: Disc, dt: number)
 			end
 		end
 		if bestKind == "shield" and bestE then
+			d.blockedBy[bestE.model] = true
 			d.pos = a + step * bestT
 			local broke = CoreCombat.BlockCost(bestE)
 			fire("disc_block", { id = d.id, pos = d.pos, holder = bestE.name, broke = broke, energy = bestE.shieldEnergy })
