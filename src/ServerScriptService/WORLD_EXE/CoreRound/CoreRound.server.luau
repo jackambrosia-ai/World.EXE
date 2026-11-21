@@ -263,7 +263,44 @@ Request.OnServerEvent:Connect(function(p: Player, op: any, payload: any)
 		end
 		e.chargeStart = nil
 		c:SetAttribute("CR_ChargeStart", nil)
-		CoreDisc.Throw(c, p.Name, if typeof(payload.n) == "number" then payload.n else 0, origin, dir.Unit, oneWay(p), charge)
+		-- Step 1E correction pass: align the server disc with the thrower's (its reported release time, server clock;
+		-- bounded by Disc.CatchUpMax inside Throw) and rewind each target to the moment the thrower drew it, matched
+		-- against server history (bounded by Disc.RewindMax; positions that match nothing are ignored)
+		local latency = oneWay(p)
+		local viewDelay: { [Model]: number } = {}
+		local t0 = payload.t0
+		if typeof(t0) == "number" and t0 == t0 then
+			local age = now() - t0
+			if age >= 0 and age <= 1 then
+				latency = age
+				if typeof(payload.view) == "table" then
+					local count = 0
+					for _, v in payload.view do
+						count += 1
+						if count > 8 then
+							break
+						end
+						if typeof(v) == "table" and typeof(v[1]) == "string" and typeof(v[2]) == "Vector3" then
+							local te = CoreCombat.ByName(v[1])
+							if te and te.player then
+								local vd = CoreCombat.ViewDelay(te, v[2], t0, CoreConfig.Tune("Disc", "RewindMax"), 1.0)
+								if vd then
+									viewDelay[te.model] = vd
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+		logEvent({ kind = "throw_view", player = p.Name, age = latency, matched = (function()
+			local k = 0
+			for _ in viewDelay do
+				k += 1
+			end
+			return k
+		end)() })
+		CoreDisc.Throw(c, p.Name, if typeof(payload.n) == "number" then payload.n else 0, origin, dir.Unit, latency, charge, viewDelay)
 	elseif op == "charge" then
 		-- start charging: only when a throw would be allowed right now
 		local ok = not stunned and not e.shieldUp and (CoreDisc.Ready(c))

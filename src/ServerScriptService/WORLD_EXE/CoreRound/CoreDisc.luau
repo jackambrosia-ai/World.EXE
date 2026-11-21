@@ -38,6 +38,7 @@ type Disc = {
 	deflectUntil: number,
 	blockedBy: { [Model]: boolean }, -- owner bug fix: a shield blocks a given disc at most once per throw
 	trace: { { [string]: any } }, -- Step 1E correction pass: Studio diagnostics
+	viewDelay: { [Model]: number }, -- Step 1E correction pass: per-target rewind matched to what the thrower drew
 	log: { any },
 	-- Step 1B: per-throw flight from the server-validated charge (0 = tap). Never changes damage / stun / blocking.
 	charge: number,
@@ -119,7 +120,7 @@ local function turn(d: Disc, why: string)
 end
 
 -- throw (validated by the caller). latency = thrower one-way latency estimate (s).
-function CoreDisc.Throw(owner: Model, ownerName: string, n: number, origin: Vector3, dir: Vector3, latency: number, charge: number?): number
+function CoreDisc.Throw(owner: Model, ownerName: string, n: number, origin: Vector3, dir: Vector3, latency: number, charge: number?, viewDelay: { [Model]: number }?): number
 	nextId += 1
 	local k = math.clamp(charge or 0, 0, 1)
 	local mode = tune("RewindMode")
@@ -143,6 +144,7 @@ function CoreDisc.Throw(owner: Model, ownerName: string, n: number, origin: Vect
 		deflectUntil = 0,
 		blockedBy = {},
 		trace = {},
+		viewDelay = viewDelay or {},
 		log = {},
 		charge = k,
 		outSpeed = lerp(tune("OutSpeed"), tune("ChargedOutSpeed"), k),
@@ -257,7 +259,16 @@ function CoreDisc.StepOne(d: Disc, dt: number)
 		-- earliest contact along a -> b: shield panels, then walls (out only), bodies (pass-through)
 		local bestT, bestKind, bestE = 2, "", nil :: CoreCombat.Entity?
 		local function rewindFor(e: CoreCombat.Entity): number
-			return if d.rewind < 0 then 0 else math.min(tune("RewindMax"), d.rewind + (if e.player then tune("InterpPlayerSeconds") else tune("InterpSeconds")))
+			if d.rewind < 0 then
+				return 0
+			end
+			-- Step 1E correction pass: the thrower's own view of this target (matched against server history at throw
+			-- time) when available; otherwise the configured estimate (latency + interpolation delay)
+			local vd = d.viewDelay[e.model]
+			if vd then
+				return math.min(tune("RewindMax"), vd)
+			end
+			return math.min(tune("RewindMax"), d.rewind + (if e.player then tune("InterpPlayerSeconds") else tune("InterpSeconds")))
 		end
 		for m, e in CoreCombat.All() do
 			-- owner bug fix (Step 1E): a panel that already blocked this disc is ignored for the rest of its flight. A disc

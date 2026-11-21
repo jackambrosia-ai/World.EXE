@@ -607,7 +607,12 @@ local function drawCharacter(c: Model, s: State, hrp: BasePart, hum: Humanoid?, 
 			s.lastState = applied
 		end
 		if s.pendKind then
-			if now - s.pendT > 0.35 or applied ~= "run" then
+			if s.pendKind == "psj" and applied == "wallrun" and now - s.pendT <= 0.35 then
+				-- acceptance finding: a Power Slide Jump into a wall-run can replicate as slide -> run (a few frames) ->
+				-- wallrun before the launch speed arrives: show the push-off overlay on the wall-run
+				s.ovT = now
+				s.pendKind = nil
+			elseif now - s.pendT > 0.35 or applied ~= "run" then
 				s.pendKind = nil
 			elseif s.pendKind == "psj" and vel.Y > CoreConfig.Tune("Slide", "PowerJumpUp") * 0.6 then
 				s.psjT = now
@@ -624,11 +629,17 @@ local function drawCharacter(c: Model, s: State, hrp: BasePart, hum: Humanoid?, 
 			-- "wallrun" before the drawn position is within the 4-stud side ray, and the old side was kept (~0.12 s
 			-- wrong-side flash). While the character still moves sideways fast (it is crossing to the new wall) the
 			-- side is the direction of that sideways motion; otherwise the nearest ray hit; otherwise the last side.
+			-- the side ray first; only when it finds no wall on either side (the drawn position has not reached the
+			-- new wall yet) does the sideways motion decide (acceptance finding: using motion first picked the wrong
+			-- side at wall-run ENTRY)
+			local ray = wallSideOf(c, hrp)
 			local lat = hrp.CFrame.RightVector:Dot(Vector3.new(vel.X, 0, vel.Z))
-			if math.abs(lat) > 12 then
+			if ray then
+				wallSide = ray
+			elseif math.abs(lat) > 12 then
 				wallSide = if lat > 0 then 1 else -1
 			else
-				wallSide = wallSideOf(c, hrp) or s.wallSide
+				wallSide = s.wallSide
 			end
 		end
 		local cs = c:GetAttribute("CR_ChargeStart")
@@ -952,8 +963,9 @@ local function drawCharacter(c: Model, s: State, hrp: BasePart, hum: Humanoid?, 
 	if s.wallOn then
 		s.lastWallT = now
 	end
-	if (s.wallOn or now - s.lastWallT < 0.4) and not off and not s.r6 then
-		-- also for 0.4 s after a wall-run ends (the body is still at the wall while the clips blend out)
+	if not off and not s.r6 then
+		-- whenever a wall is within reach of the root (not only while wall-running: another player's wall-run starts
+		-- on this screen a few frames after their body reaches the wall, and the body stays there while clips blend out)
 		params.FilterDescendantsInstances = { c }
 		local rv = hrp.CFrame.RightVector
 		local hr = workspace:Raycast(hrp.Position, rv * 2.5, params)

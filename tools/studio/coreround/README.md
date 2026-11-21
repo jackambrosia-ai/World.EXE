@@ -58,3 +58,4 @@ This is the isolated **movement + Rebound Disc + holographic shield** prototype.
 - `cr_60_keyframes.luau` (Edit mode) - saves every clip as a LOCAL KeyframeSequence in `ServerStorage.RBX_ANIMSAVES.CoreRound_AnimRig` (no upload). Its builder is also used in a Play client for the temp-id test.
 - `cr_70_anim_capture.luau` - Play-client helpers for the animation review (aim lock off, teleport, controller log, follow camera). Paste into the client datamodel; the client cannot fetch it over HTTP.
 - `cr_sheet.ps1` - tiles capture frames into one contact sheet. Client test ops added: `AnimDebug`, `AimLock`.
+- Correction pass: `cr_71_floor_probe.luau`, `cr_72_wall_probe.luau` (Play-client probes). Hit tracing: set Workspace attribute `CR_HitTrace` = true for client op `Trace` (n) and server ops `Trace` (owner, n) / `HistAt` (name, times).

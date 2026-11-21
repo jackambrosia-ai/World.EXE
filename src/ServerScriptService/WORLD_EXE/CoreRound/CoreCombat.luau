@@ -177,6 +177,38 @@ function CoreCombat.Record()
 	end
 end
 
+-- Step 1E correction pass: when (server time, within maxBack seconds before t0) was this entity's root at `pos`, by its
+-- recorded history? Returns t0 - that time (the view delay of the client that drew it there) or nil when no history
+-- segment passes within `tol` studs. Used only to choose a rewind time; hits are still tested on the history.
+function CoreCombat.ViewDelay(e: Entity, pos: Vector3, t0: number, maxBack: number, tol: number): number?
+	local hs = {}
+	for _, h in e.hist do
+		if h.t <= t0 + 0.02 and h.t >= t0 - maxBack - 0.05 then
+			table.insert(hs, h)
+		end
+	end
+	table.sort(hs, function(a, b)
+		return a.t > b.t
+	end)
+	local bestT, bestErr = nil, tol
+	for i = 1, #hs - 1 do
+		local b, a = hs[i], hs[i + 1] -- a older
+		local pa, pb = a.cf.Position, b.cf.Position
+		local ab = pb - pa
+		local L2 = ab:Dot(ab)
+		local k = if L2 > 1e-6 then math.clamp((pos - pa):Dot(ab) / L2, 0, 1) else 0
+		local err = (pa + ab * k - pos).Magnitude
+		if err < bestErr then
+			bestErr = err
+			bestT = a.t + (b.t - a.t) * k
+		end
+	end
+	if not bestT then
+		return nil
+	end
+	return math.clamp(t0 - bestT, 0, maxBack)
+end
+
 -- pose at server time t (interpolated); falls back to the live pose. Also returns the shield yaw / up flag and the
 -- movement state recorded at that time (Step 1B: panels and slide hit volumes use the same rewound time as bodies).
 -- Step 1C: the 6th value is the slide blend weight at that time (interpolated like the pose).

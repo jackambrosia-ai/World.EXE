@@ -346,3 +346,128 @@ The test players have the canonical proportions (posed slide head 0.195). For th
 - Step 1D place `e260bd57…` unchanged. Protected files 9/9.
 
 **Shield.** The two-sided panel kept here is the owner's explicit decision (0d0d6bd, made after fbea8d2). The close-range gap behaviour is unchanged pending the owner's decision.
+
+## Final correction pass (owner authorization 2026-11-21)
+
+Scope: the three outstanding categories (A, B, C) only.
+- **Unchanged:** gameplay tuning (`CoreConfig.luau` is identical to Step 1D) and shield rules (two-sided, block once per disc, 3-stud gap behaviour as before).
+- **Not done:** no uploads, publishing, merges or new abilities.
+
+**Places:**
+
+| Place | SHA-256 |
+|---|---|
+| Pre-correction backup `place/backup_step1e_precorrection_2026-11-21` | `f9e8960f…` |
+| New isolated final place `place/WorldEXE_CoreRound_Step1E_Final_2026-11-21.rbxlx` | `5f6665718a9d90dd77775ba75f394f7fac770b502d8cd7466fc2b3131bec763e` |
+
+- The final place has parity 24/24 and is identical to the working Step 1E place.
+- Backup: `place/backup_step1e_final_2026-11-21`.
+- Step 1D place `e260bd57…` unchanged (opened for the comparison, never saved). Protected files 9/9.
+
+### A. Sliding Disc hit disagreement
+
+**Instrumentation (Studio only, off unless Workspace attribute `CR_HitTrace`):**
+- `DiscClient.Trace`, the client op `Trace`: thrower-visible disc segments, the target root and head as drawn, slide weight, verdict.
+- `CoreDisc.TraceLog`, the server op `Trace`: server segments, rewound and live target, rewind, slide weight, verdict.
+- A 10 s position-history ring (server op `HistAt`).
+
+**Root causes, with evidence:**
+1. **Test artifact (not a game defect).** The earlier acceptance thrower was teleported just before each throw. The server had not yet received the move and clamped the throw origin (`origin_clamp` in Step 1E; `off=15.6` in Step 1D). This explains the first "seen-not-confirmed" cases; it reproduces in Step 1D.
+2. **Real defect, pre-existing since Step 1B/1C.** The thrower draws other players a *variable* 0.03–0.10 s behind (measured by matching the drawn root to the server history at the same server time). The server rewound player targets by a *fixed* thrower latency plus `InterpPlayerSeconds` 0.05.
+   - At slide speed (~50 studs/s) the mismatch reaches ~2.5 studs, so grazing throws flip both ways.
+   - The server disc also started slightly behind the thrower's visual disc, because the catch-up used a ping estimate.
+
+**Step 1D vs Step 1E comparison** (same protocol: stationary thrower confirmed on the server, target sliding or running past at ~49 / 36 studs/s, lead-aimed throws):
+
+| Case | Step 1D | Step 1E before fix | Step 1E with fix |
+|---|---|---|---|
+| Slide, body aim | 2/3 agree, 1 seen-not-confirmed | 3/3 agree | **4/4 agree** |
+| Slide, head aim (hit/miss) | 3/3 agree; part differs 2× | 3/3 agree; part differs 1× | **4/4 agree; part differs 2×** |
+| Run controls | 2/2 | 2/2 | **2/2** |
+| Near-miss (aim ahead of slider) | 2/2 agree (miss) | 1 agree, 1 confirmed-not-seen | **3/3 agree (miss)** |
+| Teleported thrower | origin clamped | origin clamped | (test artifact, unchanged) |
+
+**Correction (narrowest, server stays authoritative):**
+- **Client throw message.** `DiscClient` now also sends `t0`, the release time on the server clock, and `view`: where this screen drew each nearby enemy at release (≤ 8 entries, within 90 studs).
+- **Disc start.** The server aligns its disc start to `t0`, bounded by the existing `Disc.CatchUpMax`.
+- **Per-target rewind.** The server rewinds each target to the moment its *own* history matches the drawn position (`CoreCombat.ViewDelay`; accepted only within the existing `Disc.RewindMax` and within 1 stud of a history segment; otherwise the old rule).
+- **Unchanged:** hit volumes, radii, tolerance, damage, stun and the shield rules. Clients never claim hits.
+- **Measured.** Matched rewind 0.034–0.037 s on every throw (`throw_view matched=1`).
+
+**Residual (not changed: damage rule):** head-vs-body classification can still differ on sliding head shots (2 of 4).
+- The server classifies at its first touching sub-step (the disc is just grazing, so BODY); the thrower's screen classifies at the closest pass (HEAD).
+- Proposed fix for owner review: classify at the deepest (closest-approach) sub-step. It changes the head-shot rate on sliders, so it was not done here.
+
+### B. Slide-transition foot penetration
+
+**Cause.** The joint-space blend of the run and slide poses (`CoreGeom.SlideWeight`, 0.22 s) can put a foot or shin under the floor even though each pose alone is on it. On a rig with a lower hip height than the authoring rig (stock R15), the slide's folded rear leg also sinks.
+
+**Correction (`Poses.luau` `fixFeet`, runs on every client for every character).** Applied after the final pose, using this rig's own joint attachments and part sizes and the floor under the root:
+- the thigh is swung about the hip (bisection) until the thigh and shin rest on the floor;
+- then a 2-bone leg IK lifts the ankle if the foot or shin's lower end is under the floor (bend plane kept, foot keeps its world orientation);
+- two passes per leg.
+
+The root (HumanoidRootPart is never moved), pelvis translation and head are untouched (the slide head stays exactly on the server's slide head). Nothing changes when no leg is under the floor. A falling character is checked where physics will put the root this frame.
+
+**Measured** (lowest leg corner vs the floor, every frame, run → slide → exit → jump → land → slide → PSJ → land):
+
+| Body | Before | After |
+|---|---|---|
+| Canonical | slide blend −0.64 | worst −0.014; 0 of 300 frames below −0.06 |
+| Stock R15 | slide blend −0.44 | worst −0.020; 0 of 300 frames below −0.06 |
+
+From the opponent's camera (two-client): deepest −0.06 / −0.08 on a single landing frame.
+
+### C. Wall-run animation
+
+**C1 — wrong-side flash (other players).**
+- **Cause.** The replicated "wallrun" state arrives before the drawn body is within the 4-stud side ray of the new wall, so the old side was kept.
+- **Fix.** Side ray first (still 4 studs; the 7-stud ray was not repeated); only when no wall is found on either side does the sideways motion (> 12 studs/s) decide, else the last side. A first version that used motion first picked the wrong side at entry and was corrected.
+- **Two-client:** wall-run R → wall-jump → wall-run L with no wrong-side frames, entry and chain.
+
+**C2 — PSJ push-off into a wall-run.**
+- **Cause.** The other client receives slide → wallrun, or slide → run (a few frames) → wallrun, so the PSJ clip never played.
+- **Fix.** A `psj_push` overlay (full for 0.08 s, gone by 0.25 s) on top of the wall-run in both cases; also for this client's own PSJ that reaches a wall within 0.25 s.
+- **Two-client:** the other screen shows the push-off silhouette (left arm up to 105°) blending into the wall-run.
+
+**C3 — wall arm / torso.**
+- **Re-authored brace.** Drawn pelvis 0.06 off the wall, straight forward-twisted wall arm; clip QA arm/wall 0.30 → 0.055. Head-to-server offset 0.43 → 0.49 (inside the head sphere).
+- **Rig-aware runtime correction (`wallArmFix`).** Whenever a wall is within 2.5 studs, the wall-side arm boxes are tested against the real wall plane (predicted for this frame's approach). If inside, the arm is rotated about the shoulder (bisection) until it only touches. Both sides.
+- **Disc arm.** On a right-hand wall the disc arm keeps the brace (chest twist, held disc and hand spin still show).
+- **Measured:**
+
+  | Avatar / view | Wall-run frames | Worst arm | Worst torso / legs |
+  |---|---|---|---|
+  | Canonical, solo (37 charging) | 125 | 0.020 | 0.083 (wall-side foot edge) |
+  | Stock R15, solo (was 1.51) | 48 | 0.018 | 0.011 |
+  | Opponent's camera, two-client | 97–116 | 0.009–0.026 | foot edge 0.10–0.17 |
+
+- **Residual.** One frame on the opponent's screen at the instant another player's wall-run begins (hand 1.45 into the wall), while the replicated state switches.
+
+### Regression checks (two-client unless noted)
+
+| Check | Result |
+|---|---|
+| Disc while moving | OK |
+| Shield raise / hold / lower; two-sided panel; block once per disc | OK (rules unchanged) |
+| Stun clears all layers | OK |
+| Death / respawn | OK; slide head exact on the new character |
+| Dash obstacle protection | OK: stopped at the wall at 5.1 studs, no rise or flip |
+| Directional dashes | unchanged |
+| 24-clip set | re-exported; QA 24/24 (shoulder-twist limit ±125° for the straight-arm brace) |
+| Controller cost | solo 0.143 ms/frame; two-client 0.195 ms/frame for 2 characters, all corrections included |
+
+### Files changed in this pass
+
+- `Poses.luau` (feet, wall arm, wall side, PSJ overlay, disc-arm wall rule)
+- `DiscClient.luau` (`t0` / `view` in the throw; trace), `CoreRoundClient.client.luau` (`Trace` op)
+- `CoreRound.server.luau` (view-matched rewind), `CoreDisc.luau` (per-target rewind; trace), `CoreCombat.luau` (`ViewDelay`; diagnostics ring), `CoreTest.luau` (`Trace`, `HistAt`)
+- `AnimData.luau` (re-export), `tools/animation/cr_anim_clips.py` (wall brace, wall-jump key), `cr_anim_qa.py` (shoulder twist limit)
+- `tools/studio/coreround/cr_71_floor_probe.luau`, `cr_72_wall_probe.luau`
+
+### Proposed lessons (for later vault review; vault not modified)
+
+- **L-0119:** Player-target rewind must match what the thrower actually drew. The drawn delay for other players varies (0.03–0.10 s measured); a fixed interpolation constant mis-judges fast movers. Let the client report release time and drawn positions, and match them against server history within the existing rewind cap.
+- **L-0120:** Never teleport a test thrower right before a throw; the server may not have the move yet, and origin validation clamps it.
+- **L-0121:** Post-pose, rig-aware contact correction (floor and wall) belongs after the final blend, using the rig's own attachments and sizes. Predict this frame's root motion, because poses are written before physics.
+- **L-0122:** For other players, replicated state changes arrive before position and velocity. Decide visual details (wall side, push-off) from geometry first and keep a short watch window, instead of deciding at the instant of the state change.
