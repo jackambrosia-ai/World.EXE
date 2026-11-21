@@ -37,7 +37,18 @@ type Disc = {
 	hitRet: { [Model]: boolean },
 	deflectUntil: number,
 	log: { any },
+	-- Step 1B: per-throw flight from the server-validated charge (0 = tap). Never changes damage / stun / blocking.
+	charge: number,
+	outSpeed: number,
+	range: number,
+	retSpeed: number,
+	maxFlight: number,
+	rethrow: number,
 }
+
+local function lerp(a: number, b: number, k: number): number
+	return a + (b - a) * k
+end
 
 local discs: { [number]: Disc } = {}
 local nextId = 0
@@ -87,7 +98,7 @@ local function finish(d: Disc, how: string)
 	if out[d.owner] == d.id then
 		out[d.owner] = nil
 	end
-	local penalty = if how == "snap" then tune("SnapPenaltySeconds") else tune("RethrowSeconds")
+	local penalty = if how == "snap" then tune("SnapPenaltySeconds") else d.rethrow
 	readyAt[d.owner] = now() + penalty
 	d.owner:SetAttribute("CR_DiscOut", false)
 	d.owner:SetAttribute("CR_DiscReadyAt", readyAt[d.owner])
@@ -103,8 +114,9 @@ local function turn(d: Disc, why: string)
 end
 
 -- throw (validated by the caller). latency = thrower one-way latency estimate (s).
-function CoreDisc.Throw(owner: Model, ownerName: string, n: number, origin: Vector3, dir: Vector3, latency: number): number
+function CoreDisc.Throw(owner: Model, ownerName: string, n: number, origin: Vector3, dir: Vector3, latency: number, charge: number?): number
 	nextId += 1
+	local k = math.clamp(charge or 0, 0, 1)
 	local mode = tune("RewindMode")
 	-- base rewind = thrower one-way latency (mode 1); the per-target interpolation term is added in StepOne
 	local rewind = if mode >= 0.5 then latency else -1
@@ -125,6 +137,12 @@ function CoreDisc.Throw(owner: Model, ownerName: string, n: number, origin: Vect
 		hitRet = {},
 		deflectUntil = 0,
 		log = {},
+		charge = k,
+		outSpeed = lerp(tune("OutSpeed"), tune("ChargedOutSpeed"), k),
+		range = lerp(tune("Range"), tune("ChargedRange"), k),
+		retSpeed = lerp(tune("ReturnSpeed"), tune("ChargedReturnSpeed"), k),
+		maxFlight = lerp(tune("MaxFlightSeconds"), tune("ChargedMaxFlightSeconds"), k),
+		rethrow = lerp(tune("RethrowSeconds"), tune("ChargedRethrowSeconds"), k),
 	}
 	discs[d.id] = d
 	out[owner] = d.id
@@ -138,8 +156,9 @@ function CoreDisc.Throw(owner: Model, ownerName: string, n: number, origin: Vect
 		origin = origin,
 		dir = d.dir,
 		t0 = d.t0 - catchUp,
+		charge = k,
 	})
-	logEvent({ kind = "throw", id = d.id, n = n, owner = ownerName, rewind = rewind, latency = latency, catchUp = catchUp })
+	logEvent({ kind = "throw", id = d.id, n = n, owner = ownerName, rewind = rewind, latency = latency, catchUp = catchUp, charge = k, speed = d.outSpeed, range = d.range })
 	if catchUp > 0 then
 		CoreDisc.StepOne(d, catchUp)
 	end
@@ -199,7 +218,7 @@ function CoreDisc.StepOne(d: Disc, dt: number)
 		local h = math.min(remaining, 1 / 90)
 		remaining -= h
 		local t = now()
-		if t - d.t0 > tune("MaxFlightSeconds") then
+		if t - d.t0 > d.maxFlight then
 			finish(d, "snap")
 			return
 		end
@@ -216,9 +235,9 @@ function CoreDisc.StepOne(d: Disc, dt: number)
 				return
 			end
 			d.dir = to.Unit
-			speed = tune("ReturnSpeed")
+			speed = d.retSpeed
 		else
-			speed = tune("OutSpeed")
+			speed = d.outSpeed
 		end
 		local a = d.pos
 		local step = d.dir * speed * h
@@ -227,9 +246,13 @@ function CoreDisc.StepOne(d: Disc, dt: number)
 
 		-- earliest contact along a -> b: shield panels, then walls (out only), bodies (pass-through)
 		local bestT, bestKind, bestE = 2, "", nil :: CoreCombat.Entity?
+		local function rewindFor(e: CoreCombat.Entity): number
+			return if d.rewind < 0 then 0 else math.min(tune("RewindMax"), d.rewind + (if e.player then tune("InterpPlayerSeconds") else tune("InterpSeconds")))
+		end
 		for m, e in CoreCombat.All() do
 			if enemy(d, m) then
-				local c, nrm, right, up, hw, hh = CoreCombat.Panel(e)
+				-- Step 1B: panels at the same rewound time as bodies (review item "shield latency")
+				local c, nrm, right, up, hw, hh = CoreCombat.Panel(e, t - rewindFor(e))
 				if c and nrm and right and up and hw and hh then
 					local tp = CoreGeom.SegPanel(a, b, c, nrm, right, up, hw + r, hh + r)
 					if tp and tp < bestT then
@@ -262,10 +285,9 @@ function CoreDisc.StepOne(d: Disc, dt: number)
 		if t >= d.deflectUntil then
 			for m, e in CoreCombat.All() do
 				if enemy(d, m) then
-					local rw = if d.rewind < 0 then 0 else math.min(tune("RewindMax"), d.rewind + (if e.player then tune("InterpPlayerSeconds") else tune("InterpSeconds")))
-					local cf, head = CoreCombat.Sample(e, t - rw)
+					local cf, head, _, _, state = CoreCombat.Sample(e, t - rewindFor(e))
 					if cf and head then
-						local th, part = CoreCombat.TestHit(cf, head, a, b, r)
+						local th, part = CoreCombat.TestHit(cf, head, a, b, r, state)
 						if th and part and th <= bestT then
 							table.insert(crossed, { t = th, e = e, part = part })
 						end
@@ -326,7 +348,7 @@ function CoreDisc.StepOne(d: Disc, dt: number)
 			d.pos = b
 			if d.phase == "out" then
 				d.travelled += step.Magnitude
-				if d.travelled >= tune("Range") then
+				if d.travelled >= d.range then
 					turn(d, "range")
 				end
 			end

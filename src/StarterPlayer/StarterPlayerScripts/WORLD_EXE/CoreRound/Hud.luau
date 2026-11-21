@@ -32,7 +32,15 @@ type Deps = {
 	shieldUp: () -> boolean,
 	agreement: () -> string,
 	toggles: { { name: string, get: () -> boolean, set: (boolean) -> () } },
+	-- Step 1B
+	charging: () -> (boolean, number),
+	threats: () -> { { pos: Vector3, eta: number, charge: number } },
 }
+
+-- Step 1B: charge segments around the crosshair + incoming-disc arrows (Knockout City border-warning reference,
+-- adapted as a ring of arrows around the crosshair so it works on phones too)
+local chargeDots: { Frame } = {}
+local threatArrows: { TextLabel } = {}
 local deps: Deps
 
 local gui: ScreenGui
@@ -118,6 +126,30 @@ local function build()
 		b.Name = "Bar"
 	end
 	hitMark.Visible = false
+
+	-- Step 1B charge ring (12 segments) and threat arrows (pooled)
+	for i = 1, 12 do
+		local a = (i - 1) / 12 * math.pi * 2 - math.pi / 2
+		local dot = frame(gui, UDim2.fromOffset(5, 5), UDim2.new(0.5, math.cos(a) * 24, 0.5, math.sin(a) * 24), Color3.new(1, 1, 1), 1, Vector2.new(0.5, 0.5))
+		corner(dot, 3)
+		dot.Name = "ChargeDot"
+		table.insert(chargeDots, dot)
+	end
+	for i = 1, 3 do
+		local arrow = Instance.new("TextLabel")
+		arrow.Name = "ThreatArrow"
+		arrow.BackgroundTransparency = 1
+		arrow.Size = UDim2.fromOffset(28, 28)
+		arrow.AnchorPoint = Vector2.new(0.5, 0.5)
+		arrow.Text = "▲"
+		arrow.TextScaled = true
+		arrow.Font = Enum.Font.GothamBlack
+		arrow.TextColor3 = Color3.fromRGB(255, 120, 80)
+		arrow.TextStrokeTransparency = 0.3
+		arrow.Visible = false
+		arrow.Parent = gui
+		table.insert(threatArrows, arrow)
+	end
 
 	-- own disruption meter (under the crosshair)
 	meterBg = frame(gui, UDim2.fromOffset(90, 6), UDim2.new(0.5, 0, 0.5, 26), DIM, 0.3, Vector2.new(0.5, 0))
@@ -329,6 +361,39 @@ function Hud.Start(d: Deps)
 		else
 			crosshair.Position = UDim2.fromScale(0.5, 0.5)
 			hitMark.Position = crosshair.Position
+		end
+		-- Step 1B: charge ring
+		local on, ck = deps.charging()
+		local lit = if on then math.floor(ck * 12 + 0.001) else 0
+		for i, dot in chargeDots do
+			dot.Position = UDim2.new(crosshair.Position.X.Scale, crosshair.Position.X.Offset + math.cos((i - 1) / 12 * math.pi * 2 - math.pi / 2) * 24, crosshair.Position.Y.Scale, crosshair.Position.Y.Offset + math.sin((i - 1) / 12 * math.pi * 2 - math.pi / 2) * 24)
+			if on then
+				dot.BackgroundTransparency = if i <= lit then 0 else 0.75
+				dot.BackgroundColor3 = if ck >= 1 then Color3.new(1, 1, 1) else CYAN
+				local pulse = if ck >= 1 then 6 + math.sin(t * 18) * 2 else 5
+				dot.Size = UDim2.fromOffset(pulse, pulse)
+			else
+				dot.BackgroundTransparency = 1
+			end
+		end
+		-- Step 1B: incoming enemy discs -> arrows around the crosshair pointing at them (closer = more opaque)
+		local threats = deps.threats()
+		local cam = workspace.CurrentCamera
+		local vp = cam.ViewportSize
+		for i, arrow in threatArrows do
+			local th = threats[i]
+			if th then
+				local rel = cam.CFrame:PointToObjectSpace(th.pos)
+				local ang = math.atan2(-rel.Y, rel.X) -- screen-space direction (x right, y down)
+				local r = math.min(vp.X, vp.Y) * 0.16
+				arrow.Position = UDim2.new(0.5, math.cos(ang) * r, 0.5, math.sin(ang) * r)
+				arrow.Rotation = math.deg(ang) + 90
+				arrow.TextTransparency = math.clamp(th.eta * 1.5, 0, 0.7)
+				arrow.TextColor3 = if th.charge > 0.5 then Color3.fromRGB(255, 70, 70) else Color3.fromRGB(255, 160, 80)
+				arrow.Visible = true
+			else
+				arrow.Visible = false
+			end
 		end
 		-- deny / blocked text
 		denyLabel.Visible = t - denyT < 0.8

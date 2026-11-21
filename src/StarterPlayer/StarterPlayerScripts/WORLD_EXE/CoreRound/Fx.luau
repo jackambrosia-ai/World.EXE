@@ -112,16 +112,25 @@ local SOUNDS = {
 	shield_up = { "rbxasset://sounds/volume_slider.ogg", 0.6, 0.5 },
 	deny = { "rbxasset://sounds/volume_slider.ogg", 0.45, 0.6 },
 	bounce = { "rbxasset://sounds/action_jump_land.mp3", 2.6, 0.5 },
+	-- Step 1B
+	charge_tick = { "rbxasset://sounds/volume_slider.ogg", 1.0, 0.35 },
+	charge_max = { "rbxasset://sounds/impact_explosion_03.mp3", 2.8, 0.3 },
+	throw_max = { "rbxasset://sounds/action_jump.mp3", 2.2, 0.7 },
+	slide_start = { "rbxasset://sounds/action_jump_land.mp3", 0.7, 0.5 },
+	wall_catch = { "rbxasset://sounds/action_jump_land.mp3", 1.4, 0.45 },
+	wall_jump = { "rbxasset://sounds/action_jump.mp3", 1.1, 0.45 },
+	land_hard = { "rbxasset://sounds/action_jump_land.mp3", 0.9, 0.55 },
 }
 
-function Fx.Sound(name: string, at: Vector3?)
+-- pitch: optional multiplier on the sound's base playback speed (charge ticks rise in pitch)
+function Fx.Sound(name: string, at: Vector3?, pitch: number?)
 	local def = SOUNDS[name]
 	if not def then
 		return
 	end
 	local s = Instance.new("Sound")
 	s.SoundId = def[1] :: string
-	s.PlaybackSpeed = def[2] :: number
+	s.PlaybackSpeed = (def[2] :: number) * (pitch or 1)
 	s.Volume = def[3] :: number
 	if at then
 		local a = Instance.new("Attachment")

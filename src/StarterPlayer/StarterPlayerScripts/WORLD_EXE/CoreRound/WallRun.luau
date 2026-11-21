@@ -240,6 +240,11 @@ function WallRun.Start(deps: Deps)
 	end
 
 	local function tryStart(c: Model, hrp: BasePart, hum: Humanoid)
+		-- Step 1B: this Step 1 (climbing) wall-run only runs as the comparison mode WallRun2.Mode = 1
+		local mode = CoreConfig.Tune("WallRun2", "Mode")
+		if mode < 0.5 or mode > 1.5 then
+			return
+		end
 		local owner = MoveState.Owner()
 		local level = tune("Flow")
 		local flow = level >= 0.5

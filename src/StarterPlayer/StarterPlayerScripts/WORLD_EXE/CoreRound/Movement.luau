@@ -197,8 +197,13 @@ function Movement.Press(): string
 	end
 	regen()
 	lastOwnPress = t
+	-- Step 1B comparison switches (the server enforces them too)
+	if tune("DashEnabled") < 0.5 then
+		Fx.Sound("deny")
+		return "disabled"
+	end
 	-- Super Dash: a second press within SuperWindow of the dash press, once per dash
-	if not superUsed and t - firstPressT <= tune("SuperWindow") and (burst == nil or burst.kind == "dash") then
+	if tune("SuperEnabled") >= 0.5 and not superUsed and t - firstPressT <= tune("SuperWindow") and (burst == nil or burst.kind == "dash") then
 		if charges < 1 then
 			Fx.Sound("deny")
 			note({ kind = "deny", why = "no_charge_super" })
@@ -238,6 +243,14 @@ function Movement.OnReject(op: string, why: string?)
 	local sc = player:GetAttribute("CR_Charges")
 	if typeof(sc) == "number" then
 		charges = sc
+	end
+end
+
+-- Step 1B: momentum hand-off from a slide / wall-run exit (speed kept through the air, decays at AirCarryDecay;
+-- anything above SoftCap still decays at SoftCapDecay, so chaining cannot accumulate speed without bound)
+function Movement.SetBoost(v: number)
+	if v == v then
+		boost = math.max(boost, math.min(v, CoreConfig.Tune("Slide", "MaxSpeed")))
 	end
 end
 
@@ -389,7 +402,10 @@ function Movement.Start(deps: { send: (string, { [string]: any }) -> (), stunned
 		-- FOV (eased, no shake)
 		local cam = workspace.CurrentCamera
 		local k = if Fx.Reduced then 0.5 else 1
-		local target = tune("FovBase") + (if burst and burst.kind == "super" then tune("FovSuper") elseif burst then tune("FovDash") else 0) * k
+		-- Step 1B: a gentle speed-based FOV (slides, wall-runs, carried momentum) on top of the burst kick; eased, no shake
+		local hsNow = Vector3.new(hrp.AssemblyLinearVelocity.X, 0, hrp.AssemblyLinearVelocity.Z).Magnitude
+		local speedFov = math.clamp((hsNow - base) * tune("SpeedFovPerStud"), 0, tune("SpeedFovMax"))
+		local target = tune("FovBase") + ((if burst and burst.kind == "super" then tune("FovSuper") elseif burst then tune("FovDash") else 0) + speedFov) * k
 		fov += (target - fov) * math.min(1, dt * 10)
 		cam.FieldOfView = fov
 	end)

@@ -21,8 +21,11 @@ export type Entity = {
 	model: Model,
 	player: Player?,
 	name: string,
-	-- history ring: { t, root CFrame, head position }
-	hist: { { t: number, cf: CFrame, head: Vector3 } },
+	-- history ring: { t, root CFrame, head position, shield yaw / up, movement state }
+	hist: { { t: number, cf: CFrame, head: Vector3, yaw: number, up: boolean, state: string } },
+	moveState: string, -- Step 1B: "run" | "slide" | "wallrun" (validated by the server)
+	moveStateT: number,
+	chargeStart: number?, -- Step 1B: server time the throw button was pressed (charge timing is server-side)
 	histN: number,
 	meter: number,
 	lastHit: number,
@@ -104,12 +107,15 @@ function CoreCombat.Register(m: Model, player: Player?): Entity
 		shieldBrokenUntil = 0,
 		shieldLastUse = -100,
 		shieldFixed = false,
+		moveState = "run",
+		moveStateT = 0,
+		chargeStart = nil,
 	}
 	local fixed = m:GetAttribute("CR_ShieldFixedYaw")
-	if typeof(fixed) == "number" then
+	if typeof(fixed) == "number" and fixed == fixed and math.abs(fixed) <= 360 then
 		e.shieldFixed = true
 		e.shieldUp = true
-		e.shieldYaw = math.rad(fixed)
+		e.shieldYaw = CoreCombat.SafeYaw(math.rad(fixed)) or 0
 	end
 	entities[m] = e
 	publish(e)
@@ -152,13 +158,14 @@ function CoreCombat.Record()
 		local root, head = rootOf(m), headOf(m)
 		if root and head and m.Parent then
 			e.histN = e.histN % HIST + 1
-			e.hist[e.histN] = { t = t, cf = root.CFrame, head = head.Position }
+			e.hist[e.histN] = { t = t, cf = root.CFrame, head = head.Position, yaw = e.shieldYaw, up = e.shieldUp, state = e.moveState }
 		end
 	end
 end
 
--- pose at server time t (interpolated); falls back to the live pose
-function CoreCombat.Sample(e: Entity, t: number): (CFrame?, Vector3?)
+-- pose at server time t (interpolated); falls back to the live pose. Also returns the shield yaw / up flag and the
+-- movement state recorded at that time (Step 1B: panels and slide hit volumes use the same rewound time as bodies).
+function CoreCombat.Sample(e: Entity, t: number): (CFrame?, Vector3?, number?, boolean?, string?)
 	local best, after = nil, nil
 	for _, h in e.hist do
 		if h.t <= t then
@@ -173,45 +180,64 @@ function CoreCombat.Sample(e: Entity, t: number): (CFrame?, Vector3?)
 	end
 	if best and after then
 		local a = (t - best.t) / math.max(1e-4, after.t - best.t)
-		return best.cf:Lerp(after.cf, a), best.head:Lerp(after.head, a)
+		return best.cf:Lerp(after.cf, a), best.head:Lerp(after.head, a), best.yaw, best.up, best.state
 	end
 	local h = best or after
 	if h then
-		return h.cf, h.head
+		return h.cf, h.head, h.yaw, h.up, h.state
 	end
 	local root, head = rootOf(e.model), headOf(e.model)
 	if root and head then
-		return root.CFrame, head.Position
+		return root.CFrame, head.Position, e.shieldYaw, e.shieldUp, e.moveState
 	end
-	return nil, nil
+	return nil, nil, nil, nil, nil
 end
 
--- swept disc (a -> b, disc radius r) vs an entity pose. Returns (fraction, "HEAD"/"BODY") or nil.
--- The head sphere is tested first (a pass through the head is a headshot); the body capsule ends at the neck.
-function CoreCombat.TestHit(cf: CFrame, head: Vector3, a: Vector3, b: Vector3, r: number): (number?, string?)
-	return CoreGeom.DiscHit(a, b, cf.Position, head, {
+local function hitShape(r: number, state: string?): CoreGeom.HitShape
+	return {
 		headR = tune("Disc", "HeadRadius"),
 		bodyR = tune("Disc", "BodyRadius"),
 		bodyTop = tune("Disc", "BodyTop"),
 		bodyBottom = tune("Disc", "BodyBottom"),
 		r = r,
 		tol = tune("Disc", "HitTolerance"),
-	})
+		state = state,
+		slideHead = tune("Slide", "HeadHeight"),
+		slideTop = tune("Slide", "BodyTop"),
+		slideBottom = tune("Slide", "BodyBottom"),
+	}
+end
+CoreCombat.HitShape = hitShape
+
+-- swept disc (a -> b, disc radius r) vs an entity pose. Returns (fraction, "HEAD"/"BODY") or nil.
+-- Step 1B: a sliding target uses the lowered slide volumes (same rule on server and client).
+function CoreCombat.TestHit(cf: CFrame, head: Vector3, a: Vector3, b: Vector3, r: number, state: string?): (number?, string?)
+	return CoreGeom.DiscHit(a, b, cf.Position, head, hitShape(r, state))
 end
 
--- shield panel of an entity (or nil if not raised / broken)
-function CoreCombat.Panel(e: Entity): (Vector3?, Vector3?, Vector3?, Vector3?, number?, number?)
-	if not e.shieldUp then
+-- shield panel of an entity at server time t (or nil if not raised). Step 1B (review item "shield latency"): the panel
+-- position and facing come from the SAME rewound time as body hits; it counts if it is up now OR was up at that time
+-- (a defender who raised it before the disc arrived is not punished by latency, and a panel that was up in the
+-- thrower's view still blocks).
+function CoreCombat.Panel(e: Entity, t: number?): (Vector3?, Vector3?, Vector3?, Vector3?, number?, number?)
+	local cf, yaw, wasUp
+	if t then
+		local scf, _, syaw, sup = CoreCombat.Sample(e, t)
+		cf, yaw, wasUp = scf, syaw, sup
+	end
+	if not (e.shieldUp or wasUp) then
 		return nil, nil, nil, nil, nil, nil
 	end
 	local root = rootOf(e.model)
 	if not root then
 		return nil, nil, nil, nil, nil, nil
 	end
-	local n = Vector3.new(math.sin(e.shieldYaw), 0, math.cos(e.shieldYaw)) -- facing (front normal)
+	local pos = if cf then cf.Position else root.Position
+	local useYaw = if wasUp and yaw then yaw else e.shieldYaw
+	local n = Vector3.new(math.sin(useYaw), 0, math.cos(useYaw)) -- facing (front normal)
 	local up = Vector3.yAxis
 	local right = up:Cross(n).Unit
-	local c = root.Position + n * tune("Shield", "Forward") + up * tune("Shield", "Lift")
+	local c = pos + n * tune("Shield", "Forward") + up * tune("Shield", "Lift")
 	return c, n, right, up, tune("Shield", "Width") / 2, tune("Shield", "Height") / 2
 end
 
@@ -239,6 +265,8 @@ function CoreCombat.ApplyHit(e: Entity, kind: string): HitResult
 		if not e.shieldFixed then
 			e.shieldUp = false -- a stunned player cannot hold the shield
 		end
+		e.chargeStart = nil -- ... or keep charging a throw
+		e.model:SetAttribute("CR_ChargeStart", nil)
 	end
 	e.model:SetAttribute("CR_LastHit", kind)
 	publish(e)
@@ -279,19 +307,40 @@ function CoreCombat.SetShield(e: Entity, up: boolean, yaw: number?): (boolean, s
 		end
 	end
 	e.shieldUp = up
-	if yaw and yaw == yaw then
-		e.shieldYaw = yaw
+	if up and e.chargeStart then
+		e.chargeStart = nil -- raising the shield cancels a charging throw
+		e.model:SetAttribute("CR_ChargeStart", nil)
+	end
+	local y = CoreCombat.SafeYaw(yaw)
+	if y then
+		e.shieldYaw = y
 	end
 	e.shieldLastUse = t
 	publish(e)
 	return true, nil
 end
 
-function CoreCombat.SetYaw(e: Entity, yaw: number)
-	if e.shieldUp and yaw == yaw then
-		e.shieldYaw = yaw
-		e.model:SetAttribute("CR_ShieldYaw", yaw)
+-- Step 1B (review item "input safety"): reject NaN / infinite / absurd yaw values, wrap the rest to [-pi, pi]
+function CoreCombat.SafeYaw(yaw: any): number?
+	if typeof(yaw) ~= "number" or yaw ~= yaw or yaw == math.huge or yaw == -math.huge or math.abs(yaw) > 1e4 then
+		return nil
 	end
+	return (yaw + math.pi) % (2 * math.pi) - math.pi
+end
+
+function CoreCombat.SetYaw(e: Entity, yaw: any)
+	local y = CoreCombat.SafeYaw(yaw)
+	if e.shieldUp and y then
+		e.shieldYaw = y
+		e.model:SetAttribute("CR_ShieldYaw", y)
+	end
+end
+
+-- Step 1B: validated movement state ("run" / "slide" / "wallrun"), replicated as CR_MoveState
+function CoreCombat.SetMoveState(e: Entity, state: string)
+	e.moveState = state
+	e.moveStateT = now()
+	e.model:SetAttribute("CR_MoveState", state)
 end
 
 -- per-frame: meter decay, shield drain / regen / break; publishes on change

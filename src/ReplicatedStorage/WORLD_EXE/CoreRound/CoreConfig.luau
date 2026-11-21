@@ -37,6 +37,62 @@ CoreConfig.Tuning = {
 		FovDash = 6, -- extra FOV degrees during a dash
 		FovSuper = 10, -- extra FOV degrees during a Super Dash
 		MinPressGap = 0.06, -- server: dash presses closer than this are ignored (input spam)
+		-- Step 1B comparison switches (owner: sliding is the primary movement improvement; Super Dash optional)
+		DashEnabled = 1, -- 0 = no dash at all
+		SuperEnabled = 1, -- 0 = the second press does nothing (plain dash only)
+		SpeedFovPerStud = 0.3, -- extra FOV per stud/s above RunSpeed (eased, capped by SpeedFovMax)
+		SpeedFovMax = 9,
+		LandingDipStuds = 0.45, -- camera dips this much on a hard landing (fall speed >= LandingDipFallSpeed), springs back
+		LandingDipFallSpeed = 45,
+	},
+	-- Step 1B: momentum slide (Fortnite / Warframe / Titanfall 2 references: crouch while running starts it, a slide is
+	-- mostly ground movement with reduced steering, downhill speeds it up, jumping out keeps the speed)
+	Slide = {
+		MinStartSpeed = 16, -- horizontal speed needed to start (from a run)
+		EntryBoost = 8, -- added on entry (Titanfall 2 reference: a clear initial boost that dials back) ...
+		BoostCooldown = 0.9, -- ... only if the last boosted slide started this long ago (rewards paced chaining, no spam)
+		MaxEntrySpeed = 46, -- a boosted entry never exceeds this (chaining cannot run away)
+		Friction = 13, -- studs/s per s on flat ground
+		SlopeAccel = 75, -- downhill: + SlopeAccel * sin(slope angle); uphill: - (and friction)
+		MaxSpeed = 58, -- hard cap while sliding
+		MinSpeed = 15, -- slower than this: the slide ends into a run
+		SteerRate = 1.7, -- rad/s toward the move input (limited steering)
+		MaxSeconds = 3.5,
+		ReentryDelay = 0.25, -- seconds between slides
+		JumpBoost = 2, -- slide-jump keeps the slide speed plus this (carried by the air momentum)
+		CoyoteSeconds = 0.12, -- leaving a ledge keeps the slide state this long (no instant cancel on bumps)
+		HeadHeight = 0.5, -- hit volumes while sliding (server + client): head centre above the root (measured: posed head 0.51) ...
+		BodyTop = 0.0, -- ... body capsule top / bottom relative to the root
+		BodyBottom = -1.9,
+		PoseBlendSeconds = 0.12,
+	},
+	-- Step 1B: horizontal wall-run v2 (Titanfall 2 reference, translated to third person). Mode 2 = v2 (default),
+	-- 1 = the Step 1 wall-run (upward climb, kept for comparison), 0 = off.
+	WallRun2 = {
+		Mode = 2,
+		MinEntrySpeed = 16, -- speed ALONG the wall needed to attach (automatic while airborne; no button)
+		EntryBoost = 3, -- small reward for catching a wall
+		MinSpeed = 26,
+		TargetSpeed = 38, -- eases toward this when slower ...
+		Accel = 10,
+		MaxSpeed = 50, -- ... and never above this (approach momentum kept up to it)
+		RiseKeep = 12, -- at most this much of YOUR jump's upward speed is kept on entry (no added climb)
+		Gravity = 18, -- gentle pull down while on the wall (studs/s per s; tuned in Step 1B: 32 ended ground-level runs in 0.8 s) ...
+		MaxSink = 12, -- ... capped
+		Seconds = 1.8, -- then you drop off with your speed
+		Reach = 3.3, -- side ray length from the root
+		RequireTallWall = 0, -- 0 = a waist-height contact is enough (Titanfall 2 reference); 1 = also need a contact 1.6 higher
+		Stick = 3, -- small pull toward the wall
+		SameWallDelay = 0.6, -- the same wall cannot be re-caught for this long
+		PeelDot = 0.6, -- pushing away from the wall this hard ...
+		PeelSeconds = 0.1, -- ... this long detaches
+		JumpOut = 28, -- wall jump: away from the wall
+		JumpUp = 40, -- wall jump: upward
+		JumpBoost = 4, -- wall jump: extra speed along the run (Titanfall: jumping off a wall boosts speed)
+		JumpCarrySeconds = 0.35, -- the push-off keeps its direction this long (air control would cancel it), then normal air control
+		TiltDegrees = 10, -- lean away from the wall (eased)
+		AlignResponsiveness = 18, -- orientation easing (no snapping)
+		CamPush = 1.2, -- third-person camera eases this far away from the wall
 	},
 	Disc = {
 		Range = 70, -- outbound distance before turning back (rebound distance counts toward it)
@@ -72,6 +128,18 @@ CoreConfig.Tuning = {
 		ReturnDedupeSeconds = 0.4, -- (mode 2) a return-pass hit this soon after an outbound hit on the same target is ignored
 		TrailSeconds = 0.6, -- trail stays visible this long
 		FireRateLimit = 8, -- server: max throw requests per second (spam guard)
+		-- Step 1B: hold-to-charge (Knockout City reference: tap = quick throw, hold = charged throw). Charge only
+		-- changes flight speed / range / recovery: never damage, stun values or shield blocking.
+		TapSeconds = 0.15, -- released sooner than this = an uncharged (tap) throw
+		ChargeSeconds = 0.9, -- hold time from tap threshold to full charge
+		ChargedOutSpeed = 200, -- out speed at full charge (tap = OutSpeed)
+		ChargedRange = 115, -- range at full charge (tap = Range)
+		ChargedReturnSpeed = 175, -- return speed at full charge (tap = ReturnSpeed)
+		ChargedMaxFlightSeconds = 3.2, -- snap timeout at full charge (tap = MaxFlightSeconds)
+		ChargedRethrowSeconds = 0.6, -- recovery after catching a full-charge throw (tap = RethrowSeconds)
+		ChargeMoveScale = 1.0, -- movement speed while charging (1 = no slow)
+		ChargeSlack = 0.08, -- server: claimed charge may exceed the server-timed charge by at most this
+		MaxHoldSeconds = 10, -- server: a charge held longer is treated as stale (falls back to the server time cap)
 	},
 	Disrupt = {
 		Body = 30,
@@ -101,6 +169,14 @@ CoreConfig.Tuning = {
 	Net = {
 		RateLimitPerSecond = 30, -- generic remote budget per player
 		RttBiasSeconds = 0.025, -- removed from the server-measured round trip (frame quantisation, measured in Step 1)
+		-- Step 1B server movement monitor (bounded speed): horizontal speed above the cap for the reported movement
+		-- state, sustained for SpeedGraceSeconds, is logged as a violation (detection only in the prototype; see doc).
+		SpeedCapRun = 52, -- run / air carry (soft cap 45 + margin)
+		SpeedCapSlide = 64, -- slide (max 58 + margin)
+		SpeedCapWall = 58, -- wall-run (max 50 + jump boost + margin)
+		SpeedCapBurst = 125, -- dash / Super Dash windows (dash 104)
+		SpeedGraceSeconds = 0.35,
+		TeleportStuds = 30, -- a single-frame position jump larger than this (not explained by speed) is logged
 	},
 	-- Optional wall-run (copied from PR #22 Rev 15s values; owner-reviewed there). Not needed for any objective.
 	WallRun = {

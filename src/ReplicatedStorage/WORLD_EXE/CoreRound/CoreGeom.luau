@@ -105,10 +105,29 @@ end
 -- target and compare how deep it passes inside each volume: HEAD if (closest distance to the head centre - headR) <=
 -- (closest distance to the body axis - bodyR). A body throw that only grazes the inflated head volume stays BODY.
 -- Returns (fraction along a -> b of first contact, "HEAD" | "BODY") or nil.
-export type HitShape = { headR: number, bodyR: number, bodyTop: number, bodyBottom: number, r: number, tol: number }
+-- Step 1B: state "slide" uses lowered volumes (head at root + slideHead, body from slideBottom to slideTop), because the
+-- slide pose is drawn procedurally on clients and the server's Head part does not follow it.
+export type HitShape = {
+	headR: number,
+	bodyR: number,
+	bodyTop: number,
+	bodyBottom: number,
+	r: number,
+	tol: number,
+	state: string?,
+	slideHead: number?,
+	slideTop: number?,
+	slideBottom: number?,
+}
 function CoreGeom.DiscHit(a: Vector3, b: Vector3, root: Vector3, head: Vector3, s: HitShape): (number?, string?)
-	local top = math.min(root.Y + s.bodyTop, head.Y - s.headR)
-	local bottom = Vector3.new(root.X, root.Y + s.bodyBottom + s.bodyR, root.Z)
+	local bodyTop, bodyBottom = s.bodyTop, s.bodyBottom
+	if s.state == "slide" then
+		head = root + Vector3.new(0, s.slideHead or 0.9, 0)
+		bodyTop = s.slideTop or 0
+		bodyBottom = s.slideBottom or -1.9
+	end
+	local top = math.min(root.Y + bodyTop, head.Y - s.headR)
+	local bottom = Vector3.new(root.X, root.Y + bodyBottom + s.bodyR, root.Z)
 	local topV = Vector3.new(root.X, math.max(top, bottom.Y), root.Z)
 	local th = CoreGeom.SegSphere(a, b, head, s.headR + s.r + s.tol)
 	local tb = CoreGeom.SegCapsule(a, b, bottom, topV, s.bodyR + s.r + s.tol)

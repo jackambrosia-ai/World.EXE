@@ -69,6 +69,63 @@ function Aim.Yaw(): number
 	return math.atan2(look.X, look.Z)
 end
 
+-- Step 1B camera refinements (third person stays primary): the shoulder offset is eased (no snapping), shortened by a
+-- raycast so the camera does not clip into walls, lowered during a slide, pushed away from the wall during a wall-run
+-- (instead of rolling the view), and a small spring-back dip on hard landings (Titanfall 2 interview: the landing
+-- spring sells weight). No camera shake or roll. Reduced Effects disables the landing dip.
+local camOffset = Vector3.zero
+local dip = 0
+local lastVy = 0
+local camParams = RaycastParams.new()
+camParams.FilterType = Enum.RaycastFilterType.Exclude
+local extra: { slideActive: () -> boolean, wallBias: () -> Vector3, reduced: () -> boolean } = {
+	slideActive = function()
+		return false
+	end,
+	wallBias = function()
+		return Vector3.zero
+	end,
+	reduced = function()
+		return false
+	end,
+}
+
+function Aim.SetExtra(e: typeof(extra))
+	extra = e
+end
+
+local function desiredOffset(hum: Humanoid, hrp: BasePart, shoulder: boolean, dt: number): Vector3
+	local tune = require(game:GetService("ReplicatedStorage"):WaitForChild("WORLD_EXE"):WaitForChild("CoreRound"):WaitForChild("CoreConfig")).Tune
+	local off = if shoulder then Vector3.new(1.6, 0.4, 0) else Vector3.zero
+	if extra.slideActive() then
+		off += Vector3.new(0, -1.1, 0)
+	end
+	local wb = extra.wallBias()
+	if wb.Magnitude > 0.01 then
+		off += hrp.CFrame:VectorToObjectSpace(wb)
+	end
+	-- landing dip
+	local vy = hrp.AssemblyLinearVelocity.Y
+	if hum.FloorMaterial ~= Enum.Material.Air and lastVy < -tune("Move", "LandingDipFallSpeed") and not extra.reduced() then
+		dip = tune("Move", "LandingDipStuds") * math.clamp(-lastVy / 90, 0.5, 1)
+	end
+	lastVy = vy
+	dip = math.max(0, dip - dt * 2.2)
+	off += Vector3.new(0, -dip, 0)
+	-- clip guard: shorten the horizontal part if a wall is in the way
+	if off.Magnitude > 0.05 then
+		local headPos = hrp.Position + Vector3.new(0, 1.5, 0)
+		local world = hrp.CFrame:VectorToWorldSpace(off)
+		camParams.FilterDescendantsInstances = { hrp.Parent :: Instance, workspace:FindFirstChild("CoreRoundFx") :: Instance }
+		local hit = workspace:Raycast(headPos, world.Unit * (world.Magnitude + 0.6), camParams)
+		if hit then
+			local k = math.max(0, (hit.Position - headPos).Magnitude - 0.6) / world.Magnitude
+			off *= math.clamp(k, 0, 1)
+		end
+	end
+	return off
+end
+
 function Aim.Start(deps: { owner: () -> string?, stunned: () -> boolean })
 	moveStateOwner = deps.owner
 	isStunned = deps.stunned
@@ -77,15 +134,19 @@ function Aim.Start(deps: { owner: () -> string?, stunned: () -> boolean })
 			Aim.LockEnabled = not Aim.LockEnabled
 		end
 	end)
-	RunService:BindToRenderStep("CoreRoundAim", Enum.RenderPriority.Camera.Value + 1, function()
+	RunService:BindToRenderStep("CoreRoundAim", Enum.RenderPriority.Camera.Value + 1, function(dt)
 		local c = player.Character
 		local hum = c and c:FindFirstChildOfClass("Humanoid")
 		local hrp = c and c:FindFirstChild("HumanoidRootPart") :: BasePart?
 		local want = Aim.LockEnabled and Aim.UsesMouse() and hum ~= nil and hum.Health > 0
+		if hum and hrp and hum.Health > 0 then
+			local target = desiredOffset(hum, hrp, want, dt)
+			camOffset = camOffset:Lerp(target, math.min(1, dt * 12))
+			hum.CameraOffset = camOffset
+		end
 		if want and hum and hrp then
 			lockActive = true
 			UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
-			hum.CameraOffset = Vector3.new(1.6, 0.4, 0)
 			local owner = moveStateOwner()
 			if owner == nil and not isStunned() then
 				hum.AutoRotate = false
@@ -96,8 +157,7 @@ function Aim.Start(deps: { owner: () -> string?, stunned: () -> boolean })
 			lockActive = false
 			UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 			if hum then
-				hum.CameraOffset = Vector3.zero
-				hum.AutoRotate = true
+				hum.AutoRotate = true -- the eased offset above returns to centre on its own
 			end
 		end
 	end)

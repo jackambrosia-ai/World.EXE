@@ -40,7 +40,22 @@ type Vis = {
 	mine: boolean,
 	t0: number,
 	seen: { [string]: { out: string?, ret: string?, outT: number? } }, -- own throws: visible crossings per target
+	-- Step 1B: flight from the throw's charge (same lerp as the server)
+	charge: number,
+	outSpeed: number,
+	range: number,
+	retSpeed: number,
 }
+
+local function lerp(a: number, b: number, k: number): number
+	return a + (b - a) * k
+end
+
+-- charging state (own)
+local charging = false
+local chargeT0 = 0
+local maxCued = false
+local lastTick = 0
 local byId: { [number]: Vis } = {}
 local pending: { [number]: Vis } = {} -- own predicted discs by client sequence n, before the server id arrives
 local mine: Vis? = nil
@@ -152,7 +167,23 @@ local function makePart(team: string): BasePart
 	return p
 end
 
-local function newVis(owner: string, team: string, pos: Vector3, dir: Vector3, isMine: boolean): Vis
+local function newVis(owner: string, team: string, pos: Vector3, dir: Vector3, isMine: boolean, charge: number?): Vis
+	local k = math.clamp(charge or 0, 0, 1)
+	local part = makePart(team)
+	if k > 0 then
+		-- a charged disc reads hotter: brighter core, wider trail
+		part.Size = Vector3.new(0.3, 2.2 + 0.6 * k, 2.2 + 0.6 * k)
+		local tr = part:FindFirstChildOfClass("Trail")
+		if tr then
+			tr.WidthScale = NumberSequence.new(1 + k, 0.2)
+			tr.Transparency = NumberSequence.new(0.2 - 0.15 * k, 1)
+		end
+		local core = part:FindFirstChild("Core") :: BasePart?
+		if core then
+			core.Color = Color3.new(1, 1, 1):Lerp(Color3.fromRGB(20, 24, 30), 1 - k)
+			core.Material = if k > 0.5 then Enum.Material.Neon else Enum.Material.SmoothPlastic
+		end
+	end
 	return {
 		id = nil,
 		n = nil,
@@ -163,11 +194,15 @@ local function newVis(owner: string, team: string, pos: Vector3, dir: Vector3, i
 		phase = "out",
 		travelled = 0,
 		bounces = 0,
-		part = makePart(team),
+		part = part,
 		spin = 0,
 		mine = isMine,
 		t0 = os.clock(),
 		seen = {},
+		charge = k,
+		outSpeed = lerp(tune("OutSpeed"), tune("ChargedOutSpeed"), k),
+		range = lerp(tune("Range"), tune("ChargedRange"), k),
+		retSpeed = lerp(tune("ReturnSpeed"), tune("ChargedReturnSpeed"), k),
 	}
 end
 
@@ -230,9 +265,9 @@ local function stepVis(v: Vis, dt: number)
 			return -- wait for the server's end event (the owner sees the catch at once anyway)
 		end
 		v.dir = to.Unit
-		speed = tune("ReturnSpeed")
+		speed = v.retSpeed
 	else
-		speed = tune("OutSpeed")
+		speed = v.outSpeed
 	end
 	local a = v.pos
 	local step = v.dir * speed * dt
@@ -260,7 +295,7 @@ local function stepVis(v: Vis, dt: number)
 		else
 			v.pos = b
 			v.travelled += step.Magnitude
-			if v.travelled >= tune("Range") then
+			if v.travelled >= v.range then
 				v.phase = "ret"
 			end
 		end
@@ -318,8 +353,8 @@ function DiscClient.CanThrow(): (boolean, string?)
 	return true, nil
 end
 
--- dirOverride: test kit only (a scripted aim direction)
-function DiscClient.Throw(dirOverride: Vector3?): (boolean, string?)
+-- dirOverride: test kit only (a scripted aim direction). charge: 0 (tap) .. 1 (full), from ChargeRelease.
+function DiscClient.Throw(dirOverride: Vector3?, charge: number?): (boolean, string?)
 	local c = player.Character
 	local hrp = c and c:FindFirstChild("HumanoidRootPart") :: BasePart?
 	if not c or not hrp then
@@ -333,6 +368,7 @@ function DiscClient.Throw(dirOverride: Vector3?): (boolean, string?)
 		end
 		return false, why
 	end
+	local k = math.clamp(charge or 0, 0, 1)
 	local origin = hrp.Position + Vector3.new(0, 1.2, 0)
 	local dir = dirOverride or (Aim.Point() - origin)
 	if dir.Magnitude < 1e-3 then
@@ -340,14 +376,82 @@ function DiscClient.Throw(dirOverride: Vector3?): (boolean, string?)
 	end
 	dir = dir.Unit
 	seq += 1
-	local v = newVis(player.Name, myTeam(), origin, dir, true)
+	local v = newVis(player.Name, myTeam(), origin, dir, true, k)
 	v.n = seq
 	pending[seq] = v
 	mine = v
-	DiscClient.Records[seq] = { t = os.clock(), visible = {}, server = {}, origin = origin, dir = dir }
-	send("throw", { n = seq, origin = origin, dir = dir })
-	Fx.Sound("throw")
+	DiscClient.Records[seq] = { t = os.clock(), visible = {}, server = {}, origin = origin, dir = dir, charge = k }
+	send("throw", { n = seq, origin = origin, dir = dir, charge = k })
+	Fx.Sound(if k > 0.95 then "throw_max" else "throw")
 	return true, nil
+end
+
+-- ---------- Step 1B: hold to charge (Knockout City reference: tap = quick throw, hold = faster / farther) ----------
+function DiscClient.Charging(): (boolean, number)
+	if not charging then
+		return false, 0
+	end
+	return true, math.clamp((os.clock() - chargeT0 - tune("TapSeconds")) / math.max(0.05, tune("ChargeSeconds")), 0, 1)
+end
+
+function DiscClient.ChargeBegin(): (boolean, string?)
+	if charging then
+		return true, nil
+	end
+	local ok, why = DiscClient.CanThrow()
+	if not ok then
+		Fx.Sound("deny")
+		if hud then
+			hud.Deny(why)
+		end
+		return false, why
+	end
+	charging = true
+	chargeT0 = os.clock()
+	maxCued = false
+	lastTick = 0
+	send("charge", { n = seq + 1 })
+	return true, nil
+end
+
+function DiscClient.ChargeCancel(reason: string)
+	if not charging then
+		return
+	end
+	charging = false
+	send("charge_cancel", { why = reason })
+end
+
+function DiscClient.ChargeRelease(dirOverride: Vector3?): (boolean, string?)
+	if not charging then
+		return false, "not_charging"
+	end
+	local _, k = DiscClient.Charging()
+	charging = false
+	return DiscClient.Throw(dirOverride, k)
+end
+
+-- ---------- Step 1B: incoming-disc threats (Knockout City "border warning" reference) ----------
+-- enemy discs heading toward the local player and close enough to matter
+function DiscClient.Threats(): { { pos: Vector3, eta: number, charge: number } }
+	local out = {}
+	local c = player.Character
+	local hrp = c and c:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not hrp then
+		return out
+	end
+	local me = myTeam()
+	for _, v in byId do
+		if not v.mine and (me == "" or v.team ~= me) then
+			local to = hrp.Position - v.pos
+			local dist = to.Magnitude
+			local speed = if v.phase == "ret" then v.retSpeed else v.outSpeed
+			if dist < 60 and dist > 2 and v.dir:Dot(to.Unit) > 0.75 then
+				table.insert(out, { pos = v.pos, eta = dist / speed, charge = v.charge })
+			end
+		end
+	end
+	return out
 end
 
 function DiscClient.Busy(): boolean
@@ -369,7 +473,7 @@ function DiscClient.OnEvent(kind: string, d: { [string]: any })
 			end
 			return
 		end
-		local v = newVis(d.owner, d.team, d.origin, d.dir, false)
+		local v = newVis(d.owner, d.team, d.origin, d.dir, false, d.charge)
 		v.id = d.id
 		byId[d.id] = v
 		-- advance by the elapsed server time so it lines up with the server disc
@@ -422,7 +526,8 @@ function DiscClient.OnEvent(kind: string, d: { [string]: any })
 			removeVis(v, d.how)
 		end
 		if d.owner == player.Name then
-			local penalty = if d.how == "snap" then tune("SnapPenaltySeconds") else tune("RethrowSeconds")
+			local k = if v then v.charge else 0
+			local penalty = if d.how == "snap" then tune("SnapPenaltySeconds") else lerp(tune("RethrowSeconds"), tune("ChargedRethrowSeconds"), k)
 			readyAt = os.clock() + penalty
 		end
 	elseif kind == "hit" then
@@ -449,7 +554,130 @@ function DiscClient.OnEvent(kind: string, d: { [string]: any })
 		if hud then
 			hud.Deny(d.why)
 		end
+	elseif kind == "reject" and d.op == "charge" then
+		charging = false
+		if hud then
+			hud.Deny(d.why)
+		end
 	end
+end
+
+-- ---------- Step 1B: charge presentation (own + other players via CR_ChargeStart) ----------
+-- A disc appears in the throwing hand and heats up (size, brightness, spin), a team-coloured ring tightens around the
+-- character, and rising ticks play; at full charge a white flash + chime. Readable to the opponent (anticipation).
+type Held = { disc: BasePart, ring: BasePart }
+local held: { [Model]: Held } = {}
+
+local function handOf(c: Model): BasePart?
+	return (c:FindFirstChild("RightHand") or c:FindFirstChild("Right Arm") or c:FindFirstChild("HumanoidRootPart")) :: BasePart?
+end
+
+local function heldFor(c: Model, team: string): Held
+	local h = held[c]
+	if h then
+		return h
+	end
+	local disc = makePart(team)
+	disc.Name = "HeldDisc"
+	local tr = disc:FindFirstChildOfClass("Trail")
+	if tr then
+		tr.Enabled = false
+	end
+	local ring = Instance.new("Part")
+	ring.Name = "ChargeRing"
+	ring.Shape = Enum.PartType.Cylinder
+	ring.Material = Enum.Material.Neon
+	ring.Color = colorOf(team)
+	ring.Anchored = true
+	ring.CanCollide = false
+	ring.CanQuery = false
+	ring.CanTouch = false
+	ring.CastShadow = false
+	ring.Transparency = 0.6
+	ring.Parent = Fx.Folder()
+	h = { disc = disc, ring = ring }
+	held[c] = h
+	return h
+end
+
+local function dropHeld(c: Model)
+	local h = held[c]
+	if h then
+		h.disc:Destroy()
+		h.ring:Destroy()
+		held[c] = nil
+	end
+end
+
+local function chargeOf(c: Model): number?
+	if c == player.Character then
+		local on, k = DiscClient.Charging()
+		return if on then k else nil
+	end
+	local cs = c:GetAttribute("CR_ChargeStart")
+	if typeof(cs) ~= "number" then
+		return nil
+	end
+	return math.clamp((workspace:GetServerTimeNow() - cs - tune("TapSeconds")) / math.max(0.05, tune("ChargeSeconds")), 0, 1)
+end
+
+local function updateCharge(dt: number)
+	local seen: { [Model]: boolean } = {}
+	for _, p in Players:GetPlayers() do
+		local c = p.Character
+		local k = c and chargeOf(c)
+		if c and k then
+			seen[c] = true
+			local team = if p.Team then p.Team.Name else ""
+			local h = heldFor(c, team)
+			local hand = handOf(c)
+			local hrp = c:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if hand and hrp then
+				local spin = os.clock() * (10 + 30 * k)
+				h.disc.CFrame = hand.CFrame * CFrame.new(0, -0.9, -0.4) * CFrame.Angles(0, spin, 0) * CFrame.Angles(0, 0, math.rad(90))
+				local core = h.disc:FindFirstChild("Core") :: BasePart?
+				if core then
+					core.CFrame = h.disc.CFrame
+					core.Color = Color3.fromRGB(20, 24, 30):Lerp(Color3.new(1, 1, 1), k)
+					core.Material = if k > 0.5 then Enum.Material.Neon else Enum.Material.SmoothPlastic
+				end
+				local radius = 7 - 3.5 * k
+				h.ring.Size = Vector3.new(0.12, radius * 2, radius * 2)
+				h.ring.CFrame = CFrame.new(hrp.Position - Vector3.new(0, 2.6, 0)) * CFrame.Angles(0, 0, math.rad(90))
+				h.ring.Transparency = if Fx.Reduced then 0.85 else 0.7 - 0.4 * k
+				h.ring.Color = if k >= 1 then Color3.new(1, 1, 1) else colorOf(team)
+			end
+		end
+	end
+	for c in held do
+		if not seen[c] or not c.Parent then
+			dropHeld(c)
+		end
+	end
+	-- own audio cues + cancel rules
+	if charging then
+		if blockers.stunned() then
+			DiscClient.ChargeCancel("stunned")
+		elseif blockers.shieldUp() then
+			DiscClient.ChargeCancel("shield")
+		else
+			local _, k = DiscClient.Charging()
+			local t = os.clock()
+			if k < 1 and t - lastTick > 0.13 and t - chargeT0 > tune("TapSeconds") then
+				lastTick = t
+				Fx.Sound("charge_tick", nil, 0.9 + k * 0.9)
+			elseif k >= 1 and not maxCued then
+				maxCued = true
+				Fx.Sound("charge_max")
+				local c = player.Character
+				local hrp = c and c:FindFirstChild("HumanoidRootPart") :: BasePart?
+				if hrp then
+					Fx.Burst(hrp.Position + Vector3.new(0, 1, 0), Color3.new(1, 1, 1), 3)
+				end
+			end
+		end
+	end
+	local _ = dt
 end
 
 function DiscClient.Start(deps: { send: (string, { [string]: any }) -> (), shieldUp: () -> boolean, stunned: () -> boolean, hud: any })
@@ -467,9 +695,10 @@ function DiscClient.Start(deps: { send: (string, { [string]: any }) -> (), shiel
 		end
 		-- a lost prediction (no server answer) is cleared after the max flight time
 		local m = mine
-		if m and os.clock() - m.t0 > tune("MaxFlightSeconds") + 1.5 then
+		if m and os.clock() - m.t0 > tune("ChargedMaxFlightSeconds") + 1.5 then
 			removeVis(m, "timeout")
 		end
+		updateCharge(dt)
 	end)
 	player.CharacterAdded:Connect(function()
 		local m = mine
@@ -477,6 +706,7 @@ function DiscClient.Start(deps: { send: (string, { [string]: any }) -> (), shiel
 			removeVis(m, "respawn")
 		end
 		readyAt = 0
+		charging = false
 	end)
 end
 

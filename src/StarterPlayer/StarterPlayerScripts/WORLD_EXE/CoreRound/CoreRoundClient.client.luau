@@ -24,6 +24,10 @@ local ShieldClient = require(here:WaitForChild("ShieldClient"))
 local Hud = require(here:WaitForChild("Hud"))
 local Input = require(here:WaitForChild("Input"))
 local WallRun = require(here:WaitForChild("WallRun"))
+-- Step 1B
+local Slide = require(here:WaitForChild("Slide"))
+local WallRun2 = require(here:WaitForChild("WallRun2"))
+local Poses = require(here:WaitForChild("Poses"))
 
 local player = Players.LocalPlayer
 local Request = CoreNet.Request()
@@ -51,6 +55,10 @@ ShieldClient.Start({
 	stunned = stunned,
 	onChange = function(up)
 		Movement.SetShieldSlow(up)
+		if up then
+			Slide.Cancel("shield") -- raising the shield ends a slide (no 58-stud/s moving wall)
+			DiscClient.ChargeCancel("shield")
+		end
 	end,
 })
 
@@ -67,6 +75,37 @@ WallRun.Start({
 	ignore = { Fx.Folder() },
 	onEnd = function(how)
 		Movement.OnWallRunEnd(how)
+	end,
+})
+
+-- Step 1B: slide, horizontal wall-run v2, procedural slide pose, camera extras
+Slide.Start({
+	send = send,
+	stunned = stunned,
+	setBoost = Movement.SetBoost,
+	onStart = function()
+		ShieldClient.ForceDown()
+		Fx.Sound("slide_start")
+	end,
+	onEnd = function(_how) end,
+	teamColor = teamColor,
+})
+WallRun2.Start({
+	ignore = { Fx.Folder() },
+	send = send,
+	setBoost = Movement.SetBoost,
+	onEnd = function(how)
+		if how == "jump" then
+			Fx.Sound("wall_jump")
+		end
+	end,
+})
+Poses.Start({ localSlide = Slide.Active })
+Aim.SetExtra({
+	slideActive = Slide.Active,
+	wallBias = WallRun2.CamBias,
+	reduced = function()
+		return Fx.Reduced
 	end,
 })
 
@@ -117,6 +156,8 @@ Hud.Start({
 		{ name = "Touch shield toggle", get = function() return ShieldClient.TouchToggle end, set = function(v) ShieldClient.TouchToggle = v end },
 		{ name = "Speed readout", get = function() return showSpeed end, set = function(v) showSpeed = v; Hud.SetShowSpeed(v) end },
 	},
+	charging = DiscClient.Charging,
+	threats = DiscClient.Threats,
 })
 
 DiscClient.Start({ send = send, shieldUp = ShieldClient.IsUp, stunned = stunned, hud = Hud })
@@ -125,8 +166,12 @@ Input.Start({
 	dash = function()
 		Movement.Press()
 	end,
-	throw = function()
-		DiscClient.Throw(nil)
+	-- Step 1B: hold to charge, release to throw (a quick tap is an uncharged throw)
+	throwDown = function()
+		DiscClient.ChargeBegin()
+	end,
+	throwUp = function()
+		DiscClient.ChargeRelease(nil)
 	end,
 	shield = function(up)
 		ShieldClient.Set(up)
@@ -134,6 +179,12 @@ Input.Start({
 	shieldToggle = ShieldClient.Toggle,
 	touchToggle = function()
 		return ShieldClient.TouchToggle
+	end,
+	slide = function(down)
+		Slide.Press(down)
+	end,
+	slideToggle = function()
+		Slide.Toggle()
 	end,
 })
 
@@ -161,6 +212,8 @@ Event.OnClientEvent:Connect(function(kind: string, d: { [string]: any })
 			Movement.OnReject(d.op, d.why)
 		elseif d.op == "shield" then
 			ShieldClient.OnReject()
+		elseif d.op == "move" then
+			Slide.OnReject()
 		end
 	end
 	DiscClient.OnEvent(kind, d)
@@ -205,6 +258,28 @@ if RunService:IsStudio() then
 			reduced = a == true
 			Fx.Reduced = reduced
 			return reduced
+		-- Step 1B
+		elseif op == "Slide" then
+			return Slide.Press(a == true)
+		elseif op == "SlideLog" then
+			return Slide.Log
+		elseif op == "WallLog" then
+			return WallRun2.Log
+		elseif op == "ChargeBegin" then
+			return DiscClient.ChargeBegin()
+		elseif op == "ChargeRelease" then
+			return DiscClient.ChargeRelease(a)
+		elseif op == "ChargeReleaseAt" then
+			local c = player.Character
+			local hrp = c and c:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if not hrp then
+				return false
+			end
+			return DiscClient.ChargeRelease((a :: Vector3) - (hrp.Position + Vector3.new(0, 1.2, 0)))
+		elseif op == "Charging" then
+			return { DiscClient.Charging() }
+		elseif op == "Threats" then
+			return #DiscClient.Threats()
 		end
 		local _ = b
 		return "unknown"
@@ -212,4 +287,4 @@ if RunService:IsStudio() then
 	bf.Parent = player:WaitForChild("PlayerScripts")
 end
 
-print("[CoreRound] Step 1 client running")
+print("[CoreRound] Step 1B client running")

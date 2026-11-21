@@ -16,6 +16,7 @@
 --   Gap course (W)      x = -120: stairs to rooftop height 20, then platforms with gaps 16 / 26 / 40 / 55 / 70
 --   Wall-run walls (NW) two parallel walls (24 tall, 80 long, 20 apart)
 assert(string.find(game.Name, "CoreRound", 1, true), "core round test place only")
+-- Step 1B: also builds the slide slopes and the wall-run v2 course (folder Step1B)
 
 local Teams = game:GetService("Teams")
 local Lighting = game:GetService("Lighting")
@@ -256,6 +257,43 @@ part(W, "WallA", Vector3.new(2, 24, 80), CFrame.new(-50, 12, -100), C.wall)
 part(W, "WallB", Vector3.new(2, 24, 80), CFrame.new(-70, 12, -100), C.wall)
 part(W, "LandingBlock", Vector3.new(16, 10, 16), CFrame.new(-60, 5, -160), C.roof)
 sign(W, Vector3.new(-60, 28, -58), "WALL-RUN (optional)")
+
+-- ---------- Step 1B: slide slopes + Titanfall-style wall-run course ----------
+local B = folder("Step1B")
+-- three downhill slide slopes (10 / 20 / 30 degrees), each 60 long, running down toward +Z, with stair access
+for i, deg in { 10, 20, 30 } do
+	local x = 130 + (i - 1) * 28
+	local len = 60
+	local rise = len * math.tan(math.rad(deg))
+	local zTop, zBottom = -200, -200 + len
+	local mid = Vector3.new(x, rise / 2, (zTop + zBottom) / 2)
+	local slope = part(B, "Slope" .. deg, Vector3.new(16, 1, len / math.cos(math.rad(deg))), CFrame.new(mid) * CFrame.Angles(math.rad(deg), 0, 0), C.roof, Enum.Material.SmoothPlastic)
+	local _ = slope
+	part(B, "SlopeTop" .. deg, Vector3.new(16, 1, 14), CFrame.new(x, rise - 0.5, zTop - 7), C.roof)
+	part(B, "SlopeTopBody" .. deg, Vector3.new(16, rise - 1, 14), CFrame.new(x, (rise - 1) / 2, zTop - 7), C.line, nil, { Transparency = 0.5 })
+	local steps = math.ceil(rise / 2)
+	for s = 1, steps do
+		part(B, "SlopeStair" .. deg .. "_" .. s, Vector3.new(6, s * 2, 3), CFrame.new(x + 11, s, zTop - 14 + s * 0) + Vector3.new(0, 0, -(steps - s) * 3), C.line)
+	end
+	-- run-out marks every 10 studs past the bottom
+	for k = 0, 60, 10 do
+		part(B, "RunOut" .. deg .. "_" .. k, Vector3.new(16, 0.05, 0.25), CFrame.new(x, 0.03, zBottom + k), C.mark, Enum.Material.Neon, { CanCollide = false, CanQuery = false })
+	end
+	sign(B, Vector3.new(x, rise + 6, zTop - 7), "SLIDE SLOPE " .. deg .. "°")
+end
+-- wall-run v2 course (west): run-up lane + launch block, two staggered walls for wall-to-wall chaining,
+-- a waist-high rail (Titanfall 2 reference: anything about waist high is a short wall-run surface)
+local WX = -175
+part(B, "WR2_Launch", Vector3.new(10, 3, 10), CFrame.new(WX, 1.5, -48), C.roof)
+part(B, "WR2_WallA", Vector3.new(2, 16, 70), CFrame.new(WX + 8, 8, -95), C.wall)
+part(B, "WR2_WallB", Vector3.new(2, 16, 70), CFrame.new(WX - 6, 8, -150), C.wall) -- 12-stud gap to wall A: wall-jump chaining
+part(B, "WR2_Rail", Vector3.new(2, 4.5, 60), CFrame.new(WX + 30, 2.25, -100), C.cover)
+part(B, "WR2_Landing", Vector3.new(14, 6, 14), CFrame.new(WX, 3, -205), C.roof)
+for k = 0, 160, 20 do
+	part(B, "WR2_Mark" .. k, Vector3.new(24, 0.05, 0.25), CFrame.new(WX, 0.03, -40 - k), C.mark, Enum.Material.Neon, { CanCollide = false, CanQuery = false })
+end
+sign(B, Vector3.new(WX, 20, -40), "WALL-RUN v2 (jump along a wall)")
+sign(B, Vector3.new(WX + 30, 9, -70), "waist-high rail")
 
 ROOT.Parent = workspace
 

@@ -1,7 +1,7 @@
 # Core Round Step 1: window-only capture of the CoreRound Studio window (PrintWindow), never the desktop.
 # then crop the 3D viewport region (window-relative). Never reads any other window.
 #   powershell -File v36_grab_pw.ps1 -Out <file.jpg> [-X 19 -Y 223 -W 1036 -H 583]
-param([switch]$WholeWindow, [string]$Out, [int]$X = 292, [int]$Y = 215, [int]$W = 1351, [int]$H = 760, [int]$DelayMs = 1500)
+param([string]$Match = "*WorldEXE_CoreRound*Roblox Studio*", [switch]$WholeWindow, [string]$Out, [int]$X = 292, [int]$Y = 215, [int]$W = 1351, [int]$H = 760, [int]$DelayMs = 1500)
 Add-Type -AssemblyName System.Drawing
 Add-Type @"
 using System; using System.Runtime.InteropServices; using System.Text;
@@ -16,7 +16,7 @@ public class P36 {
 }
 "@
 $script:hw = [IntPtr]::Zero
-[P36]::EnumWindows({ param($h, $l) if ([P36]::IsWindowVisible($h)) { $sb = New-Object System.Text.StringBuilder 512; [void][P36]::GetWindowText($h, $sb, 512); if ($sb.ToString() -like "*WorldEXE_CoreRound*Roblox Studio*") { $script:hw = $h } }; return $true }, [IntPtr]::Zero) | Out-Null
+[P36]::EnumWindows({ param($h, $l) if ([P36]::IsWindowVisible($h)) { $sb = New-Object System.Text.StringBuilder 512; [void][P36]::GetWindowText($h, $sb, 512); if ($sb.ToString() -like $Match) { $script:hw = $h } }; return $true }, [IntPtr]::Zero) | Out-Null
 if ($script:hw -eq [IntPtr]::Zero) { throw "CoreRound window not found" }
 Start-Sleep -Milliseconds $DelayMs
 $r = New-Object P36+RECT; [P36]::GetWindowRect($script:hw, [ref]$r) | Out-Null

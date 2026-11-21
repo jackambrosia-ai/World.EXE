@@ -4,9 +4,9 @@
 --   ("Log", fromIndex)            -> { base, entries } (event log since fromIndex, absolute index)
 --   ("State")                     -> entity states, discs in flight, per-player RTT / charges
 --   ("Reset")                     -> clears meters, stuns, shields, discs, charges
---   ("DummyThrow", dummy, target, part?, lead?) -> stand-in attacker: the named dummy throws at the named
+--   ("DummyThrow", dummy, target, part?, lead?, charge?) -> stand-in attacker: the named dummy throws at the named
 --                                    entity's "HEAD" / "BODY" (current pose; lead = seconds of target motion)
---   ("ThrowFrom", origin, dir, team, ownerDummy) -> raw scripted throw owned by a dummy
+--   ("ThrowFrom", origin, dir, team, ownerDummy, charge?) -> raw scripted throw owned by a dummy
 --   ("SetShield", entityName, up, yawDegrees)
 --   ("Pose", entityName)          -> root / head positions
 --   ("Hit", entityName, "HEAD"/"BODY") -> apply a hit directly (meter maths only)
@@ -82,14 +82,14 @@ function CoreTest.Handle(op: string, ctx: any, ...): any
 		local vel = (target.model:FindFirstChild("HumanoidRootPart") :: BasePart).AssemblyLinearVelocity
 		aim += vel * lead
 		local origin = droot.Position + Vector3.new(0, 1, 0)
-		local id = CoreDisc.Throw(dm, dm.Name, 0, origin, (aim - origin).Unit, 0)
+		local id = CoreDisc.Throw(dm, dm.Name, 0, origin, (aim - origin).Unit, 0, args[5])
 		return id
 	elseif op == "ThrowFrom" then
 		local dm = CoreDummies.Find(args[4])
 		if not dm then
 			return "missing"
 		end
-		return CoreDisc.Throw(dm, dm.Name, 0, args[1], (args[2] :: Vector3).Unit, 0)
+		return CoreDisc.Throw(dm, dm.Name, 0, args[1], (args[2] :: Vector3).Unit, 0, args[5])
 	elseif op == "SetShield" then
 		local e = CoreCombat.ByName(args[1])
 		if not e then

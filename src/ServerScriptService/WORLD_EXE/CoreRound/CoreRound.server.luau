@@ -198,6 +198,10 @@ Request.OnServerEvent:Connect(function(p: Player, op: any, payload: any)
 	end
 	local stunned = CoreCombat.IsStunned(c)
 	if op == "dash" or op == "super" then
+		-- Step 1B comparison switches (server-side: a disabled move cannot be requested)
+		if CoreConfig.Tune("Move", "DashEnabled") < 0.5 or (op == "super" and CoreConfig.Tune("Move", "SuperEnabled") < 0.5) then
+			return reject(p, op, payload.n, "disabled")
+		end
 		local ok, why = CoreMove.Request(p, op, stunned, oneWay(p))
 		if ok then
 			if e.shieldUp then
@@ -240,7 +244,57 @@ Request.OnServerEvent:Connect(function(p: Player, op: any, payload: any)
 			logEvent({ kind = "origin_clamp", player = p.Name, off = (origin - root.Position).Magnitude, tol = tol })
 			origin = root.Position + Vector3.new(0, 1, 0)
 		end
-		CoreDisc.Throw(c, p.Name, if typeof(payload.n) == "number" then payload.n else 0, origin, dir.Unit, oneWay(p))
+		-- Step 1B: charge is timed on the SERVER (press -> release receive times; latency cancels out). The client's
+		-- claim may only lower it, or exceed it by ChargeSlack (jitter); no charge start recorded -> a tap throw.
+		local charge = 0
+		local cs = e.chargeStart
+		if cs then
+			local held = now() - cs
+			local serverCharge = math.clamp((held - CoreConfig.Tune("Disc", "TapSeconds")) / math.max(0.05, CoreConfig.Tune("Disc", "ChargeSeconds")), 0, 1)
+			local claimed = if typeof(payload.charge) == "number" and payload.charge == payload.charge then math.clamp(payload.charge, 0, 1) else 0
+			charge = math.min(claimed, serverCharge + CoreConfig.Tune("Disc", "ChargeSlack"), 1)
+			if held > CoreConfig.Tune("Disc", "MaxHoldSeconds") then
+				charge = math.min(claimed, 1)
+			end
+			logEvent({ kind = "charge_release", player = p.Name, held = held, server = serverCharge, claimed = claimed, used = charge })
+		end
+		e.chargeStart = nil
+		c:SetAttribute("CR_ChargeStart", nil)
+		CoreDisc.Throw(c, p.Name, if typeof(payload.n) == "number" then payload.n else 0, origin, dir.Unit, oneWay(p), charge)
+	elseif op == "charge" then
+		-- start charging: only when a throw would be allowed right now
+		local ok = not stunned and not e.shieldUp and (CoreDisc.Ready(c))
+		if ok then
+			e.chargeStart = now()
+			c:SetAttribute("CR_ChargeStart", e.chargeStart) -- other clients draw the charge build-up
+		else
+			reject(p, op, payload.n, if stunned then "stunned" elseif e.shieldUp then "shield" else "not_ready")
+		end
+	elseif op == "charge_cancel" then
+		e.chargeStart = nil
+		c:SetAttribute("CR_ChargeStart", nil)
+	elseif op == "move" then
+		-- Step 1B: validated movement-state transitions (published as CR_MoveState for poses, hit volumes and the
+		-- speed monitor). A slide must start from a plausible ground speed as the server sees it.
+		local state = payload.state
+		local root = c:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if state == "run" then
+			CoreCombat.SetMoveState(e, "run")
+		elseif state == "slide" and root then
+			local v = root.AssemblyLinearVelocity
+			local hs = Vector3.new(v.X, 0, v.Z).Magnitude
+			-- the server's copy lags; allow a generous margin below the client's start speed
+			if stunned or hs < CoreConfig.Tune("Slide", "MinStartSpeed") * 0.5 then
+				logEvent({ kind = "move_reject", player = p.Name, state = state, hs = hs })
+				reject(p, op, payload.n, "slide_implausible")
+			else
+				CoreCombat.SetMoveState(e, "slide")
+				logEvent({ kind = "move", player = p.Name, state = state, hs = hs })
+			end
+		elseif state == "wallrun" and root then
+			CoreCombat.SetMoveState(e, "wallrun")
+			logEvent({ kind = "move", player = p.Name, state = state })
+		end
 	elseif op == "shield" then
 		local yaw = if typeof(payload.yaw) == "number" then payload.yaw else nil
 		local ok, why = CoreCombat.SetShield(e, payload.up == true, yaw)
@@ -254,6 +308,74 @@ Request.OnServerEvent:Connect(function(p: Player, op: any, payload: any)
 		end
 	end
 end)
+
+-- ---------- Step 1B: bounded-speed / teleport monitor (detection only in the prototype) ----------
+-- Character physics are client-owned (Roblox default), so the server cannot simply set velocity (L-0019). It watches
+-- horizontal speed against a cap per validated movement state (+ dash / Super Dash windows from CoreMove) and single-
+-- frame position jumps, and logs violations ("speed_violation", "teleport"). Enforcement (rubber-band / kick) is a
+-- later competitive-integration task.
+type Mon = { over: number, last: Vector3?, lastT: number?, root: BasePart?, flagged: number }
+local mon: { [Player]: Mon } = {}
+local function monitorMovement(dt: number)
+	for _, p in Players:GetPlayers() do
+		local c = p.Character
+		local e = c and CoreCombat.Get(c)
+		local root = c and c:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if e and root then
+			local m = mon[p]
+			if not m then
+				m = { over = 0, last = nil, flagged = 0 }
+				mon[p] = m
+			end
+			local v = root.AssemblyLinearVelocity
+			local hs = Vector3.new(v.X, 0, v.Z).Magnitude
+			local st = CoreMove.Get(p)
+			local t = now()
+			local cap
+			if t - st.lastDash < 1.4 then
+				cap = CoreConfig.Tune("Net", "SpeedCapBurst") -- dash 0.25 s, Super Dash 1.0 s + slip
+			elseif e.moveState == "slide" then
+				cap = CoreConfig.Tune("Net", "SpeedCapSlide")
+			elseif e.moveState == "wallrun" then
+				cap = CoreConfig.Tune("Net", "SpeedCapWall")
+			else
+				cap = CoreConfig.Tune("Net", "SpeedCapRun")
+			end
+			if hs > cap then
+				m.over += dt
+				if m.over >= CoreConfig.Tune("Net", "SpeedGraceSeconds") and t - m.flagged > 1 then
+					m.flagged = t
+					logEvent({ kind = "speed_violation", player = p.Name, hs = hs, cap = cap, state = e.moveState })
+				end
+			else
+				m.over = 0
+			end
+			-- teleport check over a 0.25 s window: the server receives a client-side jump smoothed over several
+			-- frames (measured: a 60-stud client teleport was never a single-frame jump > 30 studs on the server)
+			local pos = Vector3.new(root.Position.X, 0, root.Position.Z)
+			if m.last == nil or m.root ~= root then
+				m.root, m.last, m.lastT = root, pos, t
+			elseif t - (m.lastT or t) >= 0.25 then
+				local win = t - (m.lastT or t)
+				local moved = (pos - (m.last :: Vector3)).Magnitude
+				local allowed = math.max(cap, hs) * win + CoreConfig.Tune("Net", "TeleportStuds")
+				if moved > allowed then
+					logEvent({ kind = "teleport", player = p.Name, studs = moved, window = win, allowed = allowed })
+				end
+				m.last, m.lastT = pos, t
+			end
+			-- slide state safety: a slide cannot outlast its time cap on the server
+			if e.moveState == "slide" and t - e.moveStateT > CoreConfig.Tune("Slide", "MaxSeconds") + 1 then
+				CoreCombat.SetMoveState(e, "run")
+			end
+		end
+	end
+	for p in mon do
+		if not p.Parent then
+			mon[p] = nil
+		end
+	end
+end
 
 -- ---------- loop ----------
 CoreDummies.Init()
@@ -277,6 +399,7 @@ RunService.Heartbeat:Connect(function(dt)
 			end
 		end
 	end
+	monitorMovement(dt)
 	pingT += dt
 	if pingT >= 1 then
 		pingT = 0
@@ -314,4 +437,4 @@ if RunService:IsStudio() then
 end
 
 logEvent({ kind = "boot" })
-print("[CoreRound] Step 1 server running")
+print("[CoreRound] Step 1B server running")
