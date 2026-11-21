@@ -296,3 +296,4 @@ The panel stands 3 studs in front of the defender, so a disc thrown at the defen
 | Behind, aimed at the panel beside the body | Back-face block only, home 0.25 s |
 
 **Still open (owner decision):** a thrower standing in the 3-stud gap between the panel and the defender hits the body.
+- Owner decision (2026-11-21): **keep as is.** The shield does not protect the defender's back: a disc from behind still hits the body before the panel's back face stops it.
