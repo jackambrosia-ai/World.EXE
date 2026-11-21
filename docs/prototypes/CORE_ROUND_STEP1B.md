@@ -176,6 +176,23 @@ A live dummy throw at a sliding player hit BODY at -1.0. Two predicted head-heig
   - ButtonX dashed;
   - holding R2 for 1.13 s threw at full charge.
 
+### Two-client check (Server & Clients, 2 players, local RTT about 0.02 s, no added latency)
+A = Player1 (Cyan) and B = Player2 (Orange), 40 studs apart unless noted.
+
+| Test | Result |
+|---|---|
+| A tap-throws at B's body | BODY hit, meter 30; the return pass was not counted again (`once_per_throw`) |
+| B's threat arrow during that throw | B saw 1 incoming disc |
+| A holds a full charge | B saw A charging (`CR_ChargeStart` replicated); the server measured 1.0 charge: speed 200, range 115, HEAD hit, meter 50 |
+| Two tap head throws, 1.4 s apart | B was stunned: the stun rule is unchanged |
+| Two full-charge head throws, about 2.9 s apart | No stun (meter 50 → 83) |
+| A full-charge throw into B's raised shield | Blocked (shield energy 59 left) |
+| B slides with real keys | The server validated the slide; on A's screen B's head is 0.52 above the root, matching the server's slide head at 0.5 |
+| A leading throw at the sliding B's body | BODY hit |
+| A leading throw at the sliding B's head | 1 of 2 hits (HEAD, with a 1.6-stud aim error on A's screen); the miss was aim error |
+
+**Why the full charges did not stun:** the meter starts draining 2.5 s after a hit (`DecayDelay`). One player's full-charge cycle (1 s charge, 1.2 s flight, 0.6 s re-throw wait) lands the second head hit after that. So charged throws are for reach, and tap throws (or a teammate) are needed to stun. This is an owner decision: keep it, or raise `DecayDelay` to 3.0–3.2.
+
 ## Captures (local, never committed)
 - **Step 1B** (`C:\WORLD.EXE-Art\CoreRound\evidence\captures_1b\`): `slide_slope2` (slide pose and sparks), `wallrun` (v2 run and chain), `charge` (held disc and ring). The player list is redacted.
 - **Step 1 "before"** frames: `C:\WORLD.EXE-Art\CoreRound\evidence\captures\`.
@@ -192,7 +209,8 @@ A live dummy throw at a sliding player hit BODY at -1.0. Two predicted head-heig
 - **Charged disc:** keep 0.9 s, 200 speed and 115 range.
 
 ## Remaining issues and limits
-- **Two-client PvP for Step 1B:** pending. The owner starts "Server & Clients". Step 1's two-client results still stand for the unchanged systems.
+- **Two-client PvP for Step 1B:** done at local latency only. The Step 1 latency findings (rewind essential; headshots on moving targets unreliable) still apply. Head hits on a sliding player at about 37 st/s land about half the time in the test.
+- **Charged-disc rhythm and stuns:** one player's full-charge throws are too slow to stun before the meter drains. This is an owner decision.
 - **Controller:** tested by injecting button codes, not a physical pad. Stick aim and the gamepad camera are untested.
 - **Mobile:** the touch buttons exist (SLIDE, DASH, DISC, SHIELD) but have not been tested on a device or emulator. Hold-to-charge on touch uses the DISC button's hold.
 - **The speed and teleport monitors only log.** Enforcement comes later. Server-set teleports (respawn pads, tests) would also be logged.
