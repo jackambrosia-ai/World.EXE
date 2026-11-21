@@ -351,7 +351,9 @@ function Movement.Start(deps: { send: (string, { [string]: any }) -> (), stunned
 				if not moving then
 					boost = base
 				else
-					boost -= (tune("SlipSpeed") - base) / math.max(0.05, tune("SlipSeconds")) * dt
+					-- Step 1D: a fixed ground decay (was (SlipSpeed - RunSpeed) / SlipSeconds = 8 at run 30; with a faster
+					-- provisional run that formula would almost stop the decay and leave carried speed lingering)
+					boost -= tune("GroundCarryDecay") * dt
 				end
 			else
 				boost -= tune("AirCarryDecay") * dt

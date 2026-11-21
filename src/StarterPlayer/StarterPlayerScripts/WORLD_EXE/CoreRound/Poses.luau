@@ -55,6 +55,29 @@ local SLIDE_R15 = {
 	RightShoulder = CFrame.Angles(R(55), 0, R(10)), -- disc arm forward
 	LeftShoulder = CFrame.Angles(R(-25), 0, R(-40)), -- balance arm back / out
 }
+-- Step 1D: Power Slide Jump. PUSH = the push-off (legs driving down / back, free arm swinging up), TUCK = airborne
+-- (knees pulled up, disc arm forward, free arm out for balance). The layer blends PUSH -> TUCK in the first ~0.2 s,
+-- holds while rising, and fades back to the default animations once the character starts to fall.
+local PJ_PUSH = {
+	Root = CFrame.Angles(R(-12), 0, 0), -- lean into the push
+	RightHip = CFrame.Angles(R(-22), 0, 0),
+	LeftHip = CFrame.Angles(R(-8), 0, 0),
+	RightKnee = CFrame.Angles(R(-4), 0, 0),
+	LeftKnee = CFrame.Angles(R(-12), 0, 0),
+	RightShoulder = CFrame.Angles(R(60), 0, 0), -- disc arm forward
+	LeftShoulder = CFrame.Angles(R(150), 0, R(10)), -- free arm swings up
+}
+local PJ_TUCK = {
+	Root = CFrame.Angles(R(6), 0, 0),
+	Waist = CFrame.Angles(R(10), 0, 0), -- slight curl
+	RightHip = CFrame.Angles(R(72), 0, 0), -- knees up
+	LeftHip = CFrame.Angles(R(48), 0, 0),
+	RightKnee = CFrame.Angles(R(-95), 0, 0),
+	LeftKnee = CFrame.Angles(R(-70), 0, 0),
+	RightShoulder = CFrame.Angles(R(65), 0, 0), -- disc arm forward
+	LeftShoulder = CFrame.Angles(R(45), 0, R(28)), -- free arm out for balance
+}
+local PJ_JOINTS = { "Root", "Waist", "RightHip", "LeftHip", "RightKnee", "LeftKnee", "RightShoulder", "LeftShoulder" }
 local SLIDE_R6 = {
 	RootJoint = CFrame.new(0, 0, -1.2) * CFrame.Angles(R(-38), 0, 0), -- R6 RootJoint axes differ (Z is down)
 }
@@ -73,6 +96,9 @@ type State = {
 	wallOn: boolean,
 	-- reach layer
 	reachT: number,
+	-- Step 1D: Power Slide Jump layer (launch time, fade start)
+	pjT: number,
+	pjFade: number?,
 	lastState: string,
 	seenState: string,
 	seenAt: number,
@@ -103,6 +129,8 @@ local function stateFor(c: Model): State
 		wallSide = 1,
 		wallOn = false,
 		reachT = -10,
+		pjT = -10,
+		pjFade = nil,
 		lastState = "run",
 		seenState = "run",
 		seenAt = 0,
@@ -199,8 +227,13 @@ function Poses.Start(d: typeof(deps))
 					end
 					local applied = if now - ss.seenAt >= delay then ss.seenState else ss.lastState
 					if applied ~= ss.lastState then
-						-- a jump out of a wall-run or a slide (airborne and rising) gets the reach
-						if (ss.lastState == "wallrun" or ss.lastState == "slide") and applied == "run" and hrp.AssemblyLinearVelocity.Y > 8 then
+						-- a jump out of a wall-run or a slide (airborne and rising) gets the reach; a slide that ends while
+						-- rising fast is a Power Slide Jump (Step 1D) and gets the push-off / tuck instead
+						local vyNow = hrp.AssemblyLinearVelocity.Y
+						if ss.lastState == "slide" and applied == "run" and vyNow > CoreConfig.Tune("Slide", "PowerJumpUp") * 0.6 then
+							ss.pjT = now
+							ss.pjFade = nil
+						elseif (ss.lastState == "wallrun" or ss.lastState == "slide") and applied == "run" and vyNow > 8 then
 							ss.reachT = now
 						end
 						ss.lastState = applied
@@ -243,14 +276,35 @@ function Poses.Start(d: typeof(deps))
 				elseif ww > 0.001 and ss.r6 then
 					lerpJoint(ss, "RootJoint", CFrame.Angles(0, R(CoreConfig.Tune("WallRun2", "TiltDegrees")) * -ss.wallSide, 0), ww)
 				end
+				-- Step 1D: Power Slide Jump layer
+				local pa = now - ss.pjT
+				local pjActive = false
+				if pa >= 0 and pa < 1.6 and not ss.r6 then
+					local vy = hrp.AssemblyLinearVelocity.Y
+					if not ss.pjFade and ((pa > 0.25 and vy < -20) or pa > 1.2) then
+						ss.pjFade = now -- starting to fall: hand back to the default fall / landing animations
+					end
+					local wIn = CoreGeom.Ease(pa / 0.08)
+					local wOut = if ss.pjFade then 1 - CoreGeom.Ease((now - ss.pjFade) / 0.3) else 1
+					local pw = wIn * wOut
+					if pw > 0.001 then
+						pjActive = true
+						local mix = CoreGeom.Ease((pa - 0.04) / 0.16) -- push-off -> tuck
+						for _, name in PJ_JOINTS do
+							local a = (PJ_PUSH :: any)[name] or CFrame.identity
+							local b = (PJ_TUCK :: any)[name] or CFrame.identity
+							lerpJoint(ss, name, a:Lerp(b, mix), pw)
+						end
+					end
+				end
 				local ra = now - ss.reachT
-				if ra >= 0 and ra < 0.5 and not ss.r6 then
+				if ra >= 0 and ra < 0.5 and not ss.r6 and not pjActive then
 					local rw = if ra < 0.1 then CoreGeom.Ease(ra / 0.1) else CoreGeom.Ease(1 - (ra - 0.1) / 0.4)
 					lerpJoint(ss, "LeftShoulder", CFrame.Angles(R(150), 0, R(-12)), rw)
 					lerpJoint(ss, "LeftElbow", CFrame.Angles(R(10), 0, 0), rw)
 				end
 				-- forget idle characters (no layer active)
-				if sw <= 0.001 and ss.wallW <= 0 and ra >= 0.5 and stateNow == "run" and ss.lastState == "run" and not ss.slideOn then
+				if sw <= 0.001 and ss.wallW <= 0 and ra >= 0.5 and pa >= 1.6 and stateNow == "run" and ss.lastState == "run" and not ss.slideOn then
 					states[c] = nil
 				end
 			end
@@ -265,6 +319,16 @@ function Poses.Reach()
 	local c = player.Character
 	if c then
 		stateFor(c).reachT = os.clock()
+	end
+end
+
+-- Step 1D: this client's own Power Slide Jump (immediate; others see it from the replicated state + rising speed)
+function Poses.PowerJump()
+	local c = player.Character
+	if c then
+		local st = stateFor(c)
+		st.pjT = os.clock()
+		st.pjFade = nil
 	end
 end
 

@@ -28,6 +28,7 @@ export type Entity = {
 	slideStartT: number?, -- Step 1C: server times the current / last slide started and ended (blended hit volumes)
 	slideEndT: number?,
 	slideHead: number?, -- Step 1C: this rig's drawn slide-head height above the root (CoreGeom.PosedHeadOffset)
+	wallEndT: number?, -- Step 1D: server time the last wall-run ended (carried-speed window in the speed monitor)
 	chargeStart: number?, -- Step 1B: server time the throw button was pressed (charge timing is server-side)
 	histN: number,
 	meter: number,
@@ -356,6 +357,9 @@ function CoreCombat.SetMoveState(e: Entity, state: string)
 		e.slideEndT = nil
 	elseif state ~= "slide" and e.moveState == "slide" then
 		e.slideEndT = t
+	end
+	if e.moveState == "wallrun" and state ~= "wallrun" then
+		e.wallEndT = t
 	end
 	e.moveState = state
 	e.moveStateT = now()

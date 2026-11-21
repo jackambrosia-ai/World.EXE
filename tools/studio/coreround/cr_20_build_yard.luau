@@ -17,6 +17,7 @@
 --   Wall-run walls (NW) two parallel walls (24 tall, 80 long, 20 apart)
 assert(string.find(game.Name, "CoreRound", 1, true), "core round test place only")
 -- Step 1B: also builds the slide slopes and the wall-run v2 course (folder Step1B)
+-- Step 1D: Power Slide Jump ledges 8 / 12 / 16 / 20 studs high at x 160..208, z -20 (folder Step1D)
 
 local Teams = game:GetService("Teams")
 local Lighting = game:GetService("Lighting")
@@ -295,6 +296,19 @@ end
 sign(B, Vector3.new(WX, 20, -40), "WALL-RUN v2 (jump along a wall)")
 sign(B, Vector3.new(WX + 30, 9, -70), "waist-high rail")
 
+-- ---------- Step 1D: Power Slide Jump ledges (east; area checked clear: x 156..220) ----------
+-- four ledges 8 / 12 / 16 / 20 studs high, 12 wide, each with a 70-stud run-up lane marked every 10 studs
+local PJ = folder("Step1D")
+for i, h in { 8, 12, 16, 20 } do
+	local x = 160 + (i - 1) * 16
+	part(PJ, "Ledge" .. h, Vector3.new(12, h, 14), CFrame.new(x, h / 2, -20), C.roof)
+	sign(PJ, Vector3.new(x, h + 4, -20), h .. " studs")
+	for k = 10, 70, 10 do
+		part(PJ, "Lane" .. h .. "_" .. k, Vector3.new(12, 0.05, 0.25), CFrame.new(x, 0.03, -13 + k), C.mark, Enum.Material.Neon, { CanCollide = false, CanQuery = false })
+	end
+end
+sign(PJ, Vector3.new(184, 26, 30), "POWER SLIDE JUMP (slide, then jump)")
+
 ROOT.Parent = workspace
 
 -- ---------- teams, gate, lighting ----------
@@ -313,6 +327,8 @@ to.AutoAssignable = false
 to.Parent = Teams
 
 workspace:SetAttribute("WORLD_EXE_CoreRound", true)
+-- Step 1D: Left Shift slides, so Roblox's shift-lock option is off in the Core Round test place (own aim lock)
+game:GetService("StarterPlayer").EnableMouseLockOption = false
 Lighting.ClockTime = 14
 Lighting.Brightness = 2
 Lighting.OutdoorAmbient = Color3.fromRGB(110, 115, 125)

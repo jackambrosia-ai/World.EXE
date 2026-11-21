@@ -171,6 +171,9 @@ local function vec(v: any): Vector3?
 	return nil
 end
 
+-- Step 1D: slide starts waiting for a delayed plausibility re-check (see the "move" op)
+local pendingSlide: { [Player]: {} } = setmetatable({}, { __mode = "k" }) :: any
+
 Request.OnServerEvent:Connect(function(p: Player, op: any, payload: any)
 	if typeof(op) ~= "string" or typeof(payload) ~= "table" then
 		return
@@ -279,17 +282,43 @@ Request.OnServerEvent:Connect(function(p: Player, op: any, payload: any)
 		local state = payload.state
 		local root = c:FindFirstChild("HumanoidRootPart") :: BasePart?
 		if state == "run" then
+			pendingSlide[p] = nil
 			CoreCombat.SetMoveState(e, "run")
 		elseif state == "slide" and root then
-			local v = root.AssemblyLinearVelocity
-			local hs = Vector3.new(v.X, 0, v.Z).Magnitude
+			local function hsNow(): number
+				local v = root.AssemblyLinearVelocity
+				return Vector3.new(v.X, 0, v.Z).Magnitude
+			end
+			local need = CoreConfig.Tune("Slide", "MinStartSpeed") * 0.5
+			local hs = hsNow()
 			-- the server's copy lags; allow a generous margin below the client's start speed
-			if stunned or hs < CoreConfig.Tune("Slide", "MinStartSpeed") * 0.5 then
+			if stunned then
 				logEvent({ kind = "move_reject", player = p.Name, state = state, hs = hs })
 				reject(p, op, payload.n, "slide_implausible")
-			else
+			elseif hs >= need then
 				CoreCombat.SetMoveState(e, "slide")
 				logEvent({ kind = "move", player = p.Name, state = state, hs = hs })
+			else
+				-- Step 1D: measured - right after a spawn / teleport the server's copy can still read 0 speed when a
+				-- quick slide arrives. Re-check once after 0.2 s instead of rejecting at once (the slide only becomes
+				-- server-valid, with lowered hit volumes, if the speed is then plausible).
+				local token = {}
+				pendingSlide[p] = token
+				local n = payload.n
+				task.delay(0.2, function()
+					if pendingSlide[p] ~= token then
+						return -- the slide already ended (run) or a newer request replaced it
+					end
+					pendingSlide[p] = nil
+					local hs2 = if root.Parent then hsNow() else 0
+					if hs2 >= need and not CoreCombat.IsStunned(c) then
+						CoreCombat.SetMoveState(e, "slide")
+						logEvent({ kind = "move", player = p.Name, state = state, hs = hs2, delayed = true })
+					else
+						logEvent({ kind = "move_reject", player = p.Name, state = state, hs = hs2 })
+						reject(p, op, n, "slide_implausible")
+					end
+				end)
 			end
 		elseif state == "wallrun" and root then
 			CoreCombat.SetMoveState(e, "wallrun")
@@ -314,7 +343,7 @@ end)
 -- horizontal speed against a cap per validated movement state (+ dash / Super Dash windows from CoreMove) and single-
 -- frame position jumps, and logs violations ("speed_violation", "teleport"). Enforcement (rubber-band / kick) is a
 -- later competitive-integration task.
-type Mon = { over: number, last: Vector3?, lastT: number?, root: BasePart?, flagged: number }
+type Mon = { over: number, last: Vector3?, lastT: number?, root: BasePart?, flagged: number, vflagged: number? }
 local mon: { [Player]: Mon } = {}
 local function monitorMovement(dt: number)
 	for _, p in Players:GetPlayers() do
@@ -340,6 +369,25 @@ local function monitorMovement(dt: number)
 				cap = CoreConfig.Tune("Net", "SpeedCapWall")
 			else
 				cap = CoreConfig.Tune("Net", "SpeedCapRun")
+				-- Step 1D: speed carried out of a slide / wall-run (Power Slide Jump, wall jump) keeps that state's cap
+				-- for Net.CarrySeconds; after that the run cap applies again
+				local carry = CoreConfig.Tune("Net", "CarrySeconds")
+				if e.slideEndT and t - e.slideEndT < carry then
+					cap = math.max(cap, CoreConfig.Tune("Net", "SpeedCapSlide"))
+				end
+				if e.wallEndT and t - e.wallEndT < carry then
+					cap = math.max(cap, CoreConfig.Tune("Net", "SpeedCapWall"))
+				end
+			end
+			-- Step 1D: upward speed check. Only a Power Slide Jump (within PowerJumpWindow after a server-validated slide
+			-- ended) may launch faster than a normal jump; anything else above VerticalCapNormal is logged
+			local vcap = CoreConfig.Tune("Net", "VerticalCapNormal")
+			if e.slideEndT and t - e.slideEndT < CoreConfig.Tune("Net", "PowerJumpWindow") then
+				vcap = CoreConfig.Tune("Net", "VerticalCapPower")
+			end
+			if v.Y > vcap and t - (m.vflagged or 0) > 1 then
+				m.vflagged = t
+				logEvent({ kind = "vertical_violation", player = p.Name, vy = v.Y, cap = vcap, state = e.moveState })
 			end
 			if hs > cap then
 				m.over += dt
@@ -437,4 +485,4 @@ if RunService:IsStudio() then
 end
 
 logEvent({ kind = "boot" })
-print("[CoreRound] Step 1C server running")
+print("[CoreRound] Step 1D server running")

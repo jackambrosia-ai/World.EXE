@@ -122,6 +122,8 @@ local SOUNDS = {
 	wall_catch = { "rbxasset://sounds/action_jump_land.mp3", 1.4, 0.45 },
 	wall_jump = { "rbxasset://sounds/action_jump.mp3", 1.1, 0.45 },
 	land_hard = { "rbxasset://sounds/action_jump_land.mp3", 0.9, 0.55 },
+	-- Step 1D: Power Slide Jump launch (deeper, louder jump)
+	power_jump = { "rbxasset://sounds/action_jump.mp3", 0.72, 0.75 },
 }
 
 -- pitch: optional multiplier on the sound's base playback speed (charge ticks rise in pitch)

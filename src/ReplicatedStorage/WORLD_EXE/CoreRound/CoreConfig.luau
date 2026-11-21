@@ -18,7 +18,8 @@ end
 
 CoreConfig.Tuning = {
 	Move = {
-		RunSpeed = 30, -- baseline Humanoid.WalkSpeed (studs/s)
+		RunSpeed = 36, -- baseline Humanoid.WalkSpeed (studs/s). Step 1D: PROVISIONAL 36 (owner: running felt slow;
+		-- 34 / 36 / 38 compared via CoreTune_Move_RunSpeed; was 30). Not an approved default.
 		Charges = 2, -- Super Dash charges
 		ChargeRegenSeconds = 2.5, -- each charge, one after the other, ground or air
 		DashDistance = 26, -- normal dash distance ...
@@ -32,6 +33,7 @@ CoreConfig.Tuning = {
 		SoftCap = 45, -- all speed sources share this soft cap (Super Dash exempt while it lasts) ...
 		SoftCapDecay = 30, -- ... speed above it decays at this rate (studs/s per s)
 		AirCarryDecay = 6, -- boosted speed kept through a jump decays this fast in the air (studs/s per s)
+		GroundCarryDecay = 8, -- Step 1D: ... and this fast on the ground while you keep moving (same as Step 1C at run 30)
 		WallJumpBoost = 4, -- jumping off a wall-run adds this to the carried speed
 		FovBase = 70,
 		FovDash = 6, -- extra FOV degrees during a dash
@@ -49,10 +51,12 @@ CoreConfig.Tuning = {
 	-- mostly ground movement with reduced steering, downhill speeds it up, jumping out keeps the speed)
 	Slide = {
 		MinStartSpeed = 16, -- horizontal speed needed to start (from a run)
-		EntryBoost = 8, -- added on entry (Titanfall 2 reference: a clear initial boost that dials back) ... Step 1C (A5)
-		-- compared 8 / 10 / 12 via CoreTune_Slide_EntryBoost; 8 stays the default until the owner reviews the comparison
+		-- added on entry ... Step 1D (owner: the slide must be a real burst, Sojourn reference): PROVISIONAL 16 (compared
+		-- 12 / 16 / 20 via CoreTune_Slide_EntryBoost; was 8 in Step 1C). Not an approved default.
+		EntryBoost = 16,
 		BoostCooldown = 0.9, -- ... only if the last boosted slide started this long ago (rewards paced chaining, no spam)
-		MaxEntrySpeed = 46, -- a boosted entry never exceeds this (chaining cannot run away)
+		MaxEntrySpeed = 58, -- a boosted entry never exceeds this (chaining cannot run away). Step 1D: 46 -> 58 so a
+		-- +20 boost on a 38 run is not silently discarded (= Slide.MaxSpeed)
 		Friction = 13, -- studs/s per s on flat ground
 		SlopeAccel = 75, -- downhill: + SlopeAccel * sin(slope angle); uphill: - (and friction)
 		MaxSpeed = 58, -- hard cap while sliding
@@ -60,7 +64,17 @@ CoreConfig.Tuning = {
 		SteerRate = 1.7, -- rad/s toward the move input (limited steering)
 		MaxSeconds = 3.5,
 		ReentryDelay = 0.25, -- seconds between slides
-		JumpBoost = 2, -- slide-jump keeps the slide speed plus this (carried by the air momentum)
+		JumpBoost = 2, -- Step 1C slide-jump (PowerJump = 0): keeps the slide speed plus this
+		-- Step 1D: Power Slide Jump (jump while sliding cancels into a high jump; speed is traded for height)
+		PowerJump = 1, -- 1 = Power Slide Jump, 0 = the Step 1C slide-jump (comparison)
+		PowerJumpUp = 76, -- launch upward speed at PowerJumpFrom slide speed (normal jump: 50.5 -> 6.4 studs). Tuned in
+		-- Step 1D from measured ledge tests: 68 could not reach a 16-stud ledge from a normal slide, 76 can ...
+		PowerJumpFrom = 36, -- ... slide speed where the conversion starts (the run speed) ...
+		PowerJumpConvert = 0.6, -- ... + this much upward speed per stud/s of slide speed above it ...
+		PowerJumpMaxUp = 90, -- ... capped (rise ~20.6 studs: a 20-stud ledge needs a fast slide, e.g. downhill)
+		PowerJumpKeep = 0.68, -- forward speed after the launch = slide speed * this (the rest became height) ...
+		PowerJumpMinForward = 22, -- ... but never less than this
+		PowerJumpHoldSeconds = 0.1, -- re-assert the launch this long (the Humanoid's own jump may land after it)
 		CoyoteSeconds = 0.12, -- leaving a ledge keeps the slide state this long (no instant cancel on bumps)
 		HeadHeight = 0.5, -- FALLBACK slide head centre above the root, for rigs that are not a standard R15 chain. Step 1C:
 		-- the server and clients compute it per character from the rig (CoreGeom.PosedHeadOffset; default test avatar 0.19) ...
@@ -95,11 +109,12 @@ CoreConfig.Tuning = {
 	WallRun2 = {
 		Mode = 2,
 		MinEntrySpeed = 16, -- speed ALONG the wall needed to attach (automatic while airborne; no button)
-		EntryBoost = 3, -- small reward for catching a wall
+		EntryBoost = 5, -- reward for catching a wall. Step 1D: PROVISIONAL 5 (compared 3 / 5 / 8; was 3)
 		MinSpeed = 26,
 		TargetSpeed = 38, -- eases toward this when slower ...
 		Accel = 10,
-		MaxSpeed = 50, -- ... and never above this (approach momentum kept up to it)
+		MaxSpeed = 60, -- ... and never above this (approach momentum kept up to it). Step 1D: 50 -> 60 so a fast slide or
+		-- Power Slide Jump arrival is not cut to a low cruise; still a hard cap, so wall chaining cannot accelerate forever
 		RiseKeep = 12, -- at most this much of YOUR jump's upward speed is kept on entry (no added climb)
 		Gravity = 18, -- gentle pull down while on the wall (studs/s per s; tuned in Step 1B: 32 ended ground-level runs in 0.8 s) ...
 		MaxSink = 12, -- ... capped
@@ -200,7 +215,11 @@ CoreConfig.Tuning = {
 		-- state, sustained for SpeedGraceSeconds, is logged as a violation (detection only in the prototype; see doc).
 		SpeedCapRun = 52, -- run / air carry (soft cap 45 + margin)
 		SpeedCapSlide = 64, -- slide (max 58 + margin)
-		SpeedCapWall = 58, -- wall-run (max 50 + jump boost + margin)
+		SpeedCapWall = 74, -- wall-run (Step 1D: max 60; a wall-jump exit is (60 + 4) along + 28 out = 70 horizontal)
+		CarrySeconds = 1.0, -- Step 1D: after a slide / wall-run ends, its cap still applies this long (carried speed)
+		VerticalCapNormal = 58, -- Step 1D: upward speed above this is logged ... (normal jump 50.5, wall jump 40)
+		VerticalCapPower = 96, -- ... except within PowerJumpWindow after a server-validated slide ended (max launch 90)
+		PowerJumpWindow = 0.5,
 		SpeedCapBurst = 125, -- dash / Super Dash windows (dash 104)
 		SpeedGraceSeconds = 0.35,
 		TeleportStuds = 30, -- a single-frame position jump larger than this (not explained by speed) is logged

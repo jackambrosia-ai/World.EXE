@@ -92,8 +92,11 @@ Slide.Start({
 	end,
 	onEnd = function(how)
 		if how == "jump" then
-			Poses.Reach() -- Step 1C: arm reach on a slide jump
+			Poses.Reach() -- Step 1C: arm reach on a slide jump (suppressed while the Power Slide Jump pose plays)
 		end
+	end,
+	onPowerJump = function(_up, _fwd)
+		Poses.PowerJump() -- Step 1D: push-off -> tuck pose
 	end,
 	teamColor = teamColor,
 })
@@ -335,4 +338,4 @@ if RunService:IsStudio() then
 	bf.Parent = player:WaitForChild("PlayerScripts")
 end
 
-print("[CoreRound] Step 1C client running")
+print("[CoreRound] Step 1D client running")

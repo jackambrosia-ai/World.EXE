@@ -4,12 +4,13 @@
 -- Warframe (slide -> jump keeps the burst), Titanfall 2 (a slide is mostly ground movement with reduced steering and
 -- a small starting boost; jumping out keeps the speed).
 --
---   start   hold Slide (Ctrl / C, gamepad B, touch SLIDE toggles) while grounded and moving >= MinStartSpeed
+--   start   hold Slide (Left Shift / C, gamepad B, touch SLIDE toggles) while grounded and moving >= MinStartSpeed
 --   entry   speed = max(current, RunSpeed) + EntryBoost (boost only once per BoostCooldown: no slide-spam acceleration),
 --           capped by MaxEntrySpeed (a faster arrival, e.g. out of a Super Dash, is kept up to MaxSpeed)
 --   on it   friction on flat ground, + SlopeAccel * sin(slope) downhill (- uphill), hard cap MaxSpeed, steering limited
 --           to SteerRate; the Disc can be thrown; a short coyote time over bumps / ledges
---   ends    release, jump (keeps the speed + JumpBoost into the air), too slow (-> run, speed carried), time cap,
+--   ends    release, jump (Step 1D: Power Slide Jump - see below; PowerJump = 0 restores the 1C jump: speed +
+--           JumpBoost), too slow (-> run, speed carried), time cap,
 --           a dash (hands over), shield raised, stun, airborne longer than CoyoteSeconds (speed carried into the air)
 -- Physics on this (owning) client; the server validates the start and publishes CR_MoveState for every client
 -- (pose rendering, hit volumes, speed monitor).
@@ -50,6 +51,7 @@ local deps = {
 	setBoost = function(_v: number) end,
 	onStart = function() end,
 	onEnd = function(_how: string) end,
+	onPowerJump = function(_up: number, _fwd: number) end,
 	teamColor = function(): Color3
 		return CoreConfig.NeutralColor
 	end,
@@ -82,6 +84,14 @@ end
 
 local scrape: Sound? = nil
 
+-- Step 1D: Power Slide Jump (owner reference: Sojourn's Power Slide - a ground slide that cancels into a high jump;
+-- original WORLD.EXE values). Jump while sliding: the slide ends at once and the character launches upward with
+--   up      = PowerJumpUp + PowerJumpConvert * (slide speed - PowerJumpFrom), capped at PowerJumpMaxUp
+--   forward = slide speed * PowerJumpKeep (at least PowerJumpMinForward) along the slide direction
+-- i.e. part of the slide's speed is traded for height; faster slides jump higher, within the cap. No separate button,
+-- no hold timing. The launch is re-asserted for PowerJumpHoldSeconds in case the Humanoid's own jump fires after it.
+local launch: { vy: number, t0: number, untilT: number }? = nil
+
 local function finish(how: string, carry: boolean)
 	local cur = s
 	if not cur then
@@ -95,15 +105,36 @@ local function finish(how: string, carry: boolean)
 	if scrape then
 		scrape:Stop()
 	end
-	local _, hrp = parts()
+	local hum, hrp = parts()
+	local power: { [string]: number }? = nil
 	if hrp and carry then
 		local v = hrp.AssemblyLinearVelocity
-		local sp = cur.speed + (if how == "jump" then tune("JumpBoost") else 0)
-		hrp.AssemblyLinearVelocity = Vector3.new(cur.dir.X * sp, v.Y, cur.dir.Z * sp)
-		deps.setBoost(sp)
+		if how == "jump" and tune("PowerJump") >= 0.5 then
+			local sp = cur.speed
+			local up = math.min(tune("PowerJumpMaxUp"), tune("PowerJumpUp") + tune("PowerJumpConvert") * math.max(0, sp - tune("PowerJumpFrom")))
+			local fwd = math.max(tune("PowerJumpMinForward"), sp * tune("PowerJumpKeep"))
+			hrp.AssemblyLinearVelocity = Vector3.new(cur.dir.X * fwd, up, cur.dir.Z * fwd)
+			if hum then
+				hum:ChangeState(Enum.HumanoidStateType.Freefall)
+			end
+			launch = { vy = up, t0 = os.clock(), untilT = os.clock() + tune("PowerJumpHoldSeconds") }
+			deps.setBoost(fwd)
+			power = { up = up, fwd = fwd, speed = sp }
+			Fx.Sound("power_jump")
+			if not Fx.Reduced then
+				Fx.Burst(hrp.Position - Vector3.new(0, 2.6, 0), deps.teamColor(), 1.0)
+			end
+		else
+			local sp = cur.speed + (if how == "jump" then tune("JumpBoost") else 0)
+			hrp.AssemblyLinearVelocity = Vector3.new(cur.dir.X * sp, v.Y, cur.dir.Z * sp)
+			deps.setBoost(sp)
+		end
 	end
 	local dist = if hrp then (Vector3.new(hrp.Position.X, 0, hrp.Position.Z) - Vector3.new(cur.startPos.X, 0, cur.startPos.Z)).Magnitude else 0
-	note({ kind = "slide_end", how = how, secs = os.clock() - cur.t0, dist = dist, endSpeed = cur.speed, peak = cur.peak, maxSlope = cur.maxSlope })
+	note({ kind = "slide_end", how = how, secs = os.clock() - cur.t0, dist = dist, endSpeed = cur.speed, peak = cur.peak, maxSlope = cur.maxSlope, up = power and power.up, fwd = power and power.fwd })
+	if power then
+		deps.onPowerJump(power.up, power.fwd)
+	end
 	-- slide-hop: still holding slide when you jump / leave a ledge -> slide again on landing (bounded by the boost
 	-- cooldown and MaxEntrySpeed, plus the soft cap)
 	if (how == "jump" or how == "air") and held then
@@ -246,6 +277,22 @@ function Slide.Start(d: typeof(deps))
 		scrape = nil
 	end)
 	RunService.Heartbeat:Connect(function(dt)
+		-- Step 1D: keep the Power Slide Jump launch if the Humanoid's own jump overwrote it this frame
+		-- (only restores the launch minus the gravity since then; measured in Step 1D: re-asserting the full launch speed
+		-- every frame for 0.1 s cancelled gravity and added ~7 studs of height)
+		local l = launch
+		if l then
+			local _, lhrp = parts()
+			if not lhrp or os.clock() > l.untilT then
+				launch = nil
+			else
+				local expected = l.vy - workspace.Gravity * (os.clock() - l.t0)
+				local v = lhrp.AssemblyLinearVelocity
+				if v.Y > 0 and v.Y < expected - 6 then
+					lhrp.AssemblyLinearVelocity = Vector3.new(v.X, expected, v.Z)
+				end
+			end
+		end
 		local cur = s
 		if not cur then
 			-- landing buffer: still holding slide from the air -> slide on touchdown (once)

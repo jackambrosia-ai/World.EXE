@@ -2,7 +2,8 @@
 -- Input (Core Round Step 1 / 1B, client): one place for the combat bindings. Roblox's own movement and jump
 -- controls are untouched (WASD / left stick / touch thumbstick, Space / A / touch jump).
 --   action   keyboard + mouse             gamepad          touch
---   Slide    hold Left Ctrl or C (1B)     hold B (1B)      SLIDE button (tap toggles)
+--   Slide    hold Left Shift or C (1D)    hold B (1B)      SLIDE button (tap toggles)
+--   Jump     (Roblox jump) while sliding = Power Slide Jump (1D)
 --   Dash     Q (twice = Super)            X (twice)        DASH button (double-tap)
 --   Disc     left mouse: tap / hold       R2: tap / hold   DISC button: tap / hold (1B: hold charges, release throws)
 --   Shield   hold right mouse             hold L2          SHIELD button (tap toggles; setting: hold)
@@ -73,7 +74,10 @@ function Input.Start(h: Handlers)
 			h.slide(false)
 		end
 		return Enum.ContextActionResult.Sink
-	end, true, PRIORITY, Enum.KeyCode.LeftControl, Enum.KeyCode.C, Enum.KeyCode.ButtonB)
+	-- Step 1D: Left Shift replaces Left Ctrl (owner-reported bug: in Studio test windows Ctrl + A / Ctrl + D while
+	-- sliding are Studio's Select All / Duplicate, which duplicated every character and the yard in that window; Left
+	-- Shift is also the reference's slide key). Roblox's shift-lock toggle is disabled for Core Round (own aim lock).
+	end, true, PRIORITY, Enum.KeyCode.LeftShift, Enum.KeyCode.C, Enum.KeyCode.ButtonB)
 
 	-- touch layout (positions are inside Roblox's ContextActionGui; the jump button sits bottom-right)
 	ContextActionService:SetTitle("CR_Dash", "DASH")
