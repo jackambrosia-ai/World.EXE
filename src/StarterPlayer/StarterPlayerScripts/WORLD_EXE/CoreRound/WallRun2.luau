@@ -126,7 +126,26 @@ local function finish(how: string)
 	local v = r.t * r.speed + Vector3.yAxis * r.vy
 	if how == "jump" then
 		local sp = r.speed + tune("JumpBoost")
-		v = r.t * sp + r.n * tune("JumpOut") + Vector3.yAxis * tune("JumpUp")
+		-- Step 1D (owner: the outward push must be controllable): the camera aims the wall jump (third person, aim
+		-- lock: where you look is where you go). Measured first with the movement keys deciding it instead: holding W
+		-- (the usual way to wall-run) then barely left the wall, so the keys only steer during the flight (below).
+		--   * how hard you push off: looking along the wall = JumpOutNeutral, looking away = up to JumpOut,
+		--     looking toward the wall = down to JumpOutMin (you always leave the wall)
+		--   * where it goes: the launch turns JumpAim of the way toward the look direction (never back into the wall)
+		local look = CoreGeom.Flat(workspace.CurrentCamera.CFrame.LookVector) or r.t
+		local a = look:Dot(r.n) -- +1 looking straight away from the wall, -1 straight into it
+		local push = if a >= 0
+			then tune("JumpOutNeutral") + (tune("JumpOut") - tune("JumpOutNeutral")) * math.clamp(a, 0, 1)
+			else tune("JumpOutNeutral") + (tune("JumpOutNeutral") - tune("JumpOutMin")) * math.clamp(a, -1, 0)
+		local h = r.t * sp + r.n * push
+		local mag = h.Magnitude
+		local dir = CoreGeom.Flat(h.Unit:Lerp(look, math.clamp(tune("JumpAim"), 0, 1))) or h.Unit
+		local leave = dir:Dot(r.n)
+		if leave < 0.25 then
+			dir = CoreGeom.Flat(dir + r.n * (0.25 - leave)) or dir -- always leave the wall
+		end
+		h = dir * mag
+		v = h + Vector3.yAxis * tune("JumpUp")
 	end
 	r.lv:Destroy()
 	r.ao:Destroy()
@@ -334,6 +353,25 @@ function WallRun2.Start(d: typeof(deps))
 					carry = nil
 					cr.lv:Destroy()
 					cr.att:Destroy()
+				end
+			else
+				-- Step 1D: steer the push-off mid-air. The carried horizontal velocity turns toward the held direction at
+				-- JumpSteerRate (speed is kept), so the player can curve the wall jump instead of being locked into it.
+				-- only sideways input steers (A / D or a diagonal): plain W means "keep going" and must not pull the push
+				-- back parallel to the wall (measured: with W steering, a wall jump barely left the wall)
+				local md = hum.MoveDirection
+				local camRight = workspace.CurrentCamera.CFrame.RightVector
+				local want = if md.Magnitude > 0.1 and math.abs(md:Dot(camRight)) > 0.3 then CoreGeom.Flat(md) else nil
+				local pv = cr.lv.PlaneVelocity
+				local spd = pv.Magnitude
+				if want and spd > 1 then
+					local cur = Vector3.new(pv.X, 0, pv.Y).Unit
+					local ang = math.acos(math.clamp(cur:Dot(want), -1, 1))
+					if ang > 1e-3 then
+						local k = math.min(1, tune("JumpSteerRate") * dt / ang)
+						local nd = CoreGeom.Flat(cur:Lerp(want, k)) or cur
+						cr.lv.PlaneVelocity = Vector2.new(nd.X, nd.Z) * spd
+					end
 				end
 			end
 		end

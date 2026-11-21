@@ -16,7 +16,7 @@ Not done here: landing rolls, vaulting, mantling, Step 2, monetization and map w
 | | Path | SHA-256 |
 |---|---|---|
 | Step 1C (comparison baseline, unchanged) | `C:\WORLD.EXE-Art\CoreRound\place\WorldEXE_CoreRound_Step1C_2026-11-21.rbxlx` (+ backup) | `43af6b6f…521592` |
-| Step 1D (new) | `...\WorldEXE_CoreRound_Step1D_2026-11-21.rbxlx` (+ `backup_step1d_2026-11-21`) | `a5a9e5fad2c2fdb3bd2c5960f5ab4e1af9345f878e5d9e5326d81cfbf7971024` (after the wall-jump follow-up; first 1D save `9fb3caff…e2c8b6`) |
+| Step 1D (new) | `...\WorldEXE_CoreRound_Step1D_2026-11-21.rbxlx` (+ `backup_step1d_2026-11-21`) | `e260bd5705bec07cce20c5817bf4d213be14f34b52ed806466aac3c187e26a7a` (after the wall-jump control follow-up; earlier 1D saves `9fb3caff…`, `a5a9e5fa…`) |
 
 - **Parity:** the saved file matches `src/`, 23/23 scripts, with no extra scripts.
 - **Protected files:** the check passes 9/9.
@@ -184,3 +184,31 @@ The owner asked to be able to jump further away from a wall while wall-running.
 - No speed or vertical violations.
 
 Capture: `captures_1d\walljump_far`.
+
+## Follow-up 2: controllable wall jumps (owner feedback, 2026-11-21)
+The owner reported that the outward wall force wasn't controllable enough. The previous version pushed a fixed 48 away and locked the flight for 0.6 s.
+
+**Now the camera aims the wall jump (third person, aim lock):**
+- **How hard you push off:**
+  - looking along the wall gives the standard push (`JumpOutNeutral` 40);
+  - looking away from the wall raises it to the full 48 (`JumpOut`);
+  - looking toward the wall lowers it to 20 (`JumpOutMin`), but you always leave the wall.
+- **Launch direction:** turns 35% of the way toward where you look (`JumpAim`), never back into the wall.
+- **Steering in the air:** during the push, sideways keys (A/D or a diagonal) curve the flight at 1.2 rad/s, keeping the speed (`JumpSteerRate`). Plain W does not steer; it means "keep going".
+
+**Rejected first version.** I first let the movement keys decide the push. With W held (the normal way to wall-run), the jump barely left the wall: 0.5 studs out, and it re-caught the same wall. Steering at 2.5 rad/s was also too strong.
+
+**Measured on open ground**, from the wall jump to landing, holding W:
+
+| Case | Lands this far from the wall | Total distance |
+|---|---|---|
+| Look along the wall (standard push 34, tried first) | 13.1 studs | 34.2 studs |
+| **Look along the wall (standard push 40, chosen)** | **15.7 studs** | **36.4 studs** |
+| Look 35° away (standard 34 / 40) | 23.4 / 24.7 studs | 37.4 / 38.5 studs |
+| Look 30° toward the wall (standard 34) | 7.7 studs | 31.9 studs |
+| Look along, steer toward the wall (A) mid-air (standard 34) | 6.3 studs | 33.7 studs |
+| Look along, steer away (D) mid-air (standard 34) | 18.9 studs | 33.8 studs |
+
+- Looking further away reaches the full 48 push; at 90° it is about 29 studs, as measured for the fixed-48 version.
+- **Chaining** wall A → wall B still works: caught at 58.8 and ran 55 studs.
+- **Server:** no violations.

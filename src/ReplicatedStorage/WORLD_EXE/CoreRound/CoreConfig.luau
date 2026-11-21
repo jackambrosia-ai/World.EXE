@@ -127,6 +127,11 @@ CoreConfig.Tuning = {
 		PeelSeconds = 0.1, -- ... this long detaches
 		JumpOut = 48, -- wall jump: away from the wall. Step 1D (owner: jump off further): PROVISIONAL 48 (was 28; measured
 		-- 12.3 -> 29.4 studs away from the wall, total 26.3 -> 39.5 studs; 40 + up 48 gave 23.5 / 35.4)
+		-- Step 1D (owner: the outward push must be controllable): the camera aims the wall jump. JumpOut = looking AWAY;
+		JumpOutMin = 20, -- ... looking toward the wall -> this small push (you still leave the wall) ...
+		JumpOutNeutral = 40, -- ... looking along the wall -> this (measured: 34 -> 13.1 studs from the wall, 40 -> 15.7)
+		JumpAim = 0.35, -- the launch turns this fraction of the way toward the look direction (never back into the wall)
+		JumpSteerRate = 1.2, -- rad/s: during the push-off carry the movement keys steer the flight (speed kept; 2.5 was too strong)
 		JumpUp = 48, -- wall jump: upward (Step 1D: 40 -> 48, a little more airtime for the longer push)
 		JumpBoost = 4, -- wall jump: extra speed along the run (Titanfall: jumping off a wall boosts speed)
 		JumpCarrySeconds = 0.6, -- the push-off keeps its direction this long (air control would cancel it), then normal air control (Step 1D: 0.35 -> 0.6)

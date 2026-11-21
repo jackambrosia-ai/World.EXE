@@ -36,7 +36,7 @@ This is the isolated **movement + Rebound Disc + holographic shield** prototype.
    Step 1 save (2026-11-20): 19/19, no extra scripts, SHA-256 `f8cf4b0a1d5dead43cc9822b74f5e3b51d36df5eeeb1927fde847c0dd128dc9e`.
    Step 1B save (2026-11-21, `WorldEXE_CoreRound_Step1B_2026-11-21.rbxlx`): 22/22, no extra scripts, SHA-256 `48e7a0f99df666af7cb10cf1d322d676fe895758faa33fea33aa9f38dc174d30` (after the full-charge sound fix; first 1B save was `1f2718ec…17e9d`).
    Step 1C save (2026-11-21, `WorldEXE_CoreRound_Step1C_2026-11-21.rbxlx`, a copy of the 1B place plus synced code): 23/23, no extra scripts, SHA-256 `43af6b6f9845d847ec0fd6d1f35e60a033de282ffae5625ba3c0ec2a16521592` (after the charge-ring change; first 1C save `73905fdc…32156b`).
-   Step 1D save (2026-11-21, `WorldEXE_CoreRound_Step1D_2026-11-21.rbxlx`, a copy of the 1C place + synced code + rebuilt yard): 23/23, SHA-256 `a5a9e5fad2c2fdb3bd2c5960f5ab4e1af9345f878e5d9e5326d81cfbf7971024` (after the wall-jump follow-up; first 1D save `9fb3caff…e2c8b6`).
+   Step 1D save (2026-11-21, `WorldEXE_CoreRound_Step1D_2026-11-21.rbxlx`, a copy of the 1C place + synced code + rebuilt yard): 23/23, SHA-256 `e260bd5705bec07cce20c5817bf4d213be14f34b52ed806466aac3c187e26a7a` (after the wall-jump control follow-up; earlier 1D saves `9fb3caff…`, `a5a9e5fa…`).
    To open a copied place file in Studio from a shell: `Start-Process <RobloxStudioBeta.exe> '"<place.rbxlx>"'`.
 
 ## Captures
