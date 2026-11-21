@@ -82,11 +82,12 @@ end
 
 -- swept point (segment a -> b, already inflated by the caller) vs a rectangle panel: centre c, unit normal n
 -- (the side that blocks), unit right/up axes, half sizes hw/hh. Only blocks when travelling INTO the front face.
-function CoreGeom.SegPanel(a: Vector3, b: Vector3, c: Vector3, n: Vector3, right: Vector3, up: Vector3, hw: number, hh: number): number?
+-- twoSided (Step 1E, owner decision 2026-11-21): the shield blocks from its back face too.
+function CoreGeom.SegPanel(a: Vector3, b: Vector3, c: Vector3, n: Vector3, right: Vector3, up: Vector3, hw: number, hh: number, twoSided: boolean?): number?
 	local d = b - a
 	local denom = d:Dot(n)
-	if denom >= 0 then
-		return nil -- moving away from the front face (or parallel)
+	if math.abs(denom) < 1e-9 or (denom > 0 and not twoSided) then
+		return nil -- parallel, or (one-sided) moving away from the front face
 	end
 	local t = (c - a):Dot(n) / denom
 	if t < 0 or t > 1 then

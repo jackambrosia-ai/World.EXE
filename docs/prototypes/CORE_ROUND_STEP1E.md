@@ -278,3 +278,21 @@ The character stays `Running` throughout. No tuning values changed.
 | Behind | Body hits + 1 block, home 0.67 s |
 
 **Still a design question (unchanged).** A disc from behind passes through the panel's back face, and a thrower inside the 3-stud gap between the panel and the defender hits the body.
+
+## Owner decision: the back of the shield blocks too (2026-11-21)
+
+**Change.** Shield panels now block discs from both faces (`CoreGeom.SegPanel(..., twoSided)`, used by `CoreDisc`). The block-once rule still applies, so a disc is blocked by a given shield at most once per throw.
+
+The panel stands 3 studs in front of the defender, so a disc thrown at the defender from behind still reaches their back first. The back face stops it after that hit, and it returns.
+
+**Retest (player throws at `D-SHIELD`):**
+
+| Throw from | Result |
+|---|---|
+| Front | 1 block, home 0.15 s |
+| Side | Body hit, home 0.65 s |
+| Behind-diagonal | Body hit, then back-face block, home 0.27 s (was 0.65 s, passing through) |
+| Behind | Body hits, then back-face block, home 0.23 s (was 0.67 s) |
+| Behind, aimed at the panel beside the body | Back-face block only, home 0.25 s |
+
+**Still open (owner decision):** a thrower standing in the 3-stud gap between the panel and the defender hits the body.

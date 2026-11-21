@@ -260,7 +260,7 @@ function CoreDisc.StepOne(d: Disc, dt: number)
 				-- Step 1B: panels at the same rewound time as bodies (review item "shield latency")
 				local c, nrm, right, up, hw, hh = CoreCombat.Panel(e, t - rewindFor(e))
 				if c and nrm and right and up and hw and hh then
-					local tp = CoreGeom.SegPanel(a, b, c, nrm, right, up, hw + r, hh + r)
+					local tp = CoreGeom.SegPanel(a, b, c, nrm, right, up, hw + r, hh + r, true) -- both faces block (owner decision)
 					if tp and tp < bestT then
 						bestT, bestKind, bestE = tp, "shield", e
 					end
