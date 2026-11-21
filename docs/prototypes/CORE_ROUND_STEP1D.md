@@ -16,7 +16,7 @@ Not done here: landing rolls, vaulting, mantling, Step 2, monetization and map w
 | | Path | SHA-256 |
 |---|---|---|
 | Step 1C (comparison baseline, unchanged) | `C:\WORLD.EXE-Art\CoreRound\place\WorldEXE_CoreRound_Step1C_2026-11-21.rbxlx` (+ backup) | `43af6b6f…521592` |
-| Step 1D (new) | `...\WorldEXE_CoreRound_Step1D_2026-11-21.rbxlx` (+ `backup_step1d_2026-11-21`) | `9fb3caff286428bd54e8b5090b016576534eed183792849b500e9fd72ee2c8b6` |
+| Step 1D (new) | `...\WorldEXE_CoreRound_Step1D_2026-11-21.rbxlx` (+ `backup_step1d_2026-11-21`) | `a5a9e5fad2c2fdb3bd2c5960f5ab4e1af9345f878e5d9e5326d81cfbf7971024` (after the wall-jump follow-up; first 1D save `9fb3caff…e2c8b6`) |
 
 - **Parity:** the saved file matches `src/`, 23/23 scripts, with no extra scripts.
 - **Protected files:** the check passes 9/9.
@@ -156,3 +156,31 @@ Other improvements that would help: feet-planted ground alignment while sliding 
 - Wall top speed 60 combined with boost 8 gives wall-jump exits near 55. The server cap is 74.
 - Untested on real mobile devices and controllers. Jump is Roblox's standard jump button on every input, and touch SLIDE is a toggle.
 - The server's upward-speed check only logs; nothing is enforced.
+
+## Follow-up: wall jumps push further (owner feedback, 2026-11-21)
+The owner asked to be able to jump further away from a wall while wall-running.
+
+**New values (provisional):**
+- Push away from the wall (`WallRun2.JumpOut`): 28 → 48.
+- Upward kick (`JumpUp`): 40 → 48.
+- How long the push is kept against air control (`JumpCarrySeconds`): 0.35 → 0.6.
+
+**Measured on open ground**, from the wall jump to landing (run speed 36, holding forward):
+
+| Setting | Away from the wall | Total distance | Airtime |
+|---|---|---|---|
+| Old (28 / 40 / 0.35) | 12.3 studs | 26.3 studs | 0.55 s |
+| Push 40, kept 0.5 s | 21.1 studs | 31.9 studs | 0.53 s |
+| Push 40, kept 0.5 s, kick 48 | 23.5 studs | 35.4 studs | 0.62 s |
+| **New (48 / 48 / 0.6)** | **29.4 studs** | **40.3 studs** | **0.62 s** |
+
+**Chaining fixes**
+- Detection: a steeper push meant the next wall was mostly in front of the character, and wall-run detection only looked sideways. For the 0.6 s after a wall jump, it now also looks straight along the push direction.
+- Test course: the wall-run course walls were raised from 16 to 24 studs, because the stronger jump reached the top of the 16-stud walls.
+- Result: the chain wall A → wall B now catches wall B at 65.6 and runs 64 studs (1.3 s) to its end.
+
+**Server**
+- Wall cap raised from 74 to 86 (the largest exit is (60 + 4) along + 48 out = 80).
+- No speed or vertical violations.
+
+Capture: `captures_1d\walljump_far`.

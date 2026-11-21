@@ -286,8 +286,8 @@ end
 -- a waist-high rail (Titanfall 2 reference: anything about waist high is a short wall-run surface)
 local WX = -175
 part(B, "WR2_Launch", Vector3.new(10, 3, 10), CFrame.new(WX, 1.5, -48), C.roof)
-part(B, "WR2_WallA", Vector3.new(2, 16, 70), CFrame.new(WX + 8, 8, -95), C.wall)
-part(B, "WR2_WallB", Vector3.new(2, 16, 70), CFrame.new(WX - 6, 8, -150), C.wall) -- 12-stud gap to wall A: wall-jump chaining
+part(B, "WR2_WallA", Vector3.new(2, 24, 70), CFrame.new(WX + 8, 12, -95), C.wall) -- Step 1D: 16 -> 24 tall (a longer wall-jump push reached the top of 16-stud walls)
+part(B, "WR2_WallB", Vector3.new(2, 24, 70), CFrame.new(WX - 6, 12, -150), C.wall) -- 12-stud gap to wall A: wall-jump chaining (Step 1D: 24 tall)
 part(B, "WR2_Rail", Vector3.new(2, 4.5, 60), CFrame.new(WX + 30, 2.25, -100), C.cover)
 part(B, "WR2_Landing", Vector3.new(14, 6, 14), CFrame.new(WX, 3, -205), C.roof)
 for k = 0, 160, 20 do

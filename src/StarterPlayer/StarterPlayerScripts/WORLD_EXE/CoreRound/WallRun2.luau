@@ -50,6 +50,10 @@ local lastEnd = -10
 local lastWall: Instance? = nil
 local lastWallT = -10
 local jumpQueued = false
+-- Step 1D: normal of the wall last jumped off. A stronger wall-jump push (owner: jump off further) makes the flight to
+-- the opposite wall steep, so the velocity-relative side rays miss it; during the wall-jump carry the search also looks
+-- straight along this push direction (measured: push 48 did not catch the 12-stud-away wall without this).
+local lastJumpNormal: Vector3? = nil
 local camBias = Vector3.zero -- world-space camera push away from the wall (eased; read by Aim)
 local camTarget = Vector3.zero
 local carry: { att: Attachment, lv: LinearVelocity, untilT: number, t0: number }? = nil
@@ -115,6 +119,7 @@ local function finish(how: string)
 	lastEnd = os.clock()
 	lastWall = r.wall
 	lastWallT = os.clock()
+	lastJumpNormal = if how == "jump" then r.n else nil
 	local c = player.Character
 	local hrp = c and c:FindFirstChild("HumanoidRootPart") :: BasePart?
 	local hum = c and c:FindFirstChildOfClass("Humanoid")
@@ -208,7 +213,11 @@ local function tryStart(c: Model, hum: Humanoid, hrp: BasePart)
 	local vdir = hv.Unit
 	local side = Vector3.yAxis:Cross(vdir) -- right of the velocity (works with aim lock: not the look direction)
 	params.FilterDescendantsInstances = { c, table.unpack(deps.ignore) }
-	for _, d in { side, -side } do
+	local dirs = { side, -side }
+	if lastJumpNormal and carry then
+		table.insert(dirs, lastJumpNormal)
+	end
+	for _, d in dirs do
 		-- Titanfall 2 reference: anything about waist high works as a short wall-run surface, so one contact at root
 		-- (waist) height is enough; RequireTallWall = 1 also demands a contact 1.6 studs higher (Step 1 behaviour)
 		local h1 = sideHit(hrp.Position, d, tune("Reach"))

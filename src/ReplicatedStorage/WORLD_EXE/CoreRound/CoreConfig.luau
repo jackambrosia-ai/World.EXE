@@ -125,10 +125,11 @@ CoreConfig.Tuning = {
 		SameWallDelay = 0.6, -- the same wall cannot be re-caught for this long
 		PeelDot = 0.6, -- pushing away from the wall this hard ...
 		PeelSeconds = 0.1, -- ... this long detaches
-		JumpOut = 28, -- wall jump: away from the wall
-		JumpUp = 40, -- wall jump: upward
+		JumpOut = 48, -- wall jump: away from the wall. Step 1D (owner: jump off further): PROVISIONAL 48 (was 28; measured
+		-- 12.3 -> 29.4 studs away from the wall, total 26.3 -> 39.5 studs; 40 + up 48 gave 23.5 / 35.4)
+		JumpUp = 48, -- wall jump: upward (Step 1D: 40 -> 48, a little more airtime for the longer push)
 		JumpBoost = 4, -- wall jump: extra speed along the run (Titanfall: jumping off a wall boosts speed)
-		JumpCarrySeconds = 0.35, -- the push-off keeps its direction this long (air control would cancel it), then normal air control
+		JumpCarrySeconds = 0.6, -- the push-off keeps its direction this long (air control would cancel it), then normal air control (Step 1D: 0.35 -> 0.6)
 		TiltDegrees = 10, -- body lean away from the wall (Step 1C: a blended joint pose; the physical root stays upright)
 		CamTiltDegrees = 8, -- Step 1C (A3): optional camera roll away from the wall (0 = off; forced 0 in Reduced FX) ...
 		CamTiltInSeconds = 0.25, -- ... eased in ...
@@ -215,9 +216,9 @@ CoreConfig.Tuning = {
 		-- state, sustained for SpeedGraceSeconds, is logged as a violation (detection only in the prototype; see doc).
 		SpeedCapRun = 52, -- run / air carry (soft cap 45 + margin)
 		SpeedCapSlide = 64, -- slide (max 58 + margin)
-		SpeedCapWall = 74, -- wall-run (Step 1D: max 60; a wall-jump exit is (60 + 4) along + 28 out = 70 horizontal)
+		SpeedCapWall = 86, -- wall-run (Step 1D: max 60; a wall-jump exit is up to (60 + 4) along + 48 out = 80 horizontal)
 		CarrySeconds = 1.0, -- Step 1D: after a slide / wall-run ends, its cap still applies this long (carried speed)
-		VerticalCapNormal = 58, -- Step 1D: upward speed above this is logged ... (normal jump 50.5, wall jump 40)
+		VerticalCapNormal = 58, -- Step 1D: upward speed above this is logged ... (normal jump 50.5, wall jump 48)
 		VerticalCapPower = 96, -- ... except within PowerJumpWindow after a server-validated slide ended (max launch 90)
 		PowerJumpWindow = 0.5,
 		SpeedCapBurst = 125, -- dash / Super Dash windows (dash 104)
