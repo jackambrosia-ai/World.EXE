@@ -8,7 +8,7 @@ mobility abilities, and Step 2. Isolated place only.
 |---|---|---|
 | Step 1 (unchanged) | `C:\WORLD.EXE-Art\CoreRound\place\WorldEXE_CoreRound_2026-11-20.rbxlx` | `f8cf4b0a…128dc9e` |
 | Step 1B (unchanged) | `...\WorldEXE_CoreRound_Step1B_2026-11-21.rbxlx` (+ `backup_step1b_2026-11-21`) | `48e7a0f9…174d30` |
-| Step 1C (new) | `...\WorldEXE_CoreRound_Step1C_2026-11-21.rbxlx` (+ `backup_step1c_2026-11-21`) | `73905fdca596f7f69d8b20c2cbf86e33b2cef8bad13559d7b53f4ed22832156b` |
+| Step 1C (new) | `...\WorldEXE_CoreRound_Step1C_2026-11-21.rbxlx` (+ `backup_step1c_2026-11-21`) | `43af6b6f9845d847ec0fd6d1f35e60a033de282ffae5625ba3c0ec2a16521592` (after the charge-ring change; first 1C save `73905fdc…32156b`) |
 
 Saved-place parity: `cr_40_verify_saved.js` reads 23/23 scripts identical to `src/`, with no extra scripts. The new
 script is `SpeedFx`.
@@ -142,3 +142,13 @@ script is `SpeedFx`.
   art task.
 - **Slide head per avatar.** The slide head height now depends on the avatar. For the test avatar it is lower than
   Step 1B's fixed value (0.19 vs 0.5), so heads on sliders are slightly smaller targets. That matches what is drawn.
+
+## Follow-up: shrinking charge ring (owner feedback, 2026-11-21)
+The Disc charge ring was 12 dots on a fixed 24-pixel ring that lit up as you charged. Now:
+- It opens wide (48 px radius, `Hud.ChargeRingStart`) the moment you start charging.
+- It closes in evenly as the charge builds, and the dots meet in a single point on the crosshair (`Hud.ChargeRingEnd` = 0) exactly at full charge.
+- At full charge the point pulses white.
+
+Measured radius during one charge: 48 px at the start, 33 px at 18% charge, 0 px at 100%. An ease-out curve was tried first: it reached 4 px at 74% charge, which made "full" hard to read, so the ring now closes linearly.
+
+Capture: `captures_1c\charge_ring3\sheet.jpg`, taken with a real mouse hold. Window-only grabs without input focus showed stale frames.

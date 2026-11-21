@@ -34,7 +34,7 @@ This is the isolated **movement + Rebound Disc + holographic shield** prototype.
    ```
    Step 1 save (2026-11-20): 19/19, no extra scripts, SHA-256 `f8cf4b0a1d5dead43cc9822b74f5e3b51d36df5eeeb1927fde847c0dd128dc9e`.
    Step 1B save (2026-11-21, `WorldEXE_CoreRound_Step1B_2026-11-21.rbxlx`): 22/22, no extra scripts, SHA-256 `48e7a0f99df666af7cb10cf1d322d676fe895758faa33fea33aa9f38dc174d30` (after the full-charge sound fix; first 1B save was `1f2718ec…17e9d`).
-   Step 1C save (2026-11-21, `WorldEXE_CoreRound_Step1C_2026-11-21.rbxlx`, a copy of the 1B place plus synced code): 23/23, no extra scripts, SHA-256 `73905fdca596f7f69d8b20c2cbf86e33b2cef8bad13559d7b53f4ed22832156b`.
+   Step 1C save (2026-11-21, `WorldEXE_CoreRound_Step1C_2026-11-21.rbxlx`, a copy of the 1B place plus synced code): 23/23, no extra scripts, SHA-256 `43af6b6f9845d847ec0fd6d1f35e60a033de282ffae5625ba3c0ec2a16521592` (after the charge-ring change; first 1C save `73905fdc…32156b`).
    To open a copied place file in Studio from a shell: `Start-Process <RobloxStudioBeta.exe> '"<place.rbxlx>"'`.
 
 ## Captures

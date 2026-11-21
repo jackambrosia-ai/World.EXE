@@ -74,6 +74,11 @@ CoreConfig.Tuning = {
 	Cam = {
 		BlendSeconds = 0.25,
 	},
+	-- Step 1C (owner feedback): the Disc charge ring starts wide and closes to a point on the crosshair at full charge
+	Hud = {
+		ChargeRingStart = 48, -- ring radius (pixels) when charging starts ...
+		ChargeRingEnd = 0, -- ... and at full charge (the dots meet in one point)
+	},
 	-- Step 1C (A2): client-only speed presentation (screen-edge streaks + team-colour edge glow); off in Reduced FX
 	SpeedFx = {
 		Enabled = 1,

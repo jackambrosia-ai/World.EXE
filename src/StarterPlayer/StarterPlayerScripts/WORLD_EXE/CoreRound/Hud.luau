@@ -362,16 +362,24 @@ function Hud.Start(d: Deps)
 			crosshair.Position = UDim2.fromScale(0.5, 0.5)
 			hitMark.Position = crosshair.Position
 		end
-		-- Step 1B: charge ring
+		-- Step 1B charge ring, reshaped in Step 1C (owner feedback): the 12 dots open wide when charging starts and close
+		-- in on the crosshair as the charge builds, meeting in a single point at full charge (which then pulses white).
+		-- Linear, so the dots only meet when the charge is really full (an ease-out was tried: the ring looked closed at
+		-- 74% charge, 4 px, which blurred the "fully charged" moment).
 		local on, ck = deps.charging()
-		local lit = if on then math.floor(ck * 12 + 0.001) else 0
+		local wide = CoreConfig.Tune("Hud", "ChargeRingStart")
+		local tight = CoreConfig.Tune("Hud", "ChargeRingEnd")
+		local k = math.clamp(ck, 0, 1)
+		local radius = wide + (tight - wide) * k
 		for i, dot in chargeDots do
-			dot.Position = UDim2.new(crosshair.Position.X.Scale, crosshair.Position.X.Offset + math.cos((i - 1) / 12 * math.pi * 2 - math.pi / 2) * 24, crosshair.Position.Y.Scale, crosshair.Position.Y.Offset + math.sin((i - 1) / 12 * math.pi * 2 - math.pi / 2) * 24)
+			local a = (i - 1) / 12 * math.pi * 2 - math.pi / 2
+			dot.Position = UDim2.new(crosshair.Position.X.Scale, crosshair.Position.X.Offset + math.cos(a) * radius, crosshair.Position.Y.Scale, crosshair.Position.Y.Offset + math.sin(a) * radius)
 			if on then
-				dot.BackgroundTransparency = if i <= lit then 0 else 0.75
-				dot.BackgroundColor3 = if ck >= 1 then Color3.new(1, 1, 1) else CYAN
-				local pulse = if ck >= 1 then 6 + math.sin(t * 18) * 2 else 5
-				dot.Size = UDim2.fromOffset(pulse, pulse)
+				local full = ck >= 1
+				dot.BackgroundTransparency = if full then 0 else 0.15
+				dot.BackgroundColor3 = if full then Color3.new(1, 1, 1) else CYAN
+				local size = if full then 5 + math.sin(t * 18) * 1.5 else 5 - 1.5 * k
+				dot.Size = UDim2.fromOffset(size, size)
 			else
 				dot.BackgroundTransparency = 1
 			end
