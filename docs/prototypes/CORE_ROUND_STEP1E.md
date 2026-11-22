@@ -626,3 +626,111 @@ Honest drawn age in this session: 0.015–0.094 s (2026-11-21 session: 0.08–0.
 - **L-0127:** a server-side estimate trained on client observations is still client-controlled. Keep the authoritative value derived only from server measurements; use client reports for diagnostics.
 - **L-0128:** Studio two-client interpolation delay varies a lot between sessions (0.02 to 0.10+ s). Calibrate rewind offsets in more than one session before fixing them.
 - **L-0129:** on a client-posed character, the server-side `Head` part is not the drawn head. Measure the server's own part in game before assuming a hitbox centre.
+
+## Final wall-run head-hitbox correction (owner-approved, 2026-11-22)
+
+### Root cause
+
+During a wall-run the server's physical `Head` part (the head-hit centre stored in combat history) follows **replicated AnimationTracks that no client shows**. Tracks seen on the server during a wall-run:
+
+| Track | Priority | Source | Presence |
+|---|---|---|---|
+| Stock R15 run (913376220) | Action | `WallRun2` | every wall-run frame |
+| Default jump (507765000) | Core | `Animate` | |
+| Default fall (507767968) | Core | `Animate` | |
+| Default run (913402848) | Core | `Animate` | |
+| Idle | Idle | | |
+
+- Every client overrides the joints with the Poses wall-run pose, so on screen only the custom pose is visible.
+- The server head therefore sat ~0.56 studs forward of the root, cycling (y 1.36–2.39), the same for both walls, ~0.9 from the drawn head.
+- Earlier single-cause tests (`Animate` off; `WallRun2` track off) each left the other source playing, which is why neither removed the offset.
+
+### Chosen authoritative calculation (`CoreCombat.HeadCentre`, `CoreGeom.WallHeadOffset`)
+
+- **Offset.** Head-hit centre = server root CFrame × the rig's own Root/Waist/Neck chain posed with the exported `wallrun_r` torso/neck transforms (`CoreGeom.WallPoseR15`, averaged over the 14 clip frames), mirrored to the wall side.
+  - Canonical rig: (−0.70, 1.61, 0.00) in root space. Stock R15: (−0.633, 1.467, 0.021).
+  - Recomputed at every wall-run entry, because an avatar change keeps the same entity.
+- **Wall side.** Found by the server with the same rule the clients' Poses draws with, using only server data (root, raycasts, root velocity):
+  - a wall within 4 studs;
+  - until this run's wall is found, within 8 studs;
+  - else a sideways speed above 12 st/s;
+  - else keep the last side.
+  - A "wallrun" state with no wall found gets no offset.
+- **Timing.**
+  - Blended from the physical head over `Disc.WallHeadBlendSeconds` 0.12.
+  - Starts `WallHeadInDelaySeconds` 0.13 after the server's state change and ends `WallHeadOutDelaySeconds` 0.22 after it.
+  - These follow when observers actually draw the pose (two-client measurement). Hit fairness follows the thrower's view, which is an observer's.
+- **Chains.** A wall-to-wall chain eases the side across instead of flipping. A fresh run carries no side over.
+- **History.** The corrected centre is stored in combat history, so lag compensation uses it.
+- **Unchanged.**
+  - Run, slide and all other states (weight 0; measured identical to the physical head, 0.0000 over 168 run + 72 slide frames).
+  - Head radius, body capsule, tolerance, damage, stun, HEAD/BODY first contact.
+  - Animation source, movement code, `HumanoidRootPart`.
+- **Switch.** `Disc.WallHeadEnabled` (0 = previous behaviour) was used for the A/B throw comparison.
+- **Security.** Nothing comes from the thrower or the target's client except the movement state the server already accepted. The rewind is unchanged.
+  - Forged-view check at a wall-runner: an honest view and a view claiming a position 0.34 s old got the same server rewind (0.050 s).
+
+### Measurements
+
+Head-centre error vs the drawn head, in root space, time-aligned:
+- **Own screen:** matched by server time.
+- **Other player's screen:** matched to the server time of the same drawn root position (separates interpolation from rig error).
+
+Final build, studs:
+
+| Case | View | Phase | Corrected med / p95 / max | Physical med / p95 / max |
+|---|---|---|---|---|
+| Canonical, right | own | run | 0.05 / 0.08 / 0.08 | 0.86 / 1.05 / 1.08 |
+| | other | run | 0.06 / 0.08 / 0.29 | 0.85 / 1.08 / 1.08 |
+| | other | exit | 0.06 / 0.26 / 0.35 | 0.90 / 1.04 / 1.05 |
+| | other | entry | 0.58 / 0.70 / 0.70 | 0.58 / 0.70 / 0.70 |
+| Canonical, left | own | run | 0.05 / 0.08 / 0.08 | 1.00 / 1.06 / 1.08 |
+| | other | run | 0.05 / 0.08 / 0.20 | 1.00 / 1.08 / 1.09 |
+| | other | exit | 0.06 / 0.52 / 0.64 | 1.11 / 1.17 / 1.17 |
+| | other | entry | 0.72 / 0.97 / 0.97 | 0.93 / 1.03 / 1.03 |
+| Chain right → left | own | run | 0.05 / 0.08 / 0.08 | 0.89 / 1.06 / 1.08 |
+| | other | run | 0.06 / 0.09 / 0.16 | 0.87 / 1.07 / 1.09 |
+| | other | exit | 0.06 / 0.49 / 1.01 | 1.09 / 1.51 / 1.52 |
+| | other | entry | 0.49 / 1.07 / 1.14 | 0.76 / 1.05 / 1.06 |
+| Stock R15, left | own | run | 0.05 / 0.08 / 0.08 | 0.92 / 0.98 / 1.00 |
+| | other | run | 0.06 / 0.08 / 0.08 | 0.92 / 1.00 / 1.01 |
+| | other | exit | 0.06 / 0.22 / 0.34 | 1.03 / 1.09 / 1.11 |
+| Stock R15, right (short runs) | other | run | 0.03 / 0.09 / 0.09 | 0.78 / 0.82 / 0.82 |
+| | other | exit | 0.06 / 0.19 / 0.27 | 0.92 / 1.00 / 1.01 |
+
+- **Entry** (first 0.25 s of the observer's wall-run state) is the weakest phase. The server is still on the physical head while the observer's pose blends, so the residual there is mostly the pre-existing normal-running mismatch, equal to or lower than before.
+- **Chain** entry/exit can still reach ~1.0–1.1 on the frames around the wall-jump.
+- **Stock R15 right-lane** runs ended after ~0.1 s (movement, pre-existing), so that sample is small.
+
+### Throws at a wall-runner (canonical runner, A on the open side, lead aim; run before the chain/side fixes)
+
+| Head centre | Aimed at drawn head | Aimed at drawn upper torso | 1.5 studs above the head |
+|---|---|---|---|
+| Corrected | HEAD; miss (A's own screen also showed a miss) | BODY, BODY | miss |
+| Original physical | HEAD, HEAD | **HEAD**, BODY | miss |
+
+The original head counted one torso shot as a headshot. A's own "visible hit" check disagreed with the server on two head throws (client BODY, server HEAD), under both versions.
+
+### Remaining discrepancies (not changed; out of scope)
+
+- **Normal running:** the physical `Head` (stock run/jump/fall tracks) sits ~0.3–0.9 studs from the drawn head. This sets the entry residual above.
+- **Stock R15 wall-runs on the right lane:** sometimes end after ~0.1 s (movement).
+- **One unexplained reading:** the first wall-run of one session read on the wrong side. It was not reproduced in later sessions; the side-reset fix covers the known cause.
+
+### Files
+
+- `src/ReplicatedStorage/WORLD_EXE/CoreRound/CoreGeom.luau`: `WallPoseR15`, `WallHeadOffset`.
+- `src/ReplicatedStorage/WORLD_EXE/CoreRound/CoreConfig.luau`: `Disc.WallHeadBlendSeconds`, `WallHeadEnabled`, `WallHeadInDelaySeconds`, `WallHeadOutDelaySeconds`.
+- `src/ServerScriptService/WORLD_EXE/CoreRound/CoreCombat.luau`: `HeadCentre`, history, `SetMoveState`.
+- `src/ServerScriptService/WORLD_EXE/CoreRound/CoreTest.luau`: Studio `Diag` hook.
+
+Animation source unchanged (`WorldEXE_CoreRound_Anim_Step1E.blend` `e69012df…`).
+
+### Place
+
+- SHA-256 `b7206d06b8496a926b2eeac8c8ed4e9ce665254c6f0f938e7f4b965635bd1c08`; backup `backup_step1e_headfix_2026-11-22.rbxlx` (same SHA). Pre-edit backup `backup_step1e_headfix_pre_2026-11-22/` (`127ade88…`).
+- Script parity 24/24, 24 KeyframeSequences, protected files 9 OK.
+
+### Proposed lesson (vault not modified)
+
+- **L-0130:** a hidden replicated AnimationTrack still moves the server's parts. When clients override joints locally, derive server hit volumes from the root and the rig's own joints instead.

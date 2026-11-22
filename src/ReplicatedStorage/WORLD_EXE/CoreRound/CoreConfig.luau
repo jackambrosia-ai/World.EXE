@@ -178,6 +178,18 @@ CoreConfig.Tuning = {
 		RewindPlayerOffset = 0.05,
 		ViewDiagMaxBack = 0.4, -- diagnostics: how far back a reported drawn position is searched for in server history
 		ViewMatchTolerance = 1.0, -- studs: (diagnostics) a drawn position must lie on the target's recorded path
+		-- Step 1E final head-hitbox correction: during a wall-run the head-hit centre is the drawn wall-run head (root +
+		-- CoreGeom.WallHeadOffset, mirrored to the wall side the SERVER finds by raycast), eased in / out over this time
+		-- (the clients' wall-run pose blend is 0.12 s). 0 = off (the physical Head part, the pre-correction behaviour).
+		WallHeadBlendSeconds = 0.12,
+		-- ... starting this long after the server's state change: other players draw the wall-run pose after the replicated
+		-- state arrives + InterpPlayerSeconds (0.05) + Poses' wall-side check (two-client measurement 2026-11-22: the
+		-- observer's pose changed ~0.13 s (in) / ~0.22 s (out, Poses holds the wall pose while a wall-jump launch may still
+		-- be replicating) after the server state, while positions were only ~0.05-0.08 s old). Hit fairness follows the
+		-- thrower's (an observer's) picture, so the head-hit centre follows that timing.
+		WallHeadInDelaySeconds = 0.13,
+		WallHeadOutDelaySeconds = 0.22,
+		WallHeadEnabled = 1,
 		OriginTolerance = 8, -- client-reported throw origin must be within this of the server root (+ speed * latency)
 		-- Duplicate-hit protection. Step 1 finding: the returning disc homes back along nearly the same line, so with
 		-- the v1.1 rule (out + return both count, 0.4 s dedupe) ONE throw at a still target lands two hits (~0.7 s

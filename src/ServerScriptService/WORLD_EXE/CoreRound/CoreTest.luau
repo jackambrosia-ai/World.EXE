@@ -126,6 +126,19 @@ function CoreTest.Handle(op: string, ctx: any, ...): any
 			table.insert(out, r or { t = t })
 		end
 		return out
+	elseif op == "Diag" then -- Step 1E final head-hitbox correction: (entityName, fromServerTime) -> raw diagnostics ring
+		-- entries { t, cf (root), head (physical Head), hc (head-hit centre), hw (wall-head weight), state }
+		local e = CoreCombat.ByName(args[1])
+		if not e then
+			return "missing"
+		end
+		local out = {}
+		for _, d in (e :: any).diag or {} do
+			if d.t >= (args[2] or 0) then
+				table.insert(out, { t = d.t, cf = d.cf, head = d.head, hc = d.hc, hw = d.hw, state = d.state })
+			end
+		end
+		return out
 	elseif op == "Hit" then
 		local e = CoreCombat.ByName(args[1])
 		if not e then

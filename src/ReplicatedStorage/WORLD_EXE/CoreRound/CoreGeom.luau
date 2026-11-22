@@ -196,6 +196,57 @@ function CoreGeom.PosedHeadOffset(m: Model): number?
 	return if y == y then math.clamp(y, -0.5, 1.5) else nil
 end
 
+-- Step 1E final head-hitbox correction (owner-approved 2026-11-22): the wall-run's torso / neck joint transforms for a
+-- wall on the RIGHT, one entry per clip frame (copied from the exported clip wallrun_r, AnimData / CoreRoundAnim_Step1E.json;
+-- regenerate when the wall-run pose changes). The server uses them with each character's OWN joints to place the
+-- wall-run head-hit centre where every client draws the head, instead of the server's physical Head part (which follows
+-- replicated stock animation tracks that clients never show).
+CoreGeom.WallPoseR15 = { -- 14 frames
+	{ Root = CFrame.new(-0.2000, -0.1629, 0.1820, -0.07343, 0.15031, 0.07343, 0.98317), Waist = CFrame.new(0.0000, 0.0000, 0.0000, -0.01328, 0.28927, 0.05674, 0.95547), Neck = CFrame.new(0.0000, 0.0000, 0.0000, 0.15231, -0.40303, -0.16919, 0.88642) },
+	{ Root = CFrame.new(-0.2000, -0.1995, 0.2010, -0.07532, 0.13131, 0.07532, 0.98560), Waist = CFrame.new(0.0000, 0.0000, 0.0000, -0.01179, 0.30767, 0.05570, 0.94979), Neck = CFrame.new(0.0000, 0.0000, 0.0000, 0.15231, -0.40303, -0.16919, 0.88642) },
+	{ Root = CFrame.new(-0.2000, -0.1763, 0.2187, -0.07707, 0.11340, 0.07707, 0.98755), Waist = CFrame.new(0.0000, 0.0000, 0.0000, -0.01039, 0.32486, 0.05470, 0.94412), Neck = CFrame.new(0.0000, 0.0000, 0.0000, 0.15231, -0.40303, -0.16919, 0.88642) },
+	{ Root = CFrame.new(-0.2000, -0.1107, 0.2318, -0.07834, 0.10016, 0.07834, 0.98878), Waist = CFrame.new(0.0000, 0.0000, 0.0000, -0.00935, 0.33748, 0.05395, 0.93974), Neck = CFrame.new(0.0000, 0.0000, 0.0000, 0.15231, -0.40303, -0.16919, 0.88642) },
+	{ Root = CFrame.new(-0.2000, -0.0521, 0.2377, -0.07891, 0.09423, 0.07891, 0.98928), Waist = CFrame.new(0.0000, 0.0000, 0.0000, -0.00888, 0.34310, 0.05361, 0.93772), Neck = CFrame.new(0.0000, 0.0000, 0.0000, 0.15231, -0.40303, -0.16919, 0.88642) },
+	{ Root = CFrame.new(-0.2000, -0.0446, 0.2351, -0.07866, 0.09681, 0.07866, 0.98907), Waist = CFrame.new(0.0000, 0.0000, 0.0000, -0.00909, 0.34066, 0.05376, 0.93860), Neck = CFrame.new(0.0000, 0.0000, 0.0000, 0.15231, -0.40303, -0.16919, 0.88642) },
+	{ Root = CFrame.new(-0.2000, -0.0939, 0.2247, -0.07765, 0.10737, 0.07765, 0.98814), Waist = CFrame.new(0.0000, 0.0000, 0.0000, -0.00991, 0.33062, 0.05436, 0.94215), Neck = CFrame.new(0.0000, 0.0000, 0.0000, 0.15231, -0.40303, -0.16919, 0.88642) },
+	{ Root = CFrame.new(-0.2000, -0.1629, 0.2084, -0.07606, 0.12380, 0.07606, 0.98646), Waist = CFrame.new(0.0000, 0.0000, 0.0000, -0.01120, 0.31489, 0.05528, 0.94745), Neck = CFrame.new(0.0000, 0.0000, 0.0000, 0.15231, -0.40303, -0.16919, 0.88642) },
+	{ Root = CFrame.new(-0.2000, -0.1995, 0.1895, -0.07418, 0.14282, 0.07418, 0.98417), Waist = CFrame.new(0.0000, 0.0000, 0.0000, -0.01269, 0.29654, 0.05633, 0.95327), Neck = CFrame.new(0.0000, 0.0000, 0.0000, 0.15231, -0.40303, -0.16919, 0.88642) },
+	{ Root = CFrame.new(-0.2000, -0.1763, 0.1716, -0.07239, 0.16065, 0.07239, 0.98169), Waist = CFrame.new(0.0000, 0.0000, 0.0000, -0.01409, 0.27919, 0.05730, 0.95842), Neck = CFrame.new(0.0000, 0.0000, 0.0000, 0.15231, -0.40303, -0.16919, 0.88642) },
+	{ Root = CFrame.new(-0.2000, -0.1107, 0.1585, -0.07105, 0.17378, 0.07105, 0.97965), Waist = CFrame.new(0.0000, 0.0000, 0.0000, -0.01511, 0.26632, 0.05801, 0.96202), Neck = CFrame.new(0.0000, 0.0000, 0.0000, 0.15231, -0.40303, -0.16919, 0.88642) },
+	{ Root = CFrame.new(-0.2000, -0.0521, 0.1526, -0.07045, 0.17964, 0.07045, 0.97868), Waist = CFrame.new(0.0000, 0.0000, 0.0000, -0.01557, 0.26055, 0.05832, 0.96357), Neck = CFrame.new(0.0000, 0.0000, 0.0000, 0.15231, -0.40303, -0.16919, 0.88642) },
+	{ Root = CFrame.new(-0.2000, -0.0446, 0.1552, -0.07071, 0.17709, 0.07071, 0.97910), Waist = CFrame.new(0.0000, 0.0000, 0.0000, -0.01537, 0.26306, 0.05818, 0.96290), Neck = CFrame.new(0.0000, 0.0000, 0.0000, 0.15231, -0.40303, -0.16919, 0.88642) },
+	{ Root = CFrame.new(-0.2000, -0.0939, 0.1656, -0.07178, 0.16664, 0.07178, 0.98078), Waist = CFrame.new(0.0000, 0.0000, 0.0000, -0.01455, 0.27333, 0.05763, 0.96008), Neck = CFrame.new(0.0000, 0.0000, 0.0000, 0.15231, -0.40303, -0.16919, 0.88642) },
+}
+
+-- Step 1E final head-hitbox correction: the drawn wall-run head centre in ROOT space for a wall on the RIGHT (mirror x for
+-- the left), averaged over the clip's frames, from this character's own Root / Waist / Neck joints (canonical rig
+-- ~(-0.70, 1.61, 0); proportions differ per rig). nil if the rig is not a standard R15 chain.
+function CoreGeom.WallHeadOffset(m: Model): Vector3?
+	local hrp = m:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local lower = m:FindFirstChild("LowerTorso") :: BasePart?
+	local upper = m:FindFirstChild("UpperTorso") :: BasePart?
+	local head = m:FindFirstChild("Head") :: BasePart?
+	if not hrp or not lower or not upper or not head then
+		return nil
+	end
+	local sum, n = Vector3.zero, 0
+	for _, f in CoreGeom.WallPoseR15 do
+		local l1 = link(lower:FindFirstChild("Root"), hrp, lower, f.Root)
+		local l2 = link(upper:FindFirstChild("Waist"), lower, upper, f.Waist)
+		local l3 = link(head:FindFirstChild("Neck"), upper, head, f.Neck)
+		if not l1 or not l2 or not l3 then
+			return nil
+		end
+		sum += (l1 * l2 * l3).Position
+		n += 1
+	end
+	local v = sum / math.max(1, n)
+	if v ~= v or v.Magnitude > 3 then
+		return nil
+	end
+	return v
+end
+
 function CoreGeom.DiscHit(a: Vector3, b: Vector3, root: Vector3, head: Vector3, s: HitShape): (number?, string?)
 	local bodyTop, bodyBottom = s.bodyTop, s.bodyBottom
 	local w = s.slideW

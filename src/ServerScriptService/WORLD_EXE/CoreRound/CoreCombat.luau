@@ -29,6 +29,15 @@ export type Entity = {
 	slideEndT: number?,
 	slideHead: number?, -- Step 1C: this rig's drawn slide-head height above the root (CoreGeom.PosedHeadOffset)
 	wallEndT: number?, -- Step 1D: server time the last wall-run ended (carried-speed window in the speed monitor)
+	-- Step 1E final head-hitbox correction: wall-run head-hit centre (see CoreCombat.HeadCentre)
+	wallPoseStartT: number?,
+	wallPoseEndT: number?,
+	wallSide: number?, -- +1 wall on the root's right, -1 left (server raycast), nil = none found yet
+	wallSideFresh: boolean?, -- the side was found on the CURRENT wall-run
+	wallSideFrom: number?, -- wall-to-wall chain: the (eased) side the centre is moving from ...
+	wallSideChangeT: number?, -- ... starting at this server time (on the observers' timeline)
+	wallHeadOff: Vector3?, -- CoreGeom.WallHeadOffset for this rig (right wall), computed once
+	wallHeadW: number?, -- diagnostics: the last recorded wall-head weight
 	chargeStart: number?, -- Step 1B: server time the throw button was pressed (charge timing is server-side)
 	histN: number,
 	meter: number,
@@ -65,6 +74,89 @@ end
 
 local function headOf(m: Model): BasePart?
 	return m:FindFirstChild("Head") :: BasePart?
+end
+
+-- Step 1E final head-hitbox correction (owner-approved 2026-11-22). Root cause: during a wall-run the server's physical
+-- Head part follows REPLICATED AnimationTracks that no client shows (WallRun2's Action-priority stock "run" track plus the
+-- default Animate jump / fall / run tracks; every client overrides the joints with the Poses wall-run pose). Measured: the
+-- server Head sat ~0.56 studs forward of the root, cycling, the same for both walls, ~0.9 from the drawn head. During a
+-- wall-run the head-hit centre is therefore derived on the server from the root and the rig's own joints posed with the
+-- wall-run clip (CoreGeom.WallHeadOffset), mirrored to the wall side the server finds itself (raycast from its root; a
+-- "wallrun" state with no wall beside the root gets no offset), eased in / out over Disc.WallHeadBlendSeconds from the
+-- physical Head. Ordinary running and sliding are unchanged (weight 0).
+local wallRay = RaycastParams.new()
+wallRay.FilterType = Enum.RaycastFilterType.Exclude
+local function wallSideOf(m: Model, root: BasePart, reach: number): number?
+	local fx = workspace:FindFirstChild("CoreRoundFx")
+	wallRay.FilterDescendantsInstances = if fx then { m, fx } else { m }
+	local right = root.CFrame.RightVector
+	local best, side = math.huge, nil
+	for _, sgn in { 1, -1 } do
+		local h = workspace:Raycast(root.Position, right * (sgn * reach), wallRay)
+		if h and h.Distance < best and math.abs(h.Normal.Y) < 0.6 then
+			local anc = h.Instance:FindFirstAncestorOfClass("Model")
+			if not (anc and anc:FindFirstChildOfClass("Humanoid")) then
+				best, side = h.Distance, sgn
+			end
+		end
+	end
+	return side
+end
+
+function CoreCombat.HeadCentre(e: Entity, t: number, root: BasePart, head: BasePart): (Vector3, number)
+	local phys = head.Position
+	local blend = tune("Disc", "WallHeadBlendSeconds")
+	if tune("Disc", "WallHeadEnabled") < 0.5 or (e.wallPoseStartT == nil) then
+		return phys, 0
+	end
+	local w = CoreGeom.SlideWeight(e.wallPoseStartT, e.wallPoseEndT, t, blend)
+	if w <= 0 then
+		return phys, 0
+	end
+	if e.moveState == "wallrun" then
+		-- the same side rule the clients' Poses draws with (server root, server raycasts, server-observed velocity):
+		-- a wall within 4 studs; until this run's wall is found, within 8 (entry before contact); else a fast sideways
+		-- move (> 12 st/s, e.g. a wall-jump across to the other wall) picks the side it moves toward; else keep
+		local side = wallSideOf(e.model, root, 4) or (if not e.wallSideFresh then wallSideOf(e.model, root, 8) else nil)
+		if side then
+			e.wallSideFresh = true
+		else
+			local v = root.AssemblyLinearVelocity
+			local lat = root.CFrame.RightVector:Dot(Vector3.new(v.X, 0, v.Z))
+			if math.abs(lat) > 12 then
+				side = if lat > 0 then 1 else -1
+			end
+		end
+		if side then
+			if e.wallSide ~= nil and side ~= e.wallSide then
+				-- wall-to-wall chain: ease across instead of flipping (observers see the wall-jump pass through the middle)
+				local from = e.wallSide :: number
+				if e.wallSideChangeT and e.wallSideFrom then
+					from = e.wallSideFrom + (from - e.wallSideFrom) * CoreGeom.Ease(math.clamp((t - e.wallSideChangeT) / blend, 0, 1))
+				end
+				e.wallSideFrom = from
+				e.wallSideChangeT = t + tune("Disc", "WallHeadInDelaySeconds")
+			end
+			e.wallSide = side
+		end
+	end
+	if e.wallHeadOff == nil then
+		e.wallHeadOff = CoreGeom.WallHeadOffset(e.model) or Vector3.new(-0.7, 1.6, 0)
+	end
+	if not e.wallSide then
+		return phys, 0
+	end
+	local sideV = e.wallSide :: number
+	if e.wallSideChangeT and e.wallSideFrom then
+		local k = math.clamp((t - e.wallSideChangeT) / blend, 0, 1)
+		sideV = e.wallSideFrom + (sideV - e.wallSideFrom) * CoreGeom.Ease(k)
+		if k >= 1 then
+			e.wallSideChangeT, e.wallSideFrom = nil, nil
+		end
+	end
+	local off = e.wallHeadOff :: Vector3
+	local wallHead = root.CFrame:PointToWorldSpace(Vector3.new(off.X * sideV, off.Y, off.Z))
+	return phys:Lerp(wallHead, w), w
 end
 
 function CoreCombat.TeamOf(m: Model): string
@@ -163,12 +255,14 @@ function CoreCombat.Record()
 		if root and head and m.Parent then
 			e.histN = e.histN % HIST + 1
 			local sw = CoreGeom.SlideWeight(e.slideStartT, e.slideEndT, t, tune("Slide", "PoseBlendSeconds"))
-			e.hist[e.histN] = { t = t, cf = root.CFrame, head = head.Position, yaw = e.shieldYaw, up = e.shieldUp, state = e.moveState, sw = sw }
+			local hc, hw = CoreCombat.HeadCentre(e, t, root, head)
+			e.wallHeadW = hw
+			e.hist[e.histN] = { t = t, cf = root.CFrame, head = hc, yaw = e.shieldYaw, up = e.shieldUp, state = e.moveState, sw = sw }
 			-- Step 1E correction pass: a longer (10 s) diagnostics ring, Studio test attribute only (gameplay never reads it)
 			if workspace:GetAttribute("CR_HitTrace") == true then
 				local dg = (e :: any).diag or {}
 				(e :: any).diag = dg
-				table.insert(dg, { t = t, pos = root.Position, head = head.Position, state = e.moveState, sw = sw, vel = root.AssemblyLinearVelocity })
+				table.insert(dg, { t = t, pos = root.Position, head = head.Position, hc = hc, hw = hw, cf = root.CFrame, state = e.moveState, sw = sw, vel = root.AssemblyLinearVelocity })
 				if #dg > 700 then
 					table.remove(dg, 1)
 				end
@@ -281,7 +375,7 @@ function CoreCombat.Sample(e: Entity, t: number): (CFrame?, Vector3?, number?, b
 	end
 	local root, head = rootOf(e.model), headOf(e.model)
 	if root and head then
-		return root.CFrame, head.Position, e.shieldYaw, e.shieldUp, e.moveState, CoreGeom.SlideWeight(e.slideStartT, e.slideEndT, now(), tune("Slide", "PoseBlendSeconds"))
+		return root.CFrame, (CoreCombat.HeadCentre(e, now(), root, head)), e.shieldYaw, e.shieldUp, e.moveState, CoreGeom.SlideWeight(e.slideStartT, e.slideEndT, now(), tune("Slide", "PoseBlendSeconds"))
 	end
 	return nil, nil, nil, nil, nil, nil
 end
@@ -447,6 +541,22 @@ function CoreCombat.SetMoveState(e: Entity, state: string)
 	end
 	if e.moveState == "wallrun" and state ~= "wallrun" then
 		e.wallEndT = t
+		e.wallPoseEndT = t + tune("Disc", "WallHeadOutDelaySeconds") -- stored on the observers' timeline
+	elseif state == "wallrun" and e.moveState ~= "wallrun" then
+		-- Step 1E final head-hitbox correction: blend the wall-run head centre in from where the last one left off (a
+		-- fast wall-to-wall chain does not snap); the wall side is found again for the new wall
+		local blend = math.max(0.02, tune("Disc", "WallHeadBlendSeconds"))
+		-- stored on the observers' timeline (WallHeadInDelaySeconds later); a chain while the last wall's centre is still
+		-- (partly) on keeps going from there instead of dipping back to the physical head
+		local cur = if e.wallPoseStartT then CoreGeom.SlideWeight(e.wallPoseStartT, e.wallPoseEndT, t, blend) else 0
+		e.wallPoseStartT = if cur > 0 then t - cur * blend else t + tune("Disc", "WallHeadInDelaySeconds")
+		e.wallPoseEndT = nil
+		e.wallSideFresh = false
+		if cur <= 0 then
+			-- a fresh run (not a chain): no side carried over from an earlier wall
+			e.wallSide, e.wallSideFrom, e.wallSideChangeT = nil, nil, nil
+		end
+		e.wallHeadOff = nil -- recomputed from the current rig (an avatar change keeps the same entity)
 	end
 	e.moveState = state
 	e.moveStateT = now()
