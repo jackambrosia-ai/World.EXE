@@ -172,9 +172,10 @@ CoreConfig.Tuning = {
 		-- + RewindPlayerOffset, capped at RewindMax. The thrower's reported view is DIAGNOSTICS ONLY (logged agreement
 		-- measurement); it never selects or trains the rewind (the 615ac22 per-thrower estimate was trained by those
 		-- claims and could be drifted to its cap: 3/3 forged hits). RewindPlayerOffset is the server's interpolation
-		-- policy: two-client calibration (Studio, 2026-11-21) measured honest drawn positions 0.08-0.16 s old at
-		-- receipt (typ. 0.10) = latency + ~0.07..0.10. Separate from InterpPlayerSeconds (remote pose timing).
-		RewindPlayerOffset = 0.08,
+		-- policy. Two-client sessions measured the honest drawn age (beyond the server-measured latency) at 0.08-0.16 s
+		-- (2026-11-21) and 0.015-0.094 s (2026-11-22, latency ~0). Honest lead throws at a 49 st/s slider, 2026-11-22:
+		-- offset 0.08 -> 0/9 confirmed, 0.05 -> 4/4, 0.03 -> 6/6. Separate from InterpPlayerSeconds (remote pose timing).
+		RewindPlayerOffset = 0.05,
 		ViewDiagMaxBack = 0.4, -- diagnostics: how far back a reported drawn position is searched for in server history
 		ViewMatchTolerance = 1.0, -- studs: (diagnostics) a drawn position must lie on the target's recorded path
 		OriginTolerance = 8, -- client-reported throw origin must be within this of the server root (+ speed * latency)

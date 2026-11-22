@@ -540,3 +540,89 @@ Residuals (disclosed):
 - **L-0124:** Measure arm direction as the full 3-D shoulder→elbow vector in character space. A 2-D angle that drops the forward component can report "out to the side" for an arm that points forward.
 - **L-0125:** A velocity constraint with unlimited force makes physics resolve collisions upward (launches). Look ahead and stop or redirect the drive instead.
 - **L-0126:** For another player, a state change can arrive before their position. Never fall back to the last remembered side at the start of a new action; wait for geometry.
+
+## Closeout: rewind manipulation + wall-run head alignment (2026-11-22)
+
+### A. Rewind: server policy only
+
+**Root cause (615ac22).** `CoreCombat.ResolveView` updated the per-thrower view-offset estimate from the client's own claims, including clamped ones, so sustained forged claims dragged it to its 0.15 s cap (3/3 forged hits).
+
+**Fix.**
+- Authoritative rewind against characters = server-measured one-way latency + `Disc.RewindPlayerOffset` (0.05), capped at `RewindMax`. Dummies keep `InterpSeconds` (0).
+- The latency used for rewind is capped at `Player:GetNetworkPing()/2 + Net.EnginePingMargin` (0.02), so delaying pongs cannot inflate it.
+- `payload.view` is diagnostics only: `ResolveView` returns the measured drawn age per target for the log and changes no server state. The estimator and its config keys are removed. `payload.t0` stays ignored.
+- No change to hit volumes, HEAD/BODY first contact, damage, stun, disc or shield behaviour.
+
+**Adversarial tests (solo, `cr_73_view_attack.luau`, moving dummy at 50 st/s).**
+
+| Test | Throws | Rewind used | Outbound hits |
+|---|---|---|---|
+| Paired sweep: honest / forged 0.3 s / no view / invalid view, 4 distances past the line, 2 reps | 32 | latency only (0.006–0.010 s) in every condition | 0 in every condition |
+| Sustained forgery: 20 forged 0.3 s claims in a row | 20 | unchanged throughout | 0 / 20 |
+| Paired approach sweep: honest / forged (claims the dummy on the throw line) / no view, 5 distances, 2 reps | 30 | identical per pair (latency jitter only) | identical by distance (all hit at 1.5–3.5; all miss at 7.5; one "no view" hit at 5.5 = dummy timing) |
+
+The rewind is computed without the claim, so a manipulated claim cannot change an authoritative outcome.
+
+**Legitimate two-client test (Studio Server & Clients, latency ~0, B sliding at ~49 st/s, A leading the target).**
+
+| RewindPlayerOffset | Throws | Server hits | Notes |
+|---|---|---|---|
+| 0.08 (first pick) | 9 | 0 | A's screen showed 4 of the 7 recorded as hits: the rewind overshot by ~3 studs |
+| 0.05 (shipped) | 4 | 4 BODY | |
+| 0.03 | 6 | 6 BODY | |
+
+Honest drawn age in this session: 0.015–0.094 s (2026-11-21 session: 0.08–0.16 s). A fixed offset cannot match both. 0.05 is the middle. The cost is up to ~0.05 s of mismatch either way, ~2.5 studs at slide speed. A's own "visible hit" check agreed with the server on about half the throws at every setting (aim close to the edge).
+
+### B. Wall-run head / hitbox alignment
+
+| Item | Before | After |
+|---|---|---|
+| Drawn head offset from the upright server head (canonical, in game, entry + run, both sides) | 1.14 | 0.69–0.72 |
+| Stock R15 | — | 0.67 |
+| Wall arm | raised, elbow out | raised, elbow out (hand ≥1.06 above the shoulder) |
+
+**Pose change (`cr_anim_clips.py`).**
+- `WALL_SHIFT` −0.45 → −0.20; pelvis lean `WALL_TILT` 15 → 10, plus a chest roll `WALL_WAIST_ROLL` 8.
+- Chest / hip turn toward the wall 30/12 → 35/15; `WALL_NECK` 1.0 (head level).
+- `WALL_ARM` (120, 54, 0, 75, 20); outer foot +0.1, wall-leg lift 0.45.
+- AnimData QA 24/24.
+
+**Why not ≤0.35.** With the hips at the wall (`WALL_X` 0.9), the raised elbow-out arm needs the wall shoulder ~1.3 studs from the wall, and the head sits ~0.65 inside the shoulder at the waist-twist limit (40°).
+- 0.44 is reachable only with an overhead, elbow-in arm.
+- ~0.40 needs a 55° waist twist (fails QA).
+
+**In-game finding (not fixed).** The server's own `Head` part (the hitbox centre) is not upright during wall-runs.
+- It cycles about 0.6 studs forward of the root (y 1.36–2.39, z −1.1…+0.1).
+- It does not mirror between walls.
+- It did not change with `Animate` disabled, or with the wall-run's stock run track removed (test only; reverted).
+- Against that live centre, the drawn head is ~0.9 away (old pose ~1.25 estimated).
+- Fixing it needs a decision on the head-hitbox source for wall-runs, e.g. the root plus the rig's rest head offset, like `PosedHeadOffset` for slides.
+
+**Wall contact (in game, own client).**
+
+| Check | Right | Left | Stock R15 R / L |
+|---|---|---|---|
+| Upper arm | ≤ −0.072 | ≤ −0.057 | ≤ −0.008 / −0.009 |
+| Forearm | ≤ −0.054 | ≤ −0.039 (was +0.14 at entry) | ≤ 0.013 / 0.015 |
+| Hand | −0.17…−0.05 | −0.32…−0.04 | −0.16…0.03 / −0.25…0.04 |
+| Body (torso, head) | ≤ −0.073 | ≤ −0.072 | ≤ −0.10 |
+| Feet | 0.08 contact | 0.06 contact | 0.01 contact |
+
+- Disc charging on the wall (stock R15): rim ≥0.45 clear over 15 charged frames.
+- Stock R15 slide: lowest foot/shin −0.036, 0 of 71 frames below −0.06 (no regression).
+- Stock R15 exit: the upper arm touches the wall by up to 0.15 for a few frames after leaving the wall.
+- Canonical hand: sits up to ~0.17 studs off the wall in some frames (near, not always touching).
+
+**Observer-side snap:** the one-frame position snap the other player sees at wall-run entry is unchanged (movement code untouched).
+
+**Captures** (`evidence/captures_1e_closeout/`): `canonical_R_front.jpg`, `canonical_R_behind.jpg`, `canonical_L_front.jpg`, `stockR15_R_front.jpg`. The stock R15 body was applied with `ApplyDescription` for the session only.
+
+### Place and data
+- Place SHA-256 `127ade8815bcc102766d628fddfb3182dd49307e64a960ecb96442702213164d`; backup `backup_step1e_closeout_2026-11-22.rbxlx` (same SHA). The pre-edit backup `backup_step1e_closeout_pre_2026-11-21/` holds the previous version `88fd393a…`.
+- Script parity 24/24, 24 KeyframeSequences, AnimData QA 24/24, protected files 9 OK.
+- Blender `WorldEXE_CoreRound_Anim_Step1E.blend` SHA `e69012df…`; backup `backup_precloseout_WorldEXE_CoreRound_Anim_Step1E.blend`.
+
+### Proposed lessons (vault not modified)
+- **L-0127:** a server-side estimate trained on client observations is still client-controlled. Keep the authoritative value derived only from server measurements; use client reports for diagnostics.
+- **L-0128:** Studio two-client interpolation delay varies a lot between sessions (0.02 to 0.10+ s). Calibrate rewind offsets in more than one session before fixing them.
+- **L-0129:** on a client-posed character, the server-side `Head` part is not the drawn head. Measure the server's own part in game before assuming a hitbox centre.
