@@ -375,6 +375,32 @@ function Slide.Start(d: typeof(deps))
 				cur.dir = CoreGeom.Flat(cur.dir:Lerp(want, k)) or cur.dir
 			end
 		end
+		-- obstacles (owner bug 2026-11-21): the slide's LinearVelocity has unlimited force, so sliding into a wall or a
+		-- cover block made the physics resolve the contact by launching the character up and over it (and it fell
+		-- over). Look ahead at knee and chest height: a glancing hit follows the face (speed kept along it), a head-on
+		-- hit ends the slide at the obstacle. Ramps (normal.Y >= 0.6) and low steps are not obstacles.
+		local look = 1.0 + cur.speed * dt * 2
+		local blockN: Vector3? = nil
+		for _, dy in { -1.2, 0.6 } do
+			local hitF = workspace:Spherecast(hrp.Position + Vector3.new(0, dy, 0), 0.8, cur.dir * look, params)
+			if hitF and hitF.Normal.Y < 0.6 then
+				local hn = CoreGeom.Flat(hitF.Normal)
+				if hn and hn:Dot(cur.dir) < -0.05 then
+					blockN = hn
+					break
+				end
+			end
+		end
+		if blockN then
+			local tangent = cur.dir - blockN * cur.dir:Dot(blockN)
+			if tangent.Magnitude < 0.5 then
+				local v = hrp.AssemblyLinearVelocity
+				hrp.AssemblyLinearVelocity = v - blockN * math.min(0, v:Dot(blockN))
+				return finish("blocked", false)
+			end
+			cur.dir = tangent.Unit
+			cur.speed *= tangent.Magnitude
+		end
 		cur.lv.PlaneVelocity = Vector2.new(cur.dir.X, cur.dir.Z) * cur.speed
 		if scrape then
 			scrape.PlaybackSpeed = 0.45 + cur.speed / 120

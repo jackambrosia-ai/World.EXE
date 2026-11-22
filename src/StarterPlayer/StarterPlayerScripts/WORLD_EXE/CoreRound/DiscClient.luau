@@ -404,8 +404,8 @@ function DiscClient.Throw(dirOverride: Vector3?, charge: number?): (boolean, str
 	pending[seq] = v
 	mine = v
 	DiscClient.Records[seq] = { t = os.clock(), visible = {}, server = {}, origin = origin, dir = dir, charge = k }
-	-- Step 1E correction pass (two-client evidence): the throw carries WHEN it was thrown (server clock) and WHERE
-	-- this screen drew each nearby enemy at that moment. Other players are drawn a variable 0.03-0.10 s behind (measured),
+	-- Step 1E correction pass (two-client evidence): the throw carries WHERE this screen drew each nearby enemy at
+	-- release (security gate: the server uses its own latency measurement for timing, not a client timestamp). Other players are drawn a variable 0.03-0.10 s behind (measured),
 	-- not the fixed InterpPlayerSeconds the server assumed; the server uses these only to pick, from its OWN history,
 	-- the rewind time that matches this view (bounded by Disc.RewindMax). Hits are still judged on the server only.
 	local view = {}
@@ -417,7 +417,7 @@ function DiscClient.Throw(dirOverride: Vector3?, charge: number?): (boolean, str
 			end
 		end
 	end
-	send("throw", { n = seq, origin = origin, dir = dir, charge = k, t0 = workspace:GetServerTimeNow(), view = view })
+	send("throw", { n = seq, origin = origin, dir = dir, charge = k, view = view })
 	Fx.Sound(if k > 0.95 then "throw_max" else "throw")
 	return true, nil
 end
@@ -657,6 +657,8 @@ local function chargeOf(c: Model): number?
 	return math.clamp((workspace:GetServerTimeNow() - cs - tune("TapSeconds")) / math.max(0.05, tune("ChargeSeconds")), 0, 1)
 end
 
+local discWall: ((Model) -> (Vector3?, Vector3?))? = nil -- Poses.DiscWall (security gate pass)
+
 local function updateCharge(dt: number)
 	local seen: { [Model]: boolean } = {}
 	for _, p in Players:GetPlayers() do
@@ -670,7 +672,20 @@ local function updateCharge(dt: number)
 			local hrp = c:FindFirstChild("HumanoidRootPart") :: BasePart?
 			if hand and hrp then
 				local spin = os.clock() * (10 + 30 * k)
-				h.disc.CFrame = hand.CFrame * CFrame.new(0, -0.9, -0.4) * CFrame.Angles(0, spin, 0) * CFrame.Angles(0, 0, math.rad(90))
+				local wp, wn = nil, nil
+				if discWall then
+					wp, wn = discWall(c)
+				end
+				if wp and wn then
+					-- security gate pass (owner wall-run direction): charging on a right-hand wall-run, the raised arm's
+					-- disc spins EDGE-ON to the wall (its plane parallel to the wall), kept 0.3 off it - a flat disc on
+					-- the palm would cut into the wall. Charge, glow, spin and the throw itself are unchanged.
+					local pos = (hand.CFrame * CFrame.new(0, -0.9, 0)).Position
+					pos += wn * math.max(0, 0.3 + h.disc.Size.X * 0.5 - (pos - wp):Dot(wn))
+					h.disc.CFrame = CFrame.fromMatrix(pos, wn, Vector3.yAxis) * CFrame.Angles(spin, 0, 0)
+				else
+					h.disc.CFrame = hand.CFrame * CFrame.new(0, -0.9, -0.4) * CFrame.Angles(0, spin, 0) * CFrame.Angles(0, 0, math.rad(90))
+				end
 				local core = h.disc:FindFirstChild("Core") :: BasePart?
 				if core then
 					core.CFrame = h.disc.CFrame
@@ -716,8 +731,9 @@ local function updateCharge(dt: number)
 	local _ = dt
 end
 
-function DiscClient.Start(deps: { send: (string, { [string]: any }) -> (), shieldUp: () -> boolean, stunned: () -> boolean, hud: any })
+function DiscClient.Start(deps: { send: (string, { [string]: any }) -> (), shieldUp: () -> boolean, stunned: () -> boolean, hud: any, discWall: ((Model) -> (Vector3?, Vector3?))? })
 	send = deps.send
+	discWall = deps.discWall
 	blockers = { shieldUp = deps.shieldUp, stunned = deps.stunned }
 	hud = deps.hud
 	RunService.RenderStepped:Connect(function(dt)

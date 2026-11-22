@@ -1,7 +1,10 @@
--- Core Round Step 1E correction pass: Play-client probe for wall contact during wall-runs (paste into the CLIENT
--- datamodel). Every frame the character's CR_MoveState is "wallrun", the nearest wall within 4 studs is found and the
--- deepest arm / hand corner and the deepest torso / leg / head corner behind the wall plane are recorded.
---   _G.WALLMON(character, seconds), _G.WALLSUM(), _G.RUNCHAIN() (PSJ -> wall-run -> wall-jump route, with a charge)
+-- Core Round Step 1E (correction pass; security gate pass revision): Play-client probe for wall contact during
+-- wall-runs (paste into the CLIENT datamodel). Every frame next to a wall (4-stud side rays) it records, against the
+-- nearest wall plane: the wall-side upper / lower arm (must stay out), the wall-side HAND (should touch: about 0),
+-- torso / head / thighs (must stay out), shins / feet (contact), the held disc's rim (while charging), and how far
+-- the hand is above the shoulder (raised reach).
+--   _G.WALLMON(character, seconds), _G.WALLSUM(onlyWallrun), _G.WALLGO(seconds) (own character: teleport to the
+--   WR2_WallA lane at x -169.3 facing -Z; then hold W, press Space after ~1 s next to the wall)
 local Pl = game:GetService("Players")
 local RS = game:GetService("RunService")
 local P = Pl.LocalPlayer
@@ -15,7 +18,6 @@ _G.TP = function(pos, dir)
 end
 local rp = RaycastParams.new()
 rp.FilterType = Enum.RaycastFilterType.Exclude
-local PARTS = { "RightUpperArm", "RightLowerArm", "RightHand", "LeftUpperArm", "LeftLowerArm", "LeftHand", "UpperTorso", "LowerTorso", "RightUpperLeg", "LeftUpperLeg", "RightLowerLeg", "LeftLowerLeg", "RightFoot", "LeftFoot", "Head" }
 _G.WALLMON = function(c, sec)
 	_G.WM = {}
 	task.spawn(function()
@@ -27,9 +29,7 @@ _G.WALLMON = function(c, sec)
 				conn:Disconnect()
 				return
 			end
-			if c:GetAttribute("CR_MoveState") ~= "wallrun" then
-				return
-			end
+			local st = c:GetAttribute("CR_MoveState")
 			local hrp = c.HumanoidRootPart
 			rp.FilterDescendantsInstances = { c, workspace:FindFirstChild("CoreRoundFx") }
 			local best
@@ -42,57 +42,67 @@ _G.WALLMON = function(c, sec)
 			if not best then
 				return
 			end
-			local arm, body, armWho, bodyWho = -1e9, -1e9, "", ""
-			for _, n in PARTS do
+			local function pen(n)
 				local p = c:FindFirstChild(n)
 				local cf, s = p.CFrame, p.Size
+				local w = -1e9
 				for _, x in { -0.5, 0.5 } do
 					for _, y in { -0.5, 0.5 } do
 						for _, z in { -0.5, 0.5 } do
-							local pen = -((cf * Vector3.new(x * s.X, y * s.Y, z * s.Z)) - best.Position):Dot(best.Normal)
-							if n:find("Arm") or n:find("Hand") then
-								if pen > arm then
-									arm, armWho = pen, n
-								end
-							elseif pen > body then
-								body, bodyWho = pen, n
-							end
+							w = math.max(w, -((cf * Vector3.new(x * s.X, y * s.Y, z * s.Z)) - best.Position):Dot(best.Normal))
 						end
 					end
 				end
+				return w
 			end
-			table.insert(_G.WM, { t = t, gap = best.Distance, arm = arm, armWho = armWho, body = body, bodyWho = bodyWho, ch = _G.T:Invoke("Charging")[1] })
+			local side = if best.Normal:Dot(hrp.CFrame.RightVector) < 0 then "Right" else "Left"
+			local arm = math.max(pen(side .. "UpperArm"), pen(side .. "LowerArm"))
+			local hand = pen(side .. "Hand")
+			local body = -1e9
+			for _, n in { "UpperTorso", "LowerTorso", "Head", "RightUpperLeg", "LeftUpperLeg" } do
+				body = math.max(body, pen(n))
+			end
+			local feet = math.max(pen("RightFoot"), pen("LeftFoot"), pen("RightLowerLeg"), pen("LeftLowerLeg"))
+			local fx = workspace:FindFirstChild("CoreRoundFx")
+			local disc = fx and fx:FindFirstChild("HeldDisc", true)
+			local dp = -9
+			if disc then
+				local cf, s = disc.CFrame, disc.Size
+				for i = 0, 11 do
+					local a = i / 12 * 2 * math.pi
+					dp = math.max(dp, -((cf * Vector3.new(0, math.cos(a) * s.Y / 2, math.sin(a) * s.Z / 2)) - best.Position):Dot(best.Normal))
+				end
+			end
+			local v = c[side .. "Hand"].Position - c[side .. "UpperArm"].Position
+			table.insert(_G.WM, { t = t, st = tostring(st), side = side, gap = best.Distance, arm = arm, hand = hand, body = body, feet = feet, disc = dp, up = v.Y })
 		end)
 	end)
 end
-_G.WALLSUM = function()
-	local a, b, g, w, bw = -1e9, -1e9, 1e9, "", ""
-	local na, nc = 0, 0
+_G.WALLSUM = function(onlyWall)
+	local r = { n = 0, arm = -9, handMin = 9, handMax = -9, body = -9, feet = -9, disc = -9, up = 9, nArm = 0, nHandFar = 0 }
 	for _, m in _G.WM do
-		if m.ch then
-			nc += 1
-		end
-		if m.arm > a then
-			a, w = m.arm, m.armWho
-		end
-		if m.body > b then
-			b, bw = m.body, m.bodyWho
-		end
-		g = math.min(g, m.gap)
-		if m.arm > 0.06 then
-			na += 1
+		if not onlyWall or m.st == "wallrun" then
+			r.n += 1
+			r.arm = math.max(r.arm, m.arm)
+			r.body = math.max(r.body, m.body)
+			r.feet = math.max(r.feet, m.feet)
+			r.disc = math.max(r.disc, m.disc)
+			r.handMin = math.min(r.handMin, m.hand)
+			r.handMax = math.max(r.handMax, m.hand)
+			r.up = math.min(r.up, m.up)
+			if m.arm > 0.06 then
+				r.nArm += 1
+			end
+			if m.hand < -0.15 then
+				r.nHandFar += 1
+			end
 		end
 	end
-	return string.format("wallrun frames=%d (charging %d) rootToWall>=%.2f worst arm pen %.3f (%s) frames arm>0.06: %d  worst body/legs pen %.3f (%s)", #_G.WM, nc, g, a, w, na, b, bw)
+	return string.format("frames %d arm(upper/lower) worst %.3f (>0.06: %d) hand %.3f..%.3f (gap>0.15: %d) body %.3f feet %.3f disc %.3f minUp %.2f", r.n, r.arm, r.nArm, r.handMin, r.handMax, r.nHandFar, r.body, r.feet, r.disc, r.up)
 end
-_G.RUNCHAIN = function()
+_G.WALLGO = function(sec)
 	_G.TP(Vector3.new(-169.3, 4, -25), Vector3.new(0, 0, -1))
-	task.wait(1.0)
-	_G.WALLMON(P.Character, 5)
-	task.delay(1.6, function()
-		_G.T:Invoke("ChargeBegin")
-		task.wait(0.6)
-		_G.T:Invoke("ChargeRelease")
-	end)
+	task.wait(0.6)
+	_G.WALLMON(P.Character, sec or 4)
 end
 return "wall probe ready"

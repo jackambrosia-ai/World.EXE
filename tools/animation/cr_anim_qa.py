@@ -23,8 +23,8 @@ LIMITS = {
     "Root": ((-45, 45), (-30, 30), (-35, 35)),
     "Waist": ((-35, 25), (-40, 40), (-25, 25)),
     "Neck": ((-50, 45), (-65, 65), (-35, 35)),
-    "RightShoulder": ((-80, 185), (-125, 125), (-100, 110)),  # twist: straight-elbow wall brace uses -120 (correction pass)
-    "LeftShoulder": ((-80, 185), (-125, 125), (-110, 100)),
+    "RightShoulder": ((-80, 185), (-125, 125), (-100, 160)),  # twist: -120 brace; Z: raised overhead reach (security gate pass: abduction with shoulder elevation)
+    "LeftShoulder": ((-80, 185), (-125, 125), (-160, 100)),
     "RightElbow": ((-3, 150), (-8, 8), (-8, 8)),
     "LeftElbow": ((-3, 150), (-8, 8), (-8, 8)),
     "RightWrist": ((-75, 75), (-45, 45), (-45, 45)),

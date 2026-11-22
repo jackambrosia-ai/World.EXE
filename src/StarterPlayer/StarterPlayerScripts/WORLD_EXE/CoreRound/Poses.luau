@@ -138,6 +138,13 @@ type State = {
 	dirty: boolean, -- joints added / removed (avatar parts replaced): rebuild the joint map
 	spin: number, -- owner request: the right hand spins while the disc charges (radians)
 	lastWallT: number, -- correction pass: last frame on a wall (wall-arm check keeps running briefly after)
+	reachR: number, -- security gate pass: raised wall-reach arm weight, right / left (own layer, see below)
+	reachL: number,
+	wallOnT: number,
+	discWallP: Vector3?, -- security gate pass: wall plane beside the raised right arm (held-disc orientation)
+	discWallN: Vector3?,
+	discWallT: number,
+	reachT: number, -- wall-run clip time used for the reach arm before the wall-run base track exists
 	ovT: number, -- correction pass: Power Slide Jump push-off overlay start (PSJ straight into a wall-run)
 	pendKind: string?, -- others: a slide / wall-run just ended; watching for the launch (psj / wj)
 	pendT: number,
@@ -221,6 +228,13 @@ local function stateFor(c: Model): State
 		dirty = false,
 		spin = 0,
 		lastWallT = -10,
+		reachR = 0,
+		reachL = 0,
+		reachT = 0,
+		wallOnT = -10,
+		discWallP = nil,
+		discWallN = nil,
+		discWallT = -10,
 		ovT = -10,
 		pendKind = nil,
 		pendT = 0,
@@ -272,11 +286,11 @@ end
 local params = RaycastParams.new()
 params.FilterType = Enum.RaycastFilterType.Exclude
 
-local function wallSideOf(c: Model, hrp: BasePart): number?
+local function wallSideOf(c: Model, hrp: BasePart, reach: number): number?
 	params.FilterDescendantsInstances = { c }
 	local right = hrp.CFrame.RightVector
-	local r = workspace:Raycast(hrp.Position, right * 4, params)
-	local l = workspace:Raycast(hrp.Position, -right * 4, params)
+	local r = workspace:Raycast(hrp.Position, right * reach, params)
+	local l = workspace:Raycast(hrp.Position, -right * reach, params)
 	if r and (not l or r.Distance <= l.Distance) then
 		return 1
 	elseif l then
@@ -327,6 +341,7 @@ end
 
 Poses.FootFix = { frames = 0, lifts = 0, maxLift = 0 } -- test hook
 Poses.WallFix = { frames = 0, fixes = 0, residual = 0 } -- test hook
+local DISC_RIM_REF: { Vector3 } = {} -- filled below (held-disc envelope, see reachContact)
 
 -- Step 1E correction pass (owner): wall-side arm vs the real wall plane, per rig. The authored wall-run brace keeps the
 -- canonical avatar's arm within ~0.06 of the wall, but a rig whose shoulders / arms sit further out (stock R15: hand
@@ -334,7 +349,7 @@ Poses.WallFix = { frames = 0, fixes = 0, residual = 0 } -- test hook
 -- is tested against the wall the root is running on; if it is inside, the arm is rotated about the shoulder pivot -
 -- first spun about the character's forward axis, then swung about the vertical - by bisection until it only touches
 -- the wall. Torso, head, legs and the wall-run physics are untouched.
-local function wallArmFix(c: Model, joints: { [string]: any }, hrpCF: CFrame, wp: Vector3, wn: Vector3, side: number, work: { [string]: CFrame })
+local function wallArmFix(c: Model, joints: { [string]: any }, hrpCF: CFrame, wp: Vector3, wn: Vector3, side: number, work: { [string]: CFrame }, holdingDisc: boolean?)
 	local n = if side > 0 then "Right" else "Left"
 	local rj, wj, sj, ej, hj = joints.Root, joints.Waist, joints[n .. "Shoulder"], joints[n .. "Elbow"], joints[n .. "Wrist"]
 	local ua, la, hand = c:FindFirstChild(n .. "UpperArm") :: BasePart?, c:FindFirstChild(n .. "LowerArm") :: BasePart?, c:FindFirstChild(n .. "Hand") :: BasePart?
@@ -364,6 +379,11 @@ local function wallArmFix(c: Model, joints: { [string]: any }, hrpCF: CFrame, wp
 				worst = math.max(worst, -((cf * Vector3.new(k.X * sz.X, k.Y * sz.Y, k.Z * sz.Z)) - wp):Dot(wn))
 			end
 		end
+		if holdingDisc then
+			for _, k in DISC_RIM_REF do
+				worst = math.max(worst, -((hd * k) - wp):Dot(wn))
+			end
+		end
 		return worst
 	end
 	Poses.WallFix.frames += 1
@@ -376,35 +396,245 @@ local function wallArmFix(c: Model, joints: { [string]: any }, hrpCF: CFrame, wp
 	end
 	local best = ts
 	for _, axis in { hrpCF.LookVector, Vector3.yAxis } do
-		local sgn = if pen(rotated(axis, 0.3, best)) < pen(rotated(axis, -0.3, best)) then 1 else -1
-		local lo, hi = 0, math.pi
-		if pen(rotated(axis, sgn * hi, best)) > 0.02 then
-			-- cannot clear with this axis alone: take its best sampled angle and continue with the next axis
-			local bestA, bestP = 0, pen(best)
-			for i = 1, 8 do
-				local a = sgn * hi * i / 8
-				local pv = pen(rotated(axis, a, best))
+		-- security gate pass: try BOTH directions (the +/-0.3 probe alone picked the wrong way at a flush take-off) and
+		-- keep the smallest angle that clears; if neither clears, the best sampled angle, then the next axis
+		local clearA: number? = nil
+		local bestA, bestP = 0, pen(best)
+		for _, sgn in { 1, -1 } do
+			-- first clear sample along this direction, refined by bisection
+			local prev = 0
+			for i = 1, 12 do
+				local ang = sgn * math.pi * i / 12
+				local pv = pen(rotated(axis, ang, best))
 				if pv < bestP then
-					bestA, bestP = a, pv
+					bestA, bestP = ang, pv
 				end
-			end
-			best = rotated(axis, bestA, best)
-		else
-			for _ = 1, 7 do
-				local mid = (lo + hi) / 2
-				if pen(rotated(axis, sgn * mid, best)) > 0.02 then
-					lo = mid
-				else
-					hi = mid
+				if pv <= 0.02 then
+					local lo, hi = prev, ang
+					for _ = 1, 6 do
+						local mid = (lo + hi) / 2
+						if pen(rotated(axis, mid, best)) > 0.02 then
+							lo = mid
+						else
+							hi = mid
+						end
+					end
+					if not clearA or math.abs(hi) < math.abs(clearA) then
+						clearA = hi
+					end
+					break
 				end
+				prev = ang
 			end
-			best = rotated(axis, sgn * hi, best)
+		end
+		if clearA then
+			best = rotated(axis, clearA, best)
 			break
 		end
+		best = rotated(axis, bestA, best)
 	end
 	work[n .. "Shoulder"] = best
 	Poses.WallFix.fixes += 1
 	Poses.WallFix.residual = math.max(Poses.WallFix.residual, pen(best))
+	Poses.WallFix.last = string.format("%.2f->%.2f", pen(ts), pen(best))
+end
+
+-- Security gate pass (owner direction): the wall-run arm is RAISED and reaches the wall; only the hand (and the feet)
+-- touch it. The authored pose (cr_wall_reach_search.py) puts the canonical avatar's hand on a wall 0.9 from the root;
+-- the real wall distance and other rigs' shoulders / arm lengths differ, so the raised arm is swung about the
+-- character's FORWARD axis through the shoulder (sideways toward / away from the wall - it is never lowered) until
+-- the hand just presses the real wall plane (0.02), the upper / lower arm stay out of it (<= 0.02) and, while this
+-- arm holds a charging disc, the 2.2-stud spinning disc stays clear of the wall (the hand then hovers just off the
+-- wall: a palm flat on the wall cannot also hold the disc). If the swing brings the arm against the head, it is also
+-- carried forward (about the character's right axis) until clear. Bounded: +/- 0.7 rad sideways, 0.8 rad forward.
+Poses.ReachFix = { frames = 0, handGap = 0, armPen = -1, discPen = -1, headFix = 0 } -- test hook (worst values)
+-- held disc (DiscClient: 2.2-stud disc at hand * (0, -0.9, -0.4), spinning with the hand about the forearm): tested
+-- as its spin-invariant envelope - a ring of radius 1.1 + 0.4 around the hand axis - so the result does not jitter
+-- with the spin phase
+local DISC_RIM = {}
+for i = 0, 11 do
+	local a = i / 12 * 2 * math.pi
+	table.insert(DISC_RIM, Vector3.new(math.cos(a) * 1.5, -0.9, math.sin(a) * 1.5))
+end
+for _, v in DISC_RIM do
+	table.insert(DISC_RIM_REF, v)
+end
+local function reachContact(c: Model, joints: { [string]: any }, hrpCF: CFrame, wp: Vector3, wn: Vector3, side: number, work: { [string]: CFrame }, holdingDisc: boolean): boolean
+	local n = if side > 0 then "Right" else "Left"
+	local rj, wj, nj, sj, ej, hj = joints.Root, joints.Waist, joints.Neck, joints[n .. "Shoulder"], joints[n .. "Elbow"], joints[n .. "Wrist"]
+	local ua, la, hand, head = c:FindFirstChild(n .. "UpperArm") :: BasePart?, c:FindFirstChild(n .. "LowerArm") :: BasePart?, c:FindFirstChild(n .. "Hand") :: BasePart?, c:FindFirstChild("Head") :: BasePart?
+	if not (rj and wj and sj and ej and hj and ua and la and hand and work.Root and work.Waist) then
+		return true
+	end
+	local ts, te, tw = work[n .. "Shoulder"], work[n .. "Elbow"], work[n .. "Wrist"]
+	if not (ts and te and tw) then
+		return true
+	end
+	local r0, r1 = jointC(rj)
+	local w0, w1 = jointC(wj)
+	local s0, s1 = jointC(sj)
+	local e0, e1 = jointC(ej)
+	local h0, h1 = jointC(hj)
+	local lt = hrpCF * r0 * work.Root * r1:Inverse()
+	local ut = lt * w0 * work.Waist * w1:Inverse()
+	local fs = ut * s0
+	local headC: Vector3? = nil
+	if nj and head and work.Neck then
+		local n0, n1 = jointC(nj)
+		headC = (ut * n0 * work.Neck * n1:Inverse()).Position
+	end
+	local headR = if head then math.max(head.Size.X, head.Size.Z) * 0.5 else 0.5
+	local function boxPen(cf: CFrame, sz: Vector3): number
+		local worst = -math.huge
+		for _, k in FOOT_CORNERS do
+			worst = math.max(worst, -((cf * Vector3.new(k.X * sz.X, k.Y * sz.Y, k.Z * sz.Z)) - wp):Dot(wn))
+		end
+		return worst
+	end
+	-- arm, hand, disc penetration and head clearance for a shoulder transform
+	local function eval(tsx: CFrame): (number, number, number, number)
+		local u = fs * tsx * s1:Inverse()
+		local l = u * e0 * te * e1:Inverse()
+		local hd = l * h0 * tw * h1:Inverse()
+		-- the forearm's wrist end sits where the hand meets the wall (same rule as the Blender authoring QA): only its
+		-- elbow half must stay off the wall; the wrist half may reach the hand's press depth
+		local elbowEnd = if e1.Position.Y >= 0 then 1 else -1
+		local lsz = la.Size
+		local lowerP = -math.huge
+		for _, k in FOOT_CORNERS do
+			local d = -((l * Vector3.new(k.X * lsz.X, k.Y * lsz.Y, k.Z * lsz.Z)) - wp):Dot(wn)
+			lowerP = math.max(lowerP, if k.Y * elbowEnd > 0 then d else d - 0.06)
+		end
+		local armP = math.max(boxPen(u, ua.Size), lowerP)
+		-- the hand as a cylinder about the forearm axis: the charge spin turns the hand about that axis every frame,
+		-- and a box test would make the contact angle (and so the arm) follow the spin phase
+		local hs = hand.Size
+		local handP = -((hd.Position - wp):Dot(wn)) + 0.5 * math.max(hs.X, hs.Z) + 0.5 * hs.Y * math.abs(hd.UpVector:Dot(wn))
+		local discP = -math.huge -- the held disc is kept off the wall by DiscClient (edge-on, Poses.DiscWall)
+		local clash = -math.huge
+		if headC then
+			-- upper / lower arm centre lines vs the head (capsule test: radii = half widths)
+			for _, pr in { { u, ua.Size }, { l, la.Size } } do
+				local cf, sz = pr[1] :: CFrame, pr[2] :: Vector3
+				local half = math.max(0, sz.Y * 0.5 - sz.X * 0.4)
+				local a, b = cf.Position + cf.UpVector * half, cf.Position - cf.UpVector * half
+				local ab = b - a
+				local k = math.clamp((headC - a):Dot(ab) / math.max(1e-6, ab:Dot(ab)), 0, 1)
+				clash = math.max(clash, headR + ua.Size.X * 0.45 - (a + ab * k - headC).Magnitude)
+			end
+		end
+		return armP, handP, discP, clash
+	end
+	local fsR = fs.Rotation
+	local function rot(axis: Vector3, ang: number, base: CFrame): CFrame
+		return (fsR:Inverse() * CFrame.fromAxisAngle(axis, ang) * fsR) * base
+	end
+	-- sideways axis = the horizontal direction ALONG the wall (positive angle moves the raised hand toward the wall); the
+	-- character's own forward axis is not used: a Power Slide Jump meets the wall with the body still turned into it
+	local alongW = wn:Cross(Vector3.yAxis)
+	if alongW.Magnitude < 0.1 then
+		alongW = hrpCF.LookVector
+	end
+	local fwdAxis = alongW.Unit
+	local function towardWall(a: number): CFrame
+		return rot(fwdAxis, a, ts)
+	end
+	local probe = select(2, eval(towardWall(0.1))) - select(2, eval(towardWall(-0.1)))
+	if probe < 0 then
+		fwdAxis = -fwdAxis
+	end
+	Poses.ReachFix.frames += 1
+	-- 1. contact: hand press 0.02 (or disc clear by 0.03), by bisection on the sideways angle
+		local function goal(a: number): number
+		local _, handP = eval(towardWall(a))
+		-- the hand presses the wall - also while holding the charging disc: DiscClient turns that disc edge-on to the
+		-- wall and keeps it 0.3 off it (Poses.DiscWall), so the arm keeps the same stable pose. While the hand spins
+		-- (charging) its box corners sweep 0.1 beyond the cylinder used here, so it is held 0.06 off instead
+		return if holdingDisc then handP + 0.06 else handP - 0.02
+	end
+	local lo, hi = -0.7, 0.7
+	local a = 0
+	if goal(lo) > 0 then
+		a = lo
+	elseif goal(hi) < 0 then
+		a = hi
+	else
+		for _ = 1, 12 do
+			local mid = (lo + hi) / 2
+			if goal(mid) > 0 then
+				hi = mid
+			else
+				lo = mid
+			end
+		end
+		a = (lo + hi) / 2
+	end
+	-- 2. the upper / lower arm must not be pushed into the wall to reach it. Rotating about the shoulder moves parts of
+	-- the arm on either side of the pivot in opposite directions (not monotonic), so scan from the contact angle
+	-- away from the wall and take the FIRST clear angle (the hand stays as close to the wall as the arm allows)
+	if eval(towardWall(a)) > 0.02 then
+		local found, bestA, bestP = false, a, math.huge
+		local x = a
+		while x > -0.7 - 1e-6 do
+			local pv = eval(towardWall(x))
+			if pv <= 0.02 then
+				found, bestA = true, x
+				break
+			end
+			if pv < bestP then
+				bestA, bestP = x, pv
+			end
+			x -= 0.04
+		end
+		if not found and bestP > 0.06 then
+			-- nothing near-clear sideways: take the least-penetrating and also swing it forward / back about the
+			-- character's right axis
+			local base = towardWall(bestA)
+			local rv = wn
+			local b2, p2 = base, bestP
+			for i = -8, 8 do
+				local cand = rot(rv, i * 0.1, base)
+				local pv = eval(cand)
+				if pv < p2 then
+					b2, p2 = cand, pv
+				end
+			end
+			ts = b2
+			bestA = 0
+			Poses.ReachFix.headFix += 0
+		end
+		a = bestA
+	end
+	local best = towardWall(a)
+	-- 3. head clearance: carry the arm forward only when the sideways swing brought it closer to the head than the
+	-- authored pose already is (the capsule test is approximate; the authored pose is the reference)
+	local _, _, _, clash = eval(best)
+	local allowed = math.max(0.02, select(4, eval(ts)))
+	if clash > allowed + 0.03 then
+		local rv = wn
+		local sgn = if select(4, eval(rot(rv, -0.2, best))) < select(4, eval(rot(rv, 0.2, best))) then -1 else 1
+		local l3, h3 = 0, 0.8
+		for _ = 1, 8 do
+			local mid = (l3 + h3) / 2
+			if select(4, eval(rot(rv, sgn * mid, best))) > allowed then
+				l3 = mid
+			else
+				h3 = mid
+			end
+		end
+		best = rot(rv, sgn * h3, best)
+		Poses.ReachFix.headFix += 1
+	end
+	work[n .. "Shoulder"] = best
+	local armP, handP, discP = eval(best)
+	if armP > 0.06 then
+		-- the bounded raise-and-contact swing cannot clear this pose (e.g. the first frames of a Power Slide Jump into a
+		-- wall-run, while the slide torso is still easing out): the caller falls back to the general clear-only fix
+		return false
+	end
+	Poses.ReachFix.armPen = math.max(Poses.ReachFix.armPen, armP)
+	Poses.ReachFix.handGap = math.max(Poses.ReachFix.handGap, math.abs(handP - (if holdingDisc then -0.06 else 0.02)))
+	return true
 end
 
 local function fixFeet(c: Model, joints: { [string]: any }, hrpCF: CFrame, floor: RaycastResult, work: { [string]: CFrame })
@@ -579,7 +809,13 @@ local function drawCharacter(c: Model, s: State, hrp: BasePart, hum: Humanoid?, 
 		sliding = deps.localSlide()
 		local n = deps.localWall()
 		if n then
-			wallSide = if n:Dot(hrp.CFrame.RightVector) < 0 then 1 else -1
+			-- security gate pass: the side of the wall relative to the direction of TRAVEL along it (the wall-run turns
+			-- the body to that direction within a few frames); the body's own right vector alone picked the wrong side
+			-- for ~0.1 s when a Power Slide Jump met the wall at an angle (body still facing partly into it)
+			local along = vel - n * vel:Dot(n)
+			along = Vector3.new(along.X, 0, along.Z)
+			local right = if along.Magnitude > 8 then along.Unit:Cross(Vector3.yAxis) else hrp.CFrame.RightVector
+			wallSide = if n:Dot(right) < 0 then 1 else -1
 		end
 		local on, k = deps.charging()
 		charging, chargeK = on, k or 0
@@ -632,13 +868,17 @@ local function drawCharacter(c: Model, s: State, hrp: BasePart, hum: Humanoid?, 
 			-- the side ray first; only when it finds no wall on either side (the drawn position has not reached the
 			-- new wall yet) does the sideways motion decide (acceptance finding: using motion first picked the wrong
 			-- side at wall-run ENTRY)
-			local ray = wallSideOf(c, hrp)
+			-- final gate two-client finding: at ENTRY the state can arrive while the drawn body is still more than 4 studs
+			-- from the wall; keeping the last side then started the OTHER side's pose (left-wall run, then right-wall run:
+			-- the body leaned ~1 stud into the wall for ~0.1 s on the watching client). At entry look further (8 studs),
+			-- and if no wall is found yet, wait (the pose starts when the wall is found) instead of guessing the side.
+			local ray = wallSideOf(c, hrp, 4) or (if s.wallOn then nil else wallSideOf(c, hrp, 8))
 			local lat = hrp.CFrame.RightVector:Dot(Vector3.new(vel.X, 0, vel.Z))
 			if ray then
 				wallSide = ray
 			elseif math.abs(lat) > 12 then
 				wallSide = if lat > 0 then 1 else -1
-			else
+			elseif s.wallOn then
 				wallSide = s.wallSide
 			end
 		end
@@ -662,6 +902,9 @@ local function drawCharacter(c: Model, s: State, hrp: BasePart, hum: Humanoid?, 
 			s.ovT = s.psjT -- this client's own PSJ that reaches a wall: finish the push-off as an overlay (correction pass)
 		end
 		s.psjT = -10 -- a wall-run ends the Power Slide Jump sequence (the next jump is a wall jump)
+	end
+	if wallSide and not s.wallOn then
+		s.wallOnT = now -- security gate pass: wall-run attach time (entry prediction below)
 	end
 	s.wallOn = wallSide ~= nil
 
@@ -876,6 +1119,79 @@ local function drawCharacter(c: Model, s: State, hrp: BasePart, hum: Humanoid?, 
 			end
 		end
 	end
+	local reachPass: (boolean) -> () = function() end
+	-- security gate pass (owner direction): the wall-side arm REACHES UP to the wall as its own layer. The full-body
+	-- crossfade into the wall-run takes 0.12 s and another player's body reaches the wall on this screen before their
+	-- replicated state says "wallrun" (correction-pass finding: a one-frame 1.45 hand-in-wall flash), so the arm rises
+	-- over 0.07 s as soon as the body is airborne, moving along a wall and at / closing on it - normally before
+	-- contact. It lowers over 0.15 s when the wall-run ends (the wall-jump clip carries the push-off).
+	do
+		local tR, tL = 0, 0
+		if not off and not s.r6 and now - s.wjT > 0.3 then
+			if s.wallOn then
+				if s.wallSide > 0 then
+					tR = 1
+				else
+					tL = 1
+				end
+			else
+				-- airborne and at / closing on a wall, or still flush against the wall the run just ended on (landing
+				-- beside it: the arm stays up until the body leaves the wall - any lowered arm would be inside it)
+				params.FilterDescendantsInstances = { c }
+				local rv = hrp.CFrame.RightVector
+				local best, bs = nil, 1
+				for _, sd in { 1, -1 } do
+					local h = workspace:Raycast(hrp.Position, rv * (2.5 * sd), params)
+					if h and math.abs(h.Normal.Y) < 0.3 and (not best or h.Distance < best.Distance) then
+						best, bs = h, sd
+					end
+				end
+				if best then
+					local closing = -vel:Dot(best.Normal)
+					local along = vel - best.Normal * vel:Dot(best.Normal)
+					local alongS = Vector3.new(along.X, 0, along.Z).Magnitude
+					local nearing = air and alongS > 12 and (best.Distance < 1.4 or (closing > 4 and best.Distance - 1.0 < closing * 0.12))
+					local flush = air and now - s.lastWallT < 1.0 and best.Distance < 1.6 and alongS > 6
+					if nearing or flush then
+						if bs > 0 then
+							tR = 1
+						else
+							tL = 1
+						end
+					end
+				end
+			end
+		end
+		local function step(w: number, t: number): number
+			return if t > w then math.min(t, w + dt / 0.07) else math.max(t, w - dt / 0.15)
+		end
+		s.reachR, s.reachL = step(s.reachR, tR), step(s.reachL, tL)
+		s.reachT += dt * math.clamp(flat / 36, 0.45, 1.8)
+		reachPass = function(armOnly: boolean)
+			for _, pr in { { s.reachR, "Right", clips.wallrun_r }, { s.reachL, "Left", clips.wallrun_l } } do
+				local w, n, clip = pr[1] :: number, pr[2] :: string, pr[3] :: Clip
+				if w > 0.001 and clip then
+					local t = s.reachT
+					for _, tr in s.base do
+						if tr.clip == clip then
+							t = tr.t
+						end
+					end
+					local ew = CoreGeom.Ease(w)
+					-- the raised arm only fits beside a wall on the wall-run torso (pelvis eased off the wall, chest turned to it):
+					-- the torso comes with the arm, at the same rate, ahead of the 0.12 s full-body crossfade
+					for _, j in (if armOnly then { n .. "Shoulder", n .. "Elbow", n .. "Wrist" } else { "Root", "Waist", "Neck", n .. "Shoulder", n .. "Elbow", n .. "Wrist" }) do
+						local cur = work[j]
+						local cf = sample(clip, t, j)
+						if cur and cf then
+							work[j] = cur:Lerp(cf, ew)
+						end
+					end
+				end
+			end
+		end
+		reachPass(false)
+	end
 	-- lower-body turn (weighted by the run's share of the base layer)
 	local runW = 0
 	for _, tr in s.base do
@@ -921,13 +1237,19 @@ local function drawCharacter(c: Model, s: State, hrp: BasePart, hum: Humanoid?, 
 			end
 		end
 	end
+	-- the slide layer (still easing out for ~0.2 s after a Power Slide Jump into a wall-run) must not pull the raised
+	-- reach arm back toward the slide pose: the reach ARM is applied again here (the torso keeps the slide curve, which
+	-- the server's head volume follows)
+	reachPass(true)
 	-- upper body: arm joints override, the chest twist (Waist) adds on top so the slide / run torso stays
 	for _, tr in { s.disc, s.shield } do
 		if tr and tr.w > 0.001 then
 			for _, name in tr.clip.mask :: { string } do
 				-- correction pass: the disc arm is the right arm; on a wall to the RIGHT its wind-up would swing into the
 				-- wall, so the wall-run brace arm is kept there (the chest twist, held disc and hand spin still show)
-				if tr == s.disc and s.wallOn and s.wallSide > 0 and name ~= "Waist" and name ~= "RightWrist" then
+				-- security gate pass: with the raised right-wall reach the chest twist is kept off as well (it turned the
+				-- shoulder into the wall); the held disc, its glow, the hand spin and the charge tremble still show
+				if tr == s.disc and s.reachR > 0.5 and name ~= "RightWrist" then
 					continue
 				end
 				local cur = work[name]
@@ -978,7 +1300,25 @@ local function drawCharacter(c: Model, s: State, hrp: BasePart, hum: Humanoid?, 
 			-- the pose is written before physics moves the root this frame: test against where the wall will be
 			-- relative to the root after this step when the body is still closing on it
 			local approach = math.max(0, -vel:Dot(hit.Normal)) * dt
-			wallArmFix(c, joints, hrp.CFrame, hit.Position + hit.Normal * approach, hit.Normal, sd, work)
+			if s.wallOn and now - s.wallOnT < 0.12 and hit.Distance > 1.0 then
+				-- attaching to a wall-run: the run pulls the root onto the wall (0.85 - 1.0 by rig) faster than its
+				-- current velocity says; only for the first frames (afterwards the measured distance is the truth)
+				approach = math.max(approach, hit.Distance - 0.95)
+			end
+			local wp = hit.Position + hit.Normal * approach
+			local rw = if sd > 0 then s.reachR else s.reachL
+			if sd > 0 and s.reachR > 0.5 then
+				s.discWallP, s.discWallN, s.discWallT = wp, hit.Normal, now
+			end
+			if rw > 0.9 then
+				-- raised reach arm (security gate pass): keep the pose, place the hand on the wall. While it rises /
+				-- lowers (0.07 / 0.15 s) the general clear-only fix below keeps the part-raised arm out of the wall
+				if not reachContact(c, joints, hrp.CFrame, wp, hit.Normal, sd, work, sd > 0 and s.discOn) then
+					wallArmFix(c, joints, hrp.CFrame, wp, hit.Normal, sd, work, sd > 0 and s.discOn)
+				end
+			else
+				wallArmFix(c, joints, hrp.CFrame, wp, hit.Normal, sd, work, sd > 0 and s.discOn)
+			end
 		end
 	end
 	-- feet vs floor (correction pass). The pose is written before physics moves the root this frame, so a falling
@@ -1093,6 +1433,16 @@ function Poses.Weight(c: Model): number
 end
 
 -- test hook: what the controller is drawing for a character
+-- security gate pass: the wall beside a character's raised RIGHT (disc) arm, if any (point, normal): DiscClient turns
+-- the held charging disc edge-on to that wall so the spinning disc never cuts into it
+function Poses.DiscWall(c: Model): (Vector3?, Vector3?)
+	local s = states[c]
+	if s and s.reachR > 0.5 and os.clock() - s.discWallT < 0.1 then
+		return s.discWallP, s.discWallN
+	end
+	return nil, nil
+end
+
 function Poses.Debug(c: Model): { [string]: any }?
 	local s = states[c]
 	if not s then
@@ -1111,6 +1461,10 @@ function Poses.Debug(c: Model): { [string]: any }?
 		airT = s.airT,
 		wall = s.wallOn,
 		wallSide = s.wallSide,
+		reachR = s.reachR,
+		reachL = s.reachL,
+		reachFix = Poses.ReachFix,
+		wallFix = Poses.WallFix,
 		dead = s.dead,
 		dash = if os.clock() - s.dashT < 0.35 then string.format("%.2f", os.clock() - s.dashT) else nil,
 	}

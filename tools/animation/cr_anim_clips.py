@@ -462,8 +462,13 @@ def clip_land():
 
 # ================================================================================================ WALL-RUN (wall on the right)
 WALL_X = 0.90  # wall plane, character space (the root rides ~0.85-0.9 from the wall: HRP half width 0.85)
-WALL_SHIFT = -0.06  # correction pass: drawn pelvis 0.06 away from the wall (searched: arm/wall overlap 0.30 -> ~0.06)
-WALL_TILT = 8.0  # body lean away from the wall (the head stays within 0.4 of the server's upright head)
+WALL_SHIFT = -0.45  # drawn pelvis away from the wall (security gate pass: raised-reach pose; searched, cr_wall_reach_search.py)
+WALL_TILT = 15.0  # body lean away from the wall (owner 2026-11-21: 15, was 10 - moves the wall shoulder ~0.1 further out so the arm can reach sideways; drawn head ~1.1 from the server head, inside its 1.6-stud disc-centre reach)
+WALL_NECK = 0.2  # neck counter-roll (fraction of WALL_TILT); owner 2026-11-21: 2.4 tipped the head ~20 deg toward the wall in game - now level with the body lean
+WALL_YAW = 30.0  # chest turned toward the wall (degrees): moves the wall shoulder in without moving the head
+WALL_HIP_YAW = 12.0  # pelvis turned toward the wall (degrees; part of the same turn, the waist twist is limited)
+WALL_ARM = (35.0, 100.0, -15.0, 60.0, 0.0)  # wall-side arm (forward, out, twist, elbow, wrist) at mid-sway; owner 2026-11-21: elbow OUT toward the wall - upper arm dir in character space ~(0.76 out, 0.61 up, 0.23 forward), ~51 deg from vertical; elbow bent ~60, hand on the wall
+WALL_ARM_SWAY = 3.0  # degrees of forward / elbow sway with the stride
 
 
 def wall_pose(phi):
@@ -471,9 +476,9 @@ def wall_pose(phi):
     P = base()
     fr = math.cos(TAU * (phi - 0.80))
     drop = -0.12 - 0.08 * math.cos(TAU * 2 * (phi - STANCE / 2))
-    P["Root"] = (E(-10, 5 * fr, WALL_TILT), (0.0, drop, 0.0))
-    P["Waist"] = (E(-4, -10 * fr, 2), Z3)
-    P["Neck"] = (E(12, 5 * fr, -WALL_TILT * 0.8), Z3)
+    P["Root"] = (E(-10, 5 * fr + WALL_HIP_YAW, WALL_TILT), (0.0, drop, 0.0))
+    P["Waist"] = (E(-4, -5 * fr + WALL_YAW, 2), Z3)  # cancels the root's 5*fr hip swing: the chest (and the raised wall arm) holds still
+    P["Neck"] = (E(12, -WALL_YAW - WALL_HIP_YAW, -WALL_TILT * WALL_NECK), Z3)
     anchor_head(P, (0.0, 0.0, 1.0))  # forward only: shifting toward the wall would push the hips into it
     q_, t_ = P["Root"]
     P["Root"] = (q_, (t_[0] + WALL_SHIFT, t_[1], t_[2]))
@@ -487,7 +492,7 @@ def wall_pose(phi):
         h = max(0.0, hermite(hk, u))
         pitch = hermite(pk, u)
         roll = 8.0 if side > 0 else 0.0
-        x = 0.433 * side + (0.0 if side > 0 else 0.1)
+        x = 0.433 * side + (0.0 if side > 0 else -0.1)  # outer foot a little wide under the leaned-away pelvis
         lift = 0.55 if side > 0 else 0.30
         solve_leg(P, side, (x, G + lift + 0.75 * h, z), qmul(E(0, 0, roll), E(pitch, 0, 0)), "toe", rel_pitch=-28,
                   rel_w=smooth(h / 0.5), roll=roll)
@@ -496,8 +501,10 @@ def wall_pose(phi):
     c = math.cos(TAU * (phi - 0.80))
     arm(P, -1, 15 + 60 * c, 12, twist=-6 * c, elbow=90 + 20 * c, wrist=-8)
     c2 = math.cos(TAU * (phi - 0.30))
-    # correction pass: forearm twisted so the arm's wide face is off the wall; elbow straight, hand brushing forward
-    arm(P, 1, 100 + 4 * c2, 10, twist=-120, elbow=2 + 3 * c2, wrist=-15)  # searched: closest to the wall plane
+    # owner direction (security gate pass): the wall-side arm reaches UP and OUT to the wall; only the hand touches it.
+    # WALL_ARM = (forward, out, twist, elbow, wrist) from cr_wall_reach_search.py; a small sway with the stride.
+    fw, ou, tw, el, wr = WALL_ARM
+    arm(P, 1, fw + WALL_ARM_SWAY * c2, ou, twist=tw, elbow=el + WALL_ARM_SWAY * c2, wrist=wr)
     return P
 
 
@@ -525,10 +532,10 @@ def clip_walljump_push():
     air_anchor(P2)
     solve_leg(P2, 1, (1.3, G + 0.4, 0.9), E(-50, 0, 15), "toe")
     solve_leg(P2, -1, (-0.95, G + 0.85, -0.7), E(-15, 0, -8), "toe")
-    # correction pass: the wall-run arm is twisted (-120) to stay off the wall; untwist it in front of the chest
-    # first (searched key) so the push-off arm does not sweep through the torso
+    # security gate pass: from the raised wall reach the hand first presses on the wall (elbow loads) and then
+    # shoves the body away as the arm sweeps down and out
     Pm = copy(P0)
-    arm(Pm, 1, 60, 0, twist=-30, elbow=8, wrist=10)
+    arm(Pm, 1, WALL_ARM[0], WALL_ARM[1] - 15, twist=0, elbow=40, wrist=25)
     keys = [(0, P0, "BEZIER"), (1, Pm, "BEZIER"), (3, P1, "QUAD_OUT"), (6, P2, "BEZIER")]
     return {"name": "walljump_r", "loop": False, "frames": 6, "keys": keys, "interp": "BEZIER", "ground": False,
             "layer": "full", "mirror": "walljump_l"}

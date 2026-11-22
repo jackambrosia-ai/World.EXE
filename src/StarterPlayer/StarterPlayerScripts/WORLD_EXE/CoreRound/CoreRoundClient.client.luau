@@ -195,7 +195,7 @@ Hud.Start({
 	threats = DiscClient.Threats,
 })
 
-DiscClient.Start({ send = send, shieldUp = ShieldClient.IsUp, stunned = stunned, hud = Hud })
+DiscClient.Start({ send = send, shieldUp = ShieldClient.IsUp, stunned = stunned, hud = Hud, discWall = Poses.DiscWall })
 
 Input.Start({
 	dash = function()

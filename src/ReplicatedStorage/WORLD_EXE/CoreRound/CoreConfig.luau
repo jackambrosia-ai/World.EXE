@@ -167,6 +167,19 @@ CoreConfig.Tuning = {
 		InterpSeconds = 0, -- server-moved targets (dummies)
 		InterpPlayerSeconds = 0.05, -- other players' characters (needs two-client calibration)
 		CatchUpMax = 0.12, -- the server disc is advanced by the thrower's one-way latency up to this (matches the predicted visual)
+		-- Step 1E security gate: guard on the client-assisted rewind (the thrower reports where it DREW each enemy; the
+		-- server finds that moment in its own history). Timing comes only from the server-measured latency (the client's
+		-- release timestamp is not trusted); the per-thrower offset (rewind - latency) is a server-tracked estimate that
+		-- starts at ViewOffsetStart and moves at most ViewEstStep per accepted throw inside [ViewOffsetMin,
+		-- ViewOffsetMax]; one throw's claim may only pick within +/- ViewSlack of that estimate.
+		-- Two-client calibration (Studio, 2026-11-21): honest drawn positions were 0.08-0.16 s old at receipt (typ. 0.10), so the
+		-- estimate starts at 0.10 (was InterpPlayerSeconds 0.05: first throws mis-rewound) and the cap is 0.15 (spikes still match).
+		ViewOffsetStart = 0.10,
+		ViewOffsetMin = 0,
+		ViewOffsetMax = 0.15,
+		ViewSlack = 0.02,
+		ViewEstStep = 0.01,
+		ViewMatchTolerance = 1.0, -- studs: a drawn position must lie on the target's recorded path
 		OriginTolerance = 8, -- client-reported throw origin must be within this of the server root (+ speed * latency)
 		-- Duplicate-hit protection. Step 1 finding: the returning disc homes back along nearly the same line, so with
 		-- the v1.1 rule (out + return both count, 0.4 s dedupe) ONE throw at a still target lands two hits (~0.7 s

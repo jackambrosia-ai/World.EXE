@@ -471,3 +471,72 @@ From the opponent's camera (two-client): deepest −0.06 / −0.08 on a single l
 - **L-0120:** Never teleport a test thrower right before a throw; the server may not have the move yet, and origin validation clamps it.
 - **L-0121:** Post-pose, rig-aware contact correction (floor and wall) belongs after the final blend, using the rig's own attachments and sizes. Predict this frame's root motion, because poses are written before physics.
 - **L-0122:** For other players, replicated state changes arrive before position and velocity. Decide visual details (wall side, push-off) from geometry first and keep a short watch window, instead of deciding at the instant of the state change.
+
+## Final security gate + wall-run animation correction (2026-11-21)
+
+Directive: fix the demonstrated rewind forgery (keep the first-contact HEAD/BODY rule), correct the wall-run animation (raised wall-side arm; only hand and feet touch the wall; both sides), touch gameplay networking only as needed, and do not change the HumanoidRootPart, wall-run forces / speeds / collision or wall-jump mechanics. Owner play-test feedback during the pass added three fixes: the arm "looks exactly the same", the head tilted the wrong way, and a slide-into-obstacle bug.
+
+### A. Rewind forgery (security)
+
+- **Before:** the server trusted the client's release timestamp `t0` and let any drawn position inside RewindMax (0.25 s) pick the rewind, so a modified client could claim an older view and hit where the target had been.
+- **Now (`CoreRound.server.luau`, `CoreCombat.ResolveView`):** `payload.t0` is ignored. Latency and the reference time are server-measured. Each thrower has a server-tracked view offset estimate that starts at `ViewOffsetStart` (0.10 s), moves at most `ViewEstStep` (0.01) per accepted throw, and stays inside [`ViewOffsetMin` 0, `ViewOffsetMax` 0.15]. One throw's claim may only pick within ±`ViewSlack` (0.02) of the estimate, and a drawn position must lie within `ViewMatchTolerance` (1.0 stud) of the target's recorded path.
+- **Calibration (two clients):** honest drawn positions were 0.08–0.16 s old at receipt (typically 0.10). The start moved 0.05 → 0.10 and the cap 0.10 → 0.15.
+- **Adversarial (two clients, `cr_73_view_attack.luau`):** 0.3 s forged claims were unmatched with no hits. Missing views and invalid or duplicate entries counted as misses. A 12-throw drift pushed the estimate to the 0.15 cap, after which forged past=6 throws hit 3/3. Studio dummy lag is ~0.03 s, so this overstates real-network risk.
+- **Disclosed compromise:** a cheating client can gain at most ~0.05 s of extra rewind over an honest player's lag (~2.5 studs at slide speed). The old rule allowed a free 0.25 s.
+- **Honest throws with start 0.10 (two clients, final session):**
+  - A threw at B sliding past at ~49 studs/s, aiming ahead of B: 7 of 8 hit (all BODY) and A's screen agreed on all 7.
+  - The miss was the first throw after a pause: A's screen showed a hit, but A's true view delay was above est + slack (0.093 s allowed).
+  - The estimate settled at 0.07. Every throw matched, with none forged or invalid.
+  - Aiming where B was, with no lead: 0 of 8 hit, and A's screen also showed none, so these were honest misses.
+
+### B. Wall-run animation
+
+| Change | Detail |
+|---|---|
+| Pose (`cr_anim_clips.py`) | The wall-side upper arm reaches sideways to the wall, elbow bent, hand on the wall (`WALL_ARM = (35, 100, -15, 60, 0)`). The waist cancels the hip swing so the arm stays put. Body lean `WALL_TILT` 10° → 15° to give the arm room. |
+| Why the earlier pose "looked the same" | The pose search measured the arm angle ignoring the forward component (the arm really pointed forward). In-game, the runtime wall fix also swung the arm near-vertical every frame (about 6° out). |
+| Runtime (`Poses.luau`, `reachContact`) | The forearm's wrist half may meet the wall where the hand touches it. The clear-only fallback now runs only on the first entry frames. |
+| Head | Neck counter-roll 2.4 → 0.2 (it tipped the head ~20° into the wall). The head now tilts ~6° away, with the body. |
+| Remote entry side (two-client finding) | At entry, the replicated state can arrive while the drawn body is more than 4 studs from the wall. The last wall side was kept, so after a left-wall run a right-wall entry started in the left-wall pose (body ~1 stud into the wall for ~0.1 s on the watching client). At entry the side ray now reaches 8 studs, and if no wall is found yet, the wall pose waits instead of guessing. |
+
+In-game (solo, own character): upper arm 45–49° out, head −6°, upper arm −0.005 / lower arm 0.038 / hand −0.05..0.09 studs from the wall (right); similar on the left.
+
+Two clients, B watching A (after the entry fix):
+
+| Check | Result |
+|---|---|
+| Right wall | Same arm, head and torso as A's own screen; body ≥0.32 clear; arm ≤0.03 |
+| Left → right / right → left pairs | Correct side from the first wall frame; body clear |
+| PSJ → wall-run → wall-jump → second wall | Full chain drawn; one first-contact frame with the arm 0.10 into the wall |
+| Right-wall disc charging | Disc rim 0.45 clear of the wall |
+
+Residuals (disclosed):
+- **Snap frame:** one frame (~17 ms) when the other player's replicated position snaps onto the wall, before the wall pose starts (arm up to ~1 stud into the wall for that frame). The snap comes from the movement code, which this pass may not change.
+- **Left-wall entry:** while the body closes its last ~0.3 studs, the forearm sits up to 0.14 studs into the wall for ~0.13 s.
+- **Head hitbox:** the drawn head is ~1.1 studs from the server head hitbox centre (hit zone reach 1.6) because of the 15° lean. Hitboxes are unchanged.
+
+### C. Slide into obstacles (owner report)
+
+- **Cause:** sliding head-on into a block launched the character up (~48 studs/s) and knocked it over. The slide's LinearVelocity had unlimited force, so physics resolved the collision upward.
+- **Fix (`Slide.luau`):** a sphere-cast look-ahead along the slide at two heights.
+  - Head-on (no useful tangent): the slide ends ("blocked") with the into-wall velocity removed.
+  - Glancing: the slide continues along the face at the tangent speed.
+  - Ramps and walkable steps (normal Y ≥ 0.6) are unaffected.
+- **Result:** head-on into Cover1 → blocked, max rise 3.7 studs/s, upright. Glancing along the perimeter wall → 38.7 studs of continued slide, no launch.
+
+### Place and data
+
+- Place `WorldEXE_CoreRound_Step1E_2026-11-21.rbxlx`: SHA-256 `88fd393a178fd5eca9698e2170cc0ccead9b99947acdec2092ebfb4326e7e4a4`. Script parity 24/24, 24 KeyframeSequences.
+- Backup `backup_step1e_finalgate_2026-11-21.rbxlx` (same SHA). Earlier backups kept, including `backup_step1e_armslidefix_2026-11-21.rbxlx` (`aa492b58…`).
+- Blender source `WorldEXE_CoreRound_Anim_Step1E.blend`: `18eb36fc85b7b9014f2db4d7dc2c96c6cf87a3f8b077bf9abfe228db13252b84`. AnimData QA 24/24.
+- Protected-file check: 9 OK.
+- Evidence (local, not committed) is in `evidence/captures_1e_gate/`:
+  - `twoclient_B_sees_A_right_front.jpg`, `twoclient_B_sees_A_right_charging.jpg`, `twoclient_B_sees_A_left_behind.jpg` and `twoclient_B_sees_A_right_far.jpg`: the other player's screen.
+  - `review_wallrun_r_elbowout.png` (Blender) and `canonical_R_elbowout_behind.jpg` (in-game).
+
+### Proposed lessons (for later vault review; vault not modified)
+
+- **L-0123:** A client-assisted rewind needs a server-owned window. Never trust client timestamps; keep a per-player estimate that moves slowly, and accept only claims near it. Calibrate the start value with two real clients.
+- **L-0124:** Measure arm direction as the full 3-D shoulder→elbow vector in character space. A 2-D angle that drops the forward component can report "out to the side" for an arm that points forward.
+- **L-0125:** A velocity constraint with unlimited force makes physics resolve collisions upward (launches). Look ahead and stop or redirect the drive instead.
+- **L-0126:** For another player, a state change can arrive before their position. Never fall back to the last remembered side at the start of a new action; wait for geometry.
