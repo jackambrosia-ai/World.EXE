@@ -1,4 +1,4 @@
--- Core Round Step 1E security gate: Play-client ADVERSARIAL harness for the client-assisted rewind (paste into the
+-- Core Round Step 1E security gate (closeout revision): Play-client ADVERSARIAL harness for the reported view (paste into the
 -- CLIENT datamodel of a solo Play session). It plays the role of a modified client: it fires the real "throw" request
 -- directly with a forged `view` (and optionally a forged `t0`), using positions this client actually DREW for the
 -- moving dummy in the past (exactly what a cheat could record). Server side, set Workspace attribute
@@ -63,5 +63,41 @@ _G.ATK = function(past: number, back: number, opts: any?)
 	end
 	Req:FireServer("throw", payload)
 	return { n = _G.VA_SEQ, drawnDz = dm.HumanoidRootPart.Position.Z + 38, claimDz = pos.Z + 38 }
+end
+-- Step 1E closeout: paired sweep. For each lead distance `past` it throws with the honest view, a 0.3 s forged view,
+-- no view and an invalid view, `reps` times each (conditions interleaved so dummy timing is shared). Returns the seq
+-- numbers per condition; join them with the server log (throw_view rewindPlayers / hit) to compare outcomes.
+_G.ATKSWEEP = function(pasts: { number }, reps: number)
+	local out = {}
+	for _, past in pasts do
+		for r = 1, reps do
+			for _, cond in { "honest", "forged", "none", "invalid" } do
+				local res
+				if cond == "honest" then
+					res = _G.ATK(past, 0)
+				elseif cond == "forged" then
+					res = _G.ATK(past, 0.3)
+				elseif cond == "none" then
+					res = _G.ATK(past, 0, { noView = true })
+				else
+					res = _G.ATK(past, 0, { view = { { "D-MOVING", Vector3.new(0 / 0, 0, 0) }, "x", { "D-MOVING", Vector3.zero } } })
+				end
+				table.insert(out, { cond = cond, past = past, n = res.n })
+				task.wait(0.9)
+			end
+		end
+	end
+	_G.SWEEP = out
+	return #out
+end
+-- sustained forgery: `count` throws in a row, every one claiming `back` s of drawn history (the 615ac22 drift attack)
+_G.ATKDRIFT = function(past: number, back: number, count: number)
+	local ns = {}
+	for _ = 1, count do
+		table.insert(ns, _G.ATK(past, back).n)
+		task.wait(0.9)
+	end
+	_G.DRIFT = ns
+	return #ns
 end
 return "view attack harness ready"

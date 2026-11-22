@@ -462,12 +462,15 @@ def clip_land():
 
 # ================================================================================================ WALL-RUN (wall on the right)
 WALL_X = 0.90  # wall plane, character space (the root rides ~0.85-0.9 from the wall: HRP half width 0.85)
-WALL_SHIFT = -0.45  # drawn pelvis away from the wall (security gate pass: raised-reach pose; searched, cr_wall_reach_search.py)
-WALL_TILT = 15.0  # body lean away from the wall (owner 2026-11-21: 15, was 10 - moves the wall shoulder ~0.1 further out so the arm can reach sideways; drawn head ~1.1 from the server head, inside its 1.6-stud disc-centre reach)
-WALL_NECK = 0.2  # neck counter-roll (fraction of WALL_TILT); owner 2026-11-21: 2.4 tipped the head ~20 deg toward the wall in game - now level with the body lean
-WALL_YAW = 30.0  # chest turned toward the wall (degrees): moves the wall shoulder in without moving the head
-WALL_HIP_YAW = 12.0  # pelvis turned toward the wall (degrees; part of the same turn, the waist twist is limited)
-WALL_ARM = (35.0, 100.0, -15.0, 60.0, 0.0)  # wall-side arm (forward, out, twist, elbow, wrist) at mid-sway; owner 2026-11-21: elbow OUT toward the wall - upper arm dir in character space ~(0.76 out, 0.61 up, 0.23 forward), ~51 deg from vertical; elbow bent ~60, hand on the wall
+WALL_SHIFT = -0.20  # drawn pelvis away from the wall (closeout 2026-11-22: was -0.45; searched with a head-offset limit)
+WALL_TILT = 10.0  # pelvis lean away from the wall (closeout: was 15 with the drawn head 1.14 from the server head hitbox centre; now 10 + WALL_WAIST_ROLL 8 on the chest, head ~0.70 off)
+WALL_NECK = 1.0  # neck counter-roll (fraction of WALL_TILT): 1.0 = the head stays level (owner 2026-11-21: 2.4 tipped it ~20 deg toward the wall)
+WALL_YAW = 35.0  # chest turned toward the wall (degrees): moves the wall shoulder in without moving the head (closeout: 30 -> 35; waist twist limit 40 incl. the 5-deg hip-swing cancel)
+WALL_HIP_YAW = 15.0  # pelvis turned toward the wall (closeout: 12 -> 15; more breaks the free leg's hip limit)
+WALL_ARM = (120.0, 54.0, 0.0, 75.0, 20.0)  # wall-side arm (forward, out, twist, elbow, wrist) at mid-sway; owner 2026-11-21: raised, elbow OUT toward the wall, hand on the wall. Closeout: elbow ~0.49 out of the shoulder, hand ~1.1 above it, ~29 deg out from vertical
+WALL_WAIST_ROLL = 8.0  # chest roll away from the wall on top of WALL_TILT (degrees; closeout: was a fixed 2)
+WALL_LEG_LIFT = 0.45  # wall-side foot path height above the floor line (studs; closeout: 0.55 -> 0.45, the knee met the turned chest)
+WALL_OUTER_X = 0.10  # outer (free-side) foot offset from the default stance width (closeout: -0.1 -> 0.1, follows the pelvis)
 WALL_ARM_SWAY = 3.0  # degrees of forward / elbow sway with the stride
 
 
@@ -477,8 +480,8 @@ def wall_pose(phi):
     fr = math.cos(TAU * (phi - 0.80))
     drop = -0.12 - 0.08 * math.cos(TAU * 2 * (phi - STANCE / 2))
     P["Root"] = (E(-10, 5 * fr + WALL_HIP_YAW, WALL_TILT), (0.0, drop, 0.0))
-    P["Waist"] = (E(-4, -5 * fr + WALL_YAW, 2), Z3)  # cancels the root's 5*fr hip swing: the chest (and the raised wall arm) holds still
-    P["Neck"] = (E(12, -WALL_YAW - WALL_HIP_YAW, -WALL_TILT * WALL_NECK), Z3)
+    P["Waist"] = (E(-4, -5 * fr + WALL_YAW, WALL_WAIST_ROLL), Z3)  # cancels the root's 5*fr hip swing: the chest (and the raised wall arm) holds still
+    P["Neck"] = (E(12, -WALL_YAW - WALL_HIP_YAW, -(WALL_TILT + WALL_WAIST_ROLL - 2.0) * WALL_NECK), Z3)
     anchor_head(P, (0.0, 0.0, 1.0))  # forward only: shifting toward the wall would push the hips into it
     q_, t_ = P["Root"]
     P["Root"] = (q_, (t_[0] + WALL_SHIFT, t_[1], t_[2]))
@@ -492,8 +495,8 @@ def wall_pose(phi):
         h = max(0.0, hermite(hk, u))
         pitch = hermite(pk, u)
         roll = 8.0 if side > 0 else 0.0
-        x = 0.433 * side + (0.0 if side > 0 else -0.1)  # outer foot a little wide under the leaned-away pelvis
-        lift = 0.55 if side > 0 else 0.30
+        x = 0.433 * side + (0.0 if side > 0 else WALL_OUTER_X)  # outer foot placement under the leaned-away pelvis
+        lift = WALL_LEG_LIFT if side > 0 else 0.30
         solve_leg(P, side, (x, G + lift + 0.75 * h, z), qmul(E(0, 0, roll), E(pitch, 0, 0)), "toe", rel_pitch=-28,
                   rel_w=smooth(h / 0.5), roll=roll)
     # outer arm pumps hard; the wall-side arm drives forward and up along the wall, elbow in (it cannot swing out:

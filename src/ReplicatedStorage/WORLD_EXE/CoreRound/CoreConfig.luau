@@ -167,19 +167,16 @@ CoreConfig.Tuning = {
 		InterpSeconds = 0, -- server-moved targets (dummies)
 		InterpPlayerSeconds = 0.05, -- other players' characters (needs two-client calibration)
 		CatchUpMax = 0.12, -- the server disc is advanced by the thrower's one-way latency up to this (matches the predicted visual)
-		-- Step 1E security gate: guard on the client-assisted rewind (the thrower reports where it DREW each enemy; the
-		-- server finds that moment in its own history). Timing comes only from the server-measured latency (the client's
-		-- release timestamp is not trusted); the per-thrower offset (rewind - latency) is a server-tracked estimate that
-		-- starts at ViewOffsetStart and moves at most ViewEstStep per accepted throw inside [ViewOffsetMin,
-		-- ViewOffsetMax]; one throw's claim may only pick within +/- ViewSlack of that estimate.
-		-- Two-client calibration (Studio, 2026-11-21): honest drawn positions were 0.08-0.16 s old at receipt (typ. 0.10), so the
-		-- estimate starts at 0.10 (was InterpPlayerSeconds 0.05: first throws mis-rewound) and the cap is 0.15 (spikes still match).
-		ViewOffsetStart = 0.10,
-		ViewOffsetMin = 0,
-		ViewOffsetMax = 0.15,
-		ViewSlack = 0.02,
-		ViewEstStep = 0.01,
-		ViewMatchTolerance = 1.0, -- studs: a drawn position must lie on the target's recorded path
+		-- Step 1E closeout (security): the AUTHORITATIVE rewind against player characters is a fixed server policy:
+		-- rewind = server-measured one-way latency (capped by the engine's own ping, see Net.EnginePingMargin)
+		-- + RewindPlayerOffset, capped at RewindMax. The thrower's reported view is DIAGNOSTICS ONLY (logged agreement
+		-- measurement); it never selects or trains the rewind (the 615ac22 per-thrower estimate was trained by those
+		-- claims and could be drifted to its cap: 3/3 forged hits). RewindPlayerOffset is the server's interpolation
+		-- policy: two-client calibration (Studio, 2026-11-21) measured honest drawn positions 0.08-0.16 s old at
+		-- receipt (typ. 0.10) = latency + ~0.07..0.10. Separate from InterpPlayerSeconds (remote pose timing).
+		RewindPlayerOffset = 0.08,
+		ViewDiagMaxBack = 0.4, -- diagnostics: how far back a reported drawn position is searched for in server history
+		ViewMatchTolerance = 1.0, -- studs: (diagnostics) a drawn position must lie on the target's recorded path
 		OriginTolerance = 8, -- client-reported throw origin must be within this of the server root (+ speed * latency)
 		-- Duplicate-hit protection. Step 1 finding: the returning disc homes back along nearly the same line, so with
 		-- the v1.1 rule (out + return both count, 0.4 s dedupe) ONE throw at a still target lands two hits (~0.7 s
@@ -230,6 +227,10 @@ CoreConfig.Tuning = {
 	Net = {
 		RateLimitPerSecond = 30, -- generic remote budget per player
 		RttBiasSeconds = 0.025, -- removed from the server-measured round trip (frame quantisation, measured in Step 1)
+		-- Step 1E closeout: the script ping depends on the client answering promptly (a client could delay its pongs to
+		-- inflate its rewind), so the latency used for rewind is capped at the engine's Player:GetNetworkPing() (not
+		-- scriptable by the client) + this margin.
+		EnginePingMargin = 0.02,
 		-- Step 1B server movement monitor (bounded speed): horizontal speed above the cap for the reported movement
 		-- state, sustained for SpeedGraceSeconds, is logged as a violation (detection only in the prototype; see doc).
 		SpeedCapRun = 52, -- run / air carry (soft cap 45 + margin)

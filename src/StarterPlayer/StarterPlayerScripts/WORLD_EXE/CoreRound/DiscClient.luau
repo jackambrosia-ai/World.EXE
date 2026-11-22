@@ -404,10 +404,9 @@ function DiscClient.Throw(dirOverride: Vector3?, charge: number?): (boolean, str
 	pending[seq] = v
 	mine = v
 	DiscClient.Records[seq] = { t = os.clock(), visible = {}, server = {}, origin = origin, dir = dir, charge = k }
-	-- Step 1E correction pass (two-client evidence): the throw carries WHERE this screen drew each nearby enemy at
-	-- release (security gate: the server uses its own latency measurement for timing, not a client timestamp). Other players are drawn a variable 0.03-0.10 s behind (measured),
-	-- not the fixed InterpPlayerSeconds the server assumed; the server uses these only to pick, from its OWN history,
-	-- the rewind time that matches this view (bounded by Disc.RewindMax). Hits are still judged on the server only.
+	-- Step 1E: the throw carries WHERE this screen drew each nearby enemy at release. Step 1E closeout: the server
+	-- logs it as an agreement diagnostic only; the authoritative rewind is server-measured latency + a fixed offset
+	-- (Disc.RewindPlayerOffset) and hits are judged on the server only.
 	local view = {}
 	for name, m in entities() do
 		if name ~= player.Name and (myTeam() == "" or teamOfModel(m) ~= myTeam()) and #view < 8 then

@@ -209,22 +209,19 @@ function CoreCombat.ViewDelay(e: Entity, pos: Vector3, t0: number, maxBack: numb
 	return math.clamp(t0 - bestT, 0, maxBack)
 end
 
--- Step 1E security gate: turn a thrower's reported view ({ {name, drawnRootPosition}, ... }) into bounded per-target
--- rewinds. tRef = server receive time - SERVER-measured one-way latency (the client's own timestamp is not used), so
--- the reference cannot be forged. Each drawn position must lie on that target's recorded path (ViewDelay); the
--- implied offset (rewind - latency) is clamped to guard.est +/- ViewSlack and to [ViewOffsetMin, ViewOffsetMax];
--- guard.est then moves toward the median claim by at most ViewEstStep. Duplicate names, invalid entries, entries for
--- non-targets and entries past the 8th are ignored. Targets without a valid entry use the server-only fallback
--- (latency + InterpPlayerSeconds) in CoreDisc. Returns the per-model rewinds and a diagnostics table.
-function CoreCombat.ResolveView(view: any, tRef: number, latency: number, guard: { est: number }, accept: (Entity) -> boolean, cfg: { [string]: number }): ({ [Model]: number }, { [string]: any })
-	local out: { [Model]: number } = {}
-	local info = { entries = 0, matched = 0, dup = 0, invalid = 0, unmatched = 0, clamped = 0, estBefore = guard.est }
+-- Step 1E closeout: DIAGNOSTICS ONLY. Measures how old each drawn position in a thrower's reported view
+-- ({ {name, drawnRootPosition}, ... }) was, against this server's own history (tRef = receive time - server-measured
+-- one-way latency). The result is logged for agreement measurement and NEVER changes the authoritative rewind (which
+-- is latency + Disc.RewindPlayerOffset in CoreDisc), so forged, missing or invalid claims cannot select hit frames or
+-- train any server state. (615ac22 used these claims to choose the rewind inside a per-thrower estimate that the
+-- claims themselves moved: sustained forgery drifted it to its cap.) Duplicate names, invalid entries, entries for
+-- non-targets and entries past the 8th are counted and ignored.
+function CoreCombat.ResolveView(view: any, tRef: number, latency: number, accept: (Entity) -> boolean, cfg: { [string]: number }): { [string]: any }
+	local info = { entries = 0, matched = 0, dup = 0, invalid = 0, unmatched = 0, offsets = {} :: { [string]: number } }
 	if typeof(view) ~= "table" then
-		info.estAfter = guard.est
-		return out, info
+		return info
 	end
 	local seen: { [string]: boolean } = {}
-	local claims = {}
 	local count = 0
 	for _, v in view do
 		count += 1
@@ -247,30 +244,15 @@ function CoreCombat.ResolveView(view: any, tRef: number, latency: number, guard:
 			info.invalid += 1
 			continue
 		end
-		local maxBack = latency + cfg.ViewOffsetMax + cfg.ViewSlack
-		local vd = CoreCombat.ViewDelay(te, v[2] :: Vector3, tRef, maxBack, cfg.ViewMatchTolerance)
+		local vd = CoreCombat.ViewDelay(te, v[2] :: Vector3, tRef, cfg.ViewDiagMaxBack, cfg.ViewMatchTolerance)
 		if not vd then
 			info.unmatched += 1
 			continue
 		end
-		local offset = vd - latency
-		table.insert(claims, offset)
-		local lo = math.max(cfg.ViewOffsetMin, guard.est - cfg.ViewSlack)
-		local hi = math.min(cfg.ViewOffsetMax, guard.est + cfg.ViewSlack)
-		local used = math.clamp(offset, lo, hi)
-		if math.abs(used - offset) > 1e-4 then
-			info.clamped += 1
-		end
-		out[te.model] = latency + used
+		info.offsets[name] = vd -- seconds before tRef that this screen drew the target (diagnostic)
 		info.matched += 1
 	end
-	if #claims > 0 then
-		table.sort(claims)
-		local med = claims[math.floor((#claims + 1) / 2)]
-		guard.est = math.clamp(guard.est + math.clamp(med - guard.est, -cfg.ViewEstStep, cfg.ViewEstStep), cfg.ViewOffsetMin, cfg.ViewOffsetMax)
-	end
-	info.estAfter = guard.est
-	return out, info
+	return info
 end
 
 -- pose at server time t (interpolated); falls back to the live pose. Also returns the shield yaw / up flag and the

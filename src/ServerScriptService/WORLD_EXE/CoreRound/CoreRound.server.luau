@@ -65,12 +65,12 @@ end
 CoreDisc.Init({ fire = fire, log = logEvent })
 
 -- ---------- latency (server-measured round trip) ----------
-type Net = { rtt: number, samples: number, pending: { [number]: number }, seq: number, bucket: number, bucketT: number, throwT: { number }, view: { est: number } }
+type Net = { rtt: number, samples: number, pending: { [number]: number }, seq: number, bucket: number, bucketT: number, throwT: { number } }
 local net: { [Player]: Net } = {}
 local function netOf(p: Player): Net
 	local n = net[p]
 	if not n then
-		n = { rtt = 0.05, samples = 0, pending = {}, seq = 0, bucket = 0, bucketT = 0, throwT = {}, view = { est = CoreConfig.Tune("Disc", "ViewOffsetStart") } }
+		n = { rtt = 0.05, samples = 0, pending = {}, seq = 0, bucket = 0, bucketT = 0, throwT = {} }
 		net[p] = n
 	end
 	return n
@@ -80,6 +80,24 @@ end
 -- so RttBiasSeconds is removed before halving (rewind accuracy).
 local function oneWay(p: Player): number
 	return math.max(0, netOf(p).rtt - CoreConfig.Tune("Net", "RttBiasSeconds")) / 2
+end
+
+-- Step 1E closeout: the latency used for REWIND. The script ping above needs the client to answer promptly, so a
+-- client that delays its pongs could inflate it; the engine's own round trip (Player:GetNetworkPing, not scriptable
+-- by the client) caps it.
+local function rewindLatency(p: Player): (number, number)
+	local engine = -1
+	local ok, v = pcall(function()
+		return p:GetNetworkPing()
+	end)
+	if ok and typeof(v) == "number" and v == v and v >= 0 then
+		engine = v
+	end
+	local l = oneWay(p)
+	if engine >= 0 then
+		l = math.min(l, engine / 2 + CoreConfig.Tune("Net", "EnginePingMargin"))
+	end
+	return l, engine
 end
 
 -- token bucket: Net.RateLimitPerSecond requests per second per player
@@ -263,28 +281,21 @@ Request.OnServerEvent:Connect(function(p: Player, op: any, payload: any)
 		end
 		e.chargeStart = nil
 		c:SetAttribute("CR_ChargeStart", nil)
-		-- Step 1E security gate (replaces the correction-pass version, which trusted the client's release timestamp and
-		-- let any recorded position inside RewindMax pick the rewind): latency and the reference time are SERVER-measured;
-		-- the thrower's drawn positions only refine the rewind inside a narrow, server-tracked window
-		-- (CoreCombat.ResolveView). payload.t0 is ignored.
-		local latency = oneWay(p)
+		-- Step 1E closeout: the authoritative rewind is a SERVER policy (CoreDisc: rewind latency + RewindPlayerOffset).
+		-- payload.t0 is ignored; payload.view (where this screen drew each enemy) is measured against server history for
+		-- the agreement log only and cannot change any hit outcome or any stored server state.
+		local latency, enginePing = rewindLatency(p)
 		local tRef = now() - latency
 		local studioDummies = RunService:IsStudio() and workspace:GetAttribute("CR_ViewTestDummies") == true
-		local viewDelay, vinfo = CoreCombat.ResolveView(payload.view, tRef, latency, n.view, function(te)
+		local vinfo = CoreCombat.ResolveView(payload.view, tRef, latency, function(te)
 			return te.model ~= c and (te.player ~= nil or studioDummies)
 		end, {
-			ViewOffsetMin = CoreConfig.Tune("Disc", "ViewOffsetMin"),
-			ViewOffsetMax = CoreConfig.Tune("Disc", "ViewOffsetMax"),
-			ViewSlack = CoreConfig.Tune("Disc", "ViewSlack"),
-			ViewEstStep = CoreConfig.Tune("Disc", "ViewEstStep"),
+			ViewDiagMaxBack = CoreConfig.Tune("Disc", "ViewDiagMaxBack"),
 			ViewMatchTolerance = CoreConfig.Tune("Disc", "ViewMatchTolerance"),
 		})
-		local rewinds = {}
-		for m, r in viewDelay do
-			rewinds[m.Name] = r
-		end
-		logEvent({ kind = "throw_view", player = p.Name, latency = latency, info = vinfo, rewinds = rewinds })
-		CoreDisc.Throw(c, p.Name, if typeof(payload.n) == "number" then payload.n else 0, origin, dir.Unit, latency, charge, viewDelay)
+		local rewindPlayers = math.min(CoreConfig.Tune("Disc", "RewindMax"), latency + CoreConfig.Tune("Disc", "RewindPlayerOffset"))
+		logEvent({ kind = "throw_view", player = p.Name, latency = latency, scriptOneWay = oneWay(p), enginePing = enginePing, rewindPlayers = rewindPlayers, info = vinfo })
+		CoreDisc.Throw(c, p.Name, if typeof(payload.n) == "number" then payload.n else 0, origin, dir.Unit, latency, charge)
 	elseif op == "charge" then
 		-- start charging: only when a throw would be allowed right now
 		local ok = not stunned and not e.shieldUp and (CoreDisc.Ready(c))

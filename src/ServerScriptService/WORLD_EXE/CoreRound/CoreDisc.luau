@@ -9,7 +9,7 @@
 -- return-pass hit within ReturnDedupeSeconds of that target's outbound hit is ignored (no instant double-tap).
 -- Teammates are never hit and their shields never block their own team's discs.
 -- Lag compensation: targets are tested at (now - rewind), rewind = thrower one-way latency + InterpSeconds (dummies)
--- or InterpPlayerSeconds (characters),
+-- or RewindPlayerOffset (characters; Step 1E closeout: a fixed server policy, never chosen by the client),
 -- capped at RewindMax (RewindMode 1); RewindMode 0 tests the current server pose. PROVISIONAL (Step 1 test).
 -- Shield: the server-side panel maths (CoreCombat.Panel), tested before bodies each step.
 
@@ -38,7 +38,6 @@ type Disc = {
 	deflectUntil: number,
 	blockedBy: { [Model]: boolean }, -- owner bug fix: a shield blocks a given disc at most once per throw
 	trace: { { [string]: any } }, -- Step 1E correction pass: Studio diagnostics
-	viewDelay: { [Model]: number }, -- Step 1E correction pass: per-target rewind matched to what the thrower drew
 	log: { any },
 	-- Step 1B: per-throw flight from the server-validated charge (0 = tap). Never changes damage / stun / blocking.
 	charge: number,
@@ -120,7 +119,7 @@ local function turn(d: Disc, why: string)
 end
 
 -- throw (validated by the caller). latency = thrower one-way latency estimate (s).
-function CoreDisc.Throw(owner: Model, ownerName: string, n: number, origin: Vector3, dir: Vector3, latency: number, charge: number?, viewDelay: { [Model]: number }?): number
+function CoreDisc.Throw(owner: Model, ownerName: string, n: number, origin: Vector3, dir: Vector3, latency: number, charge: number?): number
 	nextId += 1
 	local k = math.clamp(charge or 0, 0, 1)
 	local mode = tune("RewindMode")
@@ -144,7 +143,6 @@ function CoreDisc.Throw(owner: Model, ownerName: string, n: number, origin: Vect
 		deflectUntil = 0,
 		blockedBy = {},
 		trace = {},
-		viewDelay = viewDelay or {},
 		log = {},
 		charge = k,
 		outSpeed = lerp(tune("OutSpeed"), tune("ChargedOutSpeed"), k),
@@ -262,13 +260,9 @@ function CoreDisc.StepOne(d: Disc, dt: number)
 			if d.rewind < 0 then
 				return 0
 			end
-			-- Step 1E correction pass: the thrower's own view of this target (matched against server history at throw
-			-- time) when available; otherwise the configured estimate (latency + interpolation delay)
-			local vd = d.viewDelay[e.model]
-			if vd then
-				return math.min(tune("RewindMax"), vd)
-			end
-			return math.min(tune("RewindMax"), d.rewind + (if e.player then tune("InterpPlayerSeconds") else tune("InterpSeconds")))
+			-- Step 1E closeout: server policy only (server-measured latency + a fixed interpolation offset per target
+			-- type). The thrower's reported view is diagnostics only and never reaches this.
+			return math.min(tune("RewindMax"), d.rewind + (if e.player then tune("RewindPlayerOffset") else tune("InterpSeconds")))
 		end
 		for m, e in CoreCombat.All() do
 			-- owner bug fix (Step 1E): a panel that already blocked this disc is ignored for the rest of its flight. A disc
