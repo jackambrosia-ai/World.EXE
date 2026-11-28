@@ -16,11 +16,15 @@
 
 **Match arc:** stable and attractive at match start → destruction exposes interiors and the first simulation faults appear → the simulation visibly fails across the map during the collapse warning → a final, unmistakable WORLD.EXE effect at collapse. Final effects are original; do not reproduce another game's end-of-match presentation. Effects never hide characters or objective markers.
 
-**Style references (technique only):** [Japan Subway Train Station — low-poly PS1/PS2/N64 style](https://bitsoft.itch.io/japan-subway-station) (a recognisable real place in very few triangles, with small photo-sourced tiling textures) and [PSX Starter Kit](https://dysfunctional-games.itch.io/psx-starter-kit) (efficient props: one clear silhouette, a small texture each). Their assets are not used, bought, imported or traced.
+**Style references (technique only):** [Japan Subway Train Station — low-poly PS1/PS2/N64 style](https://bitsoft.itch.io/japan-subway-station) (a recognisable real place in very few triangles, with small photo-sourced tiling textures) and [PSX Starter Kit](https://dysfunctional-games.itch.io/psx-starter-kit) (efficient props: one clear silhouette, a small texture each). Their assets are not used, bought, imported or traced. Their licence terms differ: BitSoft's pack prohibits AI training use; Dysfunctional Games' kit prohibits use in AI generation tools.
 
-**Unchanged:** the Neto character base, the gameplay direction and the map's functional requirements.
+**Unchanged:** the Neto character base, the gameplay direction and the map's functional requirements (street/interior/roof layers, reserved link signalling, objective readability, measured travel-time budgets). Preserving gameplay functionality does **not** lock any existing environment layout: the current alpha map's street plan and building templates may be replaced entirely.
 
-**Before an environment art pass:** the pass itself needs owner authorization, and the texture delivery path in Roblox (uploaded image assets require owner approval) must be decided.
+**Textures (recommended, pending owner decision):** original reusable textures and atlases delivered as privately uploaded Roblox image assets, in separately owner-approved batches. Runtime-generated images (EditableImage) are not the default environment pipeline without a reproducible performance and replication test. No uploads are authorized yet.
+
+**Simulation identity (provisional experiment):** the stable map is an attractive, complete, textured world; later instability causes controlled, local material and geometry failures leading to an original collapse presentation. It must read as a deliberate simulation event, never as an accidental texture-loading failure, and must not imitate another game's wireframe dissolve. No production effects are authorized yet.
+
+**Before an environment art pass:** the pass itself needs owner authorization. The first step is an untextured, playable grey-box of the next map; no final texturing, mesh imports or uploads are part of it.
 
 Use text, icons, shapes, and sound—not color alone—to signal important states.
 
