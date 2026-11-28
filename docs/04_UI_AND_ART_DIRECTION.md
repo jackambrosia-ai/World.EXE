@@ -1,15 +1,26 @@
 # WORLD.EXE — UI and Art Direction
 
-## 1. Visual identity
-**Style:** polished, stylized science-fiction simulation. Clean modular geometry, luminous but restrained holographic elements, digital-grid motifs, and controlled glitch effects. Colorful and readable rather than dark, noisy, or aggressively screen-distorting.
+## 1. Visual identity (owner-approved 2026-11-27: modern PSX-inspired low-poly)
+> This section replaces the earlier navy/cyan/violet/amber "stylized sci-fi" environment style. The HUD, accessibility and asset-policy rules in the later sections still apply.
 
-**Palette guidance:**
-- Deep navy/charcoal: panels and background contrast.
-- Electric cyan: neutral system information.
-- Violet: simulation and patch identity.
-- Amber: warnings and impending hazards.
-- Green: objectives and successful repairs.
-- Red/coral: critical danger, used sparingly.
+**Direction:** believable, cohesive places built from **low-polygon geometry with carefully authored, detailed textures**, rendered **cleanly and modernly**. The environment is attractive and stable at the start of a match, and is **progressively transformed by destruction and simulation instability**, ending in simulation effects with an **original WORLD.EXE identity**.
+
+**Requirements**
+- Believable, cohesive environments with recognizable real-world architecture and proportions at character scale.
+- Low-poly models; detail lives in the textures (wear, grime, seams, tiles, signage). Consistent texel density; small reusable texture sets.
+- Modern, clean rendering: good lighting, shadows, ambient occlusion, a stable image. **Not** deliberately degraded PS1 graphics: no vertex wobble, affine texture warping, dithering or colour crushing.
+- Strong silhouettes, believable proportions and material variety (concrete, tile, plaster, metal, glass, wood, fabric, asphalt).
+- Professional third-person combat readability: characters separate from the world by value and outline; the environment avoids team colours and high-contrast noise at character height.
+- No fixed brand palette. Each area takes a restrained palette from its real materials. **Saturated colour is reserved for gameplay meaning** (team colours on characters, objective markers, one reserved signal for usable traversal links).
+- Destructible buildings must still look right when split into pieces (exposed interiors, broken edges).
+
+**Match arc:** stable and attractive at match start → destruction exposes interiors and the first simulation faults appear → the simulation visibly fails across the map during the collapse warning → a final, unmistakable WORLD.EXE effect at collapse. Final effects are original; do not reproduce another game's end-of-match presentation. Effects never hide characters or objective markers.
+
+**Style references (technique only):** [Japan Subway Train Station — low-poly PS1/PS2/N64 style](https://bitsoft.itch.io/japan-subway-station) (a recognisable real place in very few triangles, with small photo-sourced tiling textures) and [PSX Starter Kit](https://dysfunctional-games.itch.io/psx-starter-kit) (efficient props: one clear silhouette, a small texture each). Their assets are not used, bought, imported or traced.
+
+**Unchanged:** the Neto character base, the gameplay direction and the map's functional requirements.
+
+**Before an environment art pass:** the pass itself needs owner authorization, and the texture delivery path in Roblox (uploaded image assets require owner approval) must be decided.
 
 Use text, icons, shapes, and sound—not color alone—to signal important states.
 
@@ -55,8 +66,8 @@ Initial interface: main menu/lobby, Architect UI, match HUD, Patch Archive (basi
 ## 8. Asset policy
 Use Roblox primitives and original meshes for prototypes. Do not insert unreviewed free models with unknown scripts. Inspect Creator Store asset provenance and contents. Ask before uploading, purchasing, or using assets with licensing uncertainty. No copyrighted characters, distinctive map replicas, or reference-game assets.
 
-## Reference image
-The user supplied a visual development reference board for WORLD.EXE in the project conversation. Treat it as art-direction guidance, not a literal screenshot to reproduce. Match its navy/cyan/violet palette, restrained amber warnings, simulation arena zones, stability HUD, Architect cards, controlled corruption, and low-gravity presentation.
+## Reference image (historical)
+The earlier visual development reference board (navy/cyan/violet palette, simulation arena zones, Architect cards, low-gravity presentation) is **superseded for environment style and palette** by the owner-approved direction in section 1 (2026-11-27). Treat it as history, not as current guidance.
 ## ForgeGUI production handoff
 
 ForgeGUI is available to Claude as an additional visual asset tool (the exact exposed capabilities must be checked in the active Claude session). Use it to accelerate original visual assets such as:
@@ -69,7 +80,7 @@ Production sequence:
 1. ChatGPT/owner locks a small asset brief: purpose, style, dimensions/aspect ratio, palette, variants, and use location.
 2. Claude checks ForgeGUI connection/tools and any credit cost without generating.
 3. Owner approves the particular generation batch and credit budget.
-4. Claude generates a small set of candidates and reviews them against the visual reference board.
+4. Claude generates a small set of candidates and reviews them against the current visual direction (section 1).
 5. Owner approves chosen candidates.
 6. Claude imports/inserts the chosen assets through an available supported path and verifies them in the intended Studio place.
 7. Claude builds the editable Roblox UI hierarchy and Luau behavior around the assets.
